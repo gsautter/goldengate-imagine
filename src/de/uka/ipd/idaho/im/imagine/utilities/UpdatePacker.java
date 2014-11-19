@@ -73,6 +73,8 @@ public class UpdatePacker {
 		long lastUpdateTimestamp = getLastUpdateTimestamp(rootFolder);
 		System.out.println("Last update was " + lastUpdateTimestamp);
 		
+		//	TODO read relevant JAR names from config file
+		
 		String[] updateFileNames = getUpdateJars(rootFolder, updateName, lastUpdateTimestamp);
 		if (updateFileNames.length == 0) {
 			System.out.println("No jar files selected for update, aborting.");
@@ -105,7 +107,7 @@ public class UpdatePacker {
 		File updateFolder = new File(rootFolder, "_Updates/");
 		File[] updateFiles = updateFolder.listFiles(new FileFilter() {
 			public boolean accept(File file) {
-				return (file.isFile() && file.getName().endsWith(".zip"));
+				return (file.isFile() && file.getName().endsWith(".zip") && file.getName().startsWith("GgUpdate.IM."));
 			}
 		});
 		

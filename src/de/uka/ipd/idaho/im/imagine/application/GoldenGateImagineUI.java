@@ -32,9 +32,12 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Point;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -46,6 +49,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.font.TextLayout;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -60,11 +65,14 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
 
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
@@ -96,6 +104,7 @@ import de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessorManager;
 import de.uka.ipd.idaho.goldenGate.plugins.DocumentSaveOperation;
 import de.uka.ipd.idaho.goldenGate.plugins.DocumentSaver;
 import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePlugin;
+import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
 import de.uka.ipd.idaho.goldenGate.util.ResourceDialog;
 import de.uka.ipd.idaho.im.ImAnnotation;
 import de.uka.ipd.idaho.im.ImDocument;
@@ -115,6 +124,7 @@ import de.uka.ipd.idaho.im.pdf.PdfExtractor;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.PagePoint;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.PageThumbnail;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.TwoClickActionMessenger;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.TwoClickSelectionAction;
 import de.uka.ipd.idaho.im.util.ImImageEditorPanel.ImImageEditTool;
@@ -319,6 +329,17 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		mi.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent ae) {
 				exit();
+			}
+		});
+		menu.add(mi);
+		
+		menu.addSeparator();
+		mi = new JMenuItem("Select Pages");
+		mi.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent ae) {
+				ImDocumentEditorTab idet = getActiveDocument();
+				if (idet != null)
+					idet.selectVisiblePages();
 			}
 		});
 		menu.add(mi);
@@ -909,6 +930,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		}
 		abstract void doExecute();
 	}
+	
 	private static class MultipartUndoAction extends UndoAction {
 		LinkedList parts = new LinkedList();
 		MultipartUndoAction(String label, ImDocumentEditorTab target) {
@@ -1009,6 +1031,22 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 					ImDocumentEditorTab.this.validate();
 					ImDocumentEditorTab.this.repaint();
 				}
+				public void setVisiblePages(int[] visiblePageIDs) {
+					boolean pageVisibilityUnchanged = true;
+					HashSet visiblePageIdSet = new HashSet();
+					for (int i = 0; i < visiblePageIDs.length; i++)
+						visiblePageIdSet.add(new Integer(visiblePageIDs[i]));
+					for (int p = 0; p < this.document.getPageCount(); p++)
+						if (this.isPageVisible(p) != visiblePageIdSet.contains(new Integer(p))) {
+							pageVisibilityUnchanged = false;
+							break;
+						}
+					if (pageVisibilityUnchanged)
+						return;
+					super.setVisiblePages(visiblePageIDs);
+					ImDocumentEditorTab.this.validate();
+					ImDocumentEditorTab.this.repaint();
+				}
 				public void setSideBySidePages(int sbsp) {
 					if (sbsp == this.getSideBySidePages())
 						return;
@@ -1041,6 +1079,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 					this.idmp.setTextStreamTypeColor(textStreamTypes[t], tsc);
 			}
 			
+			//	TODO also use this for REDO logging
 			//	prepare recording UNDO actions
 			this.undoRecorder = new ImDocumentListener() {
 				public void typeChanged(final ImObject object, final String oldType) {
@@ -1198,6 +1237,129 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			this.repaint();
 			if (viewCenterPage != null)
 				this.idmpBox.getViewport().setViewPosition(viewCenterPage.getLocation());
+		}
+		
+		void selectVisiblePages() {
+			
+			//	create selector tiles and compute size
+			PageSelectorTile[] psts = new PageSelectorTile[idmp.document.getPageCount()];
+			int ptWidth = 0;
+			int ptHeight = 0;
+			for (int p = 0; p < psts.length; p++) {
+				PageThumbnail pt = this.idmp.getPageThumbnail(p);
+				psts[p] = new PageSelectorTile(pt, this.idmp.isPageVisible(p));
+				ptWidth = Math.max(ptWidth, pt.getPreferredSize().width);
+				ptHeight = Math.max(ptHeight, pt.getPreferredSize().height);
+			}
+			
+			//	set selector tile size (adding 4 for border width)
+			for (int p = 0; p < psts.length; p++)
+				psts[p].setPreferredSize(new Dimension(((ptWidth * 2) + 4), ((ptHeight * 2) + 4)));
+			
+			//	create dialog
+			final DialogPanel vps = new DialogPanel("Select Visible Pages", true);
+			vps.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+			vps.setSize(vps.getOwner().getSize());
+			vps.setLocationRelativeTo(vps.getOwner());
+			
+			//	compute number of selector tiles that fit side by side
+			int sideBySidePsts = ((vps.getSize().width + 10) / (((ptWidth * 2) + 4) + 10));
+			
+			//	line up selector tiles
+			JPanel pstPanel = new JPanel(new GridBagLayout(), true);
+			GridBagConstraints gbc = new GridBagConstraints();
+			gbc.insets.left = 5;
+			gbc.insets.right = 5;
+			gbc.insets.top = 5;
+			gbc.insets.bottom = 5;
+			gbc.gridwidth = 1;
+			gbc.gridheight = 1;
+			gbc.weightx = 0;
+			gbc.weighty = 0;
+			gbc.gridx = 0;
+			gbc.gridy = 0;
+			for (int p = 0; p < psts.length; p++) {
+				pstPanel.add(psts[p], gbc.clone());
+				gbc.gridx++;
+				if (gbc.gridx == sideBySidePsts) {
+					gbc.gridx = 0;
+					gbc.gridy++;
+				}
+			}
+			gbc.gridwidth = Math.min(psts.length, sideBySidePsts);
+			gbc.weighty = 1;
+			gbc.gridx = 0;
+			gbc.gridy++;
+			pstPanel.add(new JPanel(), gbc.clone());
+			JScrollPane pstPanelBox = new JScrollPane(pstPanel);
+			pstPanelBox.getVerticalScrollBar().setUnitIncrement(50);
+			pstPanelBox.getVerticalScrollBar().setBlockIncrement(50);
+			
+			//	add buttons
+			final boolean[] cancelled = {false};
+			JButton ok = new JButton("OK");
+			ok.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					vps.dispose();
+				}
+			});
+			JButton cancel = new JButton("Cancel");
+			cancel.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					cancelled[0] = true;
+					vps.dispose();
+				}
+			});
+			JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER), true);
+			buttons.add(ok);
+			buttons.add(cancel);
+			
+			//	assemble dialog content
+			vps.add(pstPanelBox, BorderLayout.CENTER);
+			vps.add(buttons, BorderLayout.SOUTH);
+			
+			//	show dialog
+			vps.setVisible(true);
+			
+			//	cancelled
+			if (cancelled[0])
+				return;
+			
+			//	select visible pages
+			int[] visiblePageIDs = new int[psts.length];
+			for (int p = 0; p < psts.length; p++)
+				visiblePageIDs[p] = (psts[p].pageVisible ? p : -1);
+			this.idmp.setVisiblePages(visiblePageIDs);
+		}
+		
+		private class PageSelectorTile extends JPanel {
+			private PageThumbnail pt;
+			boolean pageVisible;
+			PageSelectorTile(PageThumbnail pt, boolean pageVisible) {
+				super(new BorderLayout(), true);
+				this.pt = pt;
+				this.pageVisible = pageVisible;
+				this.setBorder();
+				this.setToolTipText(this.pt.getTooltipText());
+				this.addMouseListener(new MouseAdapter() {
+					public void mouseClicked(MouseEvent me) {
+						togglePageVisible();
+					}
+				});
+			}
+			void setBorder() {
+				this.setBorder(BorderFactory.createLineBorder((this.pageVisible ? Color.DARK_GRAY : Color.LIGHT_GRAY), 2));
+			}
+			public void paint(Graphics g) {
+				super.paint(g);
+				this.pt.paint(g, 2, 2, (this.getWidth()-4), (this.getHeight()-4), this);
+			}
+			void togglePageVisible() {
+				this.pageVisible = !this.pageVisible;
+				this.setBorder();
+				this.validate();
+				this.repaint();
+			}
 		}
 		
 		private void addUndoAction(UndoAction ua) {

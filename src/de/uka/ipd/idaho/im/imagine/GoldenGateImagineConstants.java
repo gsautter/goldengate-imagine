@@ -57,7 +57,7 @@ public interface GoldenGateImagineConstants {
 	public static final String DEFAULT_WINDOW_TITLE = "GoldenGATE Imagine";
 	
 	/** The current GoldenGATE Imagine version number, prefixed by a 'V' */
-	public static final String VERSION_STRING = "V1";
+	public static final String VERSION_STRING = "IM";
 	
 	/**
 	 * The version date of the GoldenGATE Imagine Core, indicating when the

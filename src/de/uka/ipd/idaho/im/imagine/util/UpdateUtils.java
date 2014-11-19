@@ -114,7 +114,7 @@ public class UpdateUtils implements GoldenGateImagineConstants {
 	
 	private static final SimpleDateFormat timestamper = new SimpleDateFormat("yyyyMMdd-HHmm");
 	
-	private static final String updateNamePrefix = "GgImagineUpdate";
+	private static final String updateNamePrefix = "GgUpdate";
 //	private static final String updateVersionString = "V3";
 //	private static final String updateName = (updateNamePrefix + "." + updateVersionString + ".");
 //	private static final String updateNameRegEx = (updateNamePrefix + "\\." + updateVersionString + "\\.");
