@@ -872,6 +872,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	
 	void addDocument(ImDocumentEditorTab idet) {
 		this.docTabs.addTab(idet.getDocumentName(), idet);
+		this.docTabs.setSelectedComponent(idet);
 	}
 	
 	void removeDocument(ImDocumentEditorTab idet) {
