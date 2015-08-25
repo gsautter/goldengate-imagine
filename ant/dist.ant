@@ -5,7 +5,7 @@
 -->
 
 <project name="dist">
-	<target name="zips" depends="imaginezip,vpackerzip">
+	<target name="zips" depends="imaginezip,vpackerzip,imfdocio">
 	</target>
 	
 	<target name="imagine">
@@ -83,5 +83,15 @@
 			<fileset dir="${dist.home}/" includes="_VersionPacker.imagine.jar"/>
 			<fileset dir="." includes="LICENSE.txt"/>
 		</zip>
+	</target>
+	
+	<target name="imfdocio">
+		<delete file="${dist.home}/Plugins/ImfDocumentFormat.jar"/>
+		<jar destfile="${dist.home}/Plugins/ImfDocumentFormat.jar">
+			<fileset dir="${build.home}/classes" includes="**/ImfDocumentFormatProvider.class"/>
+			<fileset dir="${build.home}/classes" includes="**/ImfDocumentFormatProvider$**.class"/>
+			<fileset dir="${src.home}" includes="**/ImfDocumentFormatProvider.java"/>
+			<fileset dir="." includes="LICENSE.txt"/>
+		</jar>
 	</target>
 </project>
