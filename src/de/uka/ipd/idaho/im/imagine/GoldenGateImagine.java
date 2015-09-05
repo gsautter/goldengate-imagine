@@ -95,6 +95,7 @@ import de.uka.ipd.idaho.im.imagine.plugins.ReactionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
 import de.uka.ipd.idaho.im.ocr.OcrEngine;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.stringUtils.StringVector;
 
 /**
@@ -468,6 +469,49 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	private void registerSelectionActionProvider(SelectionActionProvider sap) {
 		if (sap != null)
 			this.selectionActionProvidersByClassName.put(sap.getClass().getName(), sap);
+	}
+	
+	/**
+	 * Retrieve an image markup tool by its name. The name may be fully
+	 * qualified, i.e., include the providerClassName, but need not. In the
+	 * latter case, all image markup tool providers will be asked for an image
+	 * markup tool with the specified name, and the first one found will be
+	 * returned.
+	 * @param name the name of the image markup tool
+	 * @return the image markup tool with the specified name, or null, if there
+	 *         is no such image markup tool
+	 */
+	public ImageMarkupTool getImageMarkupToolForName(String name) {
+		int nameSplit = ((name == null) ? -1 : name.indexOf('@'));
+		if ((nameSplit == -1) || ((nameSplit + 1) == name.length()))
+			return this.getImageMarkupToolForName(name, null);
+		else return this.getImageMarkupToolForName(name.substring(0, nameSplit), name.substring(nameSplit + 1));
+	}
+	
+	/**
+	 * Retrieve an image markup tool by its name. The providerClassName may be
+	 * null. In this latter case, all image markup tool providers will be asked
+	 * for an image markup tool with the specified name, and the first one found
+	 * will be returned.
+	 * @param name the name of the image markup tool
+	 * @param providerClassName the class name of the desired image markup tool
+	 *            provider to ask for the image markup tool
+	 * @return the image markup tool with the specified name, or null, if there
+	 *         is no such image markup tool
+	 */
+	public ImageMarkupTool getImageMarkupToolForName(String name, String providerClassName) {
+		if (providerClassName == null) {
+			ImageMarkupToolProvider[] imtps = this.getImageMarkupToolProviders();
+			for (int p = 0; p < imtps.length; p++) {
+				ImageMarkupTool imt = imtps[p].getImageMarkupTool(name);
+				if (imt != null) return imt;
+			}
+			return null;
+		}
+		else {
+			ImageMarkupToolProvider imtp = this.getImageMarkupToolProvider(providerClassName);
+			return ((imtp == null) ? null : imtp.getImageMarkupTool(name));
+		}
 	}
 	
 	/**
