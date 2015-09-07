@@ -898,6 +898,20 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				if (file.isDirectory())
 					return;
 				try {
+					
+					//	make sure file has appropriate extension
+					if (!file.getName().toLowerCase().endsWith(".xml"))
+						file = new File(file.toString() + ".xml");
+					
+					//	make way
+					if (file.exists()) {
+						String fileName = file.toString();
+						File oldFile = new File(fileName + "." + System.currentTimeMillis() + ".old");
+						file.renameTo(oldFile);
+						file = new File(fileName);
+					}
+					
+					//	export document
 					ImDocumentRoot doc = new ImDocumentRoot(idet.idmp.document, (ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS | ImDocumentRoot.SHOW_TOKENS_AS_WORD_ANNOTATIONS));
 					Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
 					GenericGamtaXML.storeDocument(doc, out);
@@ -1010,16 +1024,35 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	}
 	
 	private void exportXml(ImDocument doc, File file, int configFlags, boolean exportIDs) throws IOException {
+		
+		//	make sure file has appropriate extension
+		if (!file.getName().toLowerCase().endsWith(".xml"))
+			file = new File(file.toString() + ".xml");
+		
+		//	make way
+		if (file.exists()) {
+			String fileName = file.toString();
+			File oldFile = new File(fileName + "." + System.currentTimeMillis() + ".old");
+			file.renameTo(oldFile);
+			file = new File(fileName);
+		}
+		
+		//	export document
 		ImDocumentRoot xmlDoc = new ImDocumentRoot(doc, configFlags);
 		Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
 		AnnotationUtils.writeXML(xmlDoc, out, exportIDs);
+		out.flush();
 		out.close();
 	}
 	
 	private void exportDocument(ImDocument doc, DocumentSaver docSaver, String docName) throws IOException {
+		
+		//	obtain document save peration
 		DocumentSaveOperation dso = docSaver.getSaveOperation(docName, null);
 		if (dso == null)
 			return;
+		
+		//	export file
 		ImDocumentRoot xmlDoc = new ImDocumentRoot(doc, ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS);
 		xmlDoc.setShowTokensAsWordsAnnotations(true);
 		dso.saveDocument(xmlDoc);
