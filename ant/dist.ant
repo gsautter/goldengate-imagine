@@ -5,7 +5,7 @@
 -->
 
 <project name="dist">
-	<target name="zips" depends="imaginezip,vpackerzip,imfdocio">
+	<target name="zips" depends="imaginezip,imaginebatchzip,vpackerzip,imfdocio">
 	</target>
 	
 	<target name="imagine">
@@ -13,13 +13,28 @@
 		<jar destfile="${jar.imagine}" manifest="${file.home}/MANIFEST.imagine.MF">
 			<fileset dir="${build.home}/classes">
 				<include name="**/**.class" />
-				<exclude name="**/utilities/**.class" />
+				<exclude name="**/batch/**.class" />
 				<exclude name="**/starter/**.class" />
+				<exclude name="**/utilities/**.class" />
 			</fileset>
 			<fileset dir="${src.home}">
 				<include name="**/**.java" />
-				<exclude name="**/utilities/**.java" />
+				<exclude name="**/batch/**.java" />
 				<exclude name="**/starter/**.java" />
+				<exclude name="**/utilities/**.java" />
+			</fileset>
+			<fileset dir="." includes="LICENSE.txt"/>
+		</jar>
+	</target>
+	
+	<target name="imaginebatch">
+		<delete file="${jar.imaginebatch}" />
+		<jar destfile="${jar.imaginebatch}" manifest="${file.home}/MANIFEST.batch.MF">
+			<fileset dir="${build.home}/classes">
+				<include name="**/batch/**.class" />
+			</fileset>
+			<fileset dir="${src.home}">
+				<include name="**/batch/**.java" />
 			</fileset>
 			<fileset dir="." includes="LICENSE.txt"/>
 		</jar>
@@ -55,9 +70,18 @@
 		<delete file="${app.imagine}" />
 		<zip destfile="${app.imagine}">
 			<fileset dir="${lib.home}"/>
-			<fileset dir="${file.home}/imagine"/>
+			<fileset dir="${file.home}/imagine" excludes="GgImagineBatch.cnfg"/>
 			<fileset dir="${dist.home}/" includes="GgImagine.jar"/>
 			<fileset dir="${dist.home}/" includes="GgImagineStarter.jar"/>
+			<fileset dir="." includes="LICENSE.txt"/>
+		</zip>
+	</target>
+	
+	<target name="imaginebatchzip" depends="imagine,imaginebatch">
+		<delete file="${app.imaginebatch}" />
+		<zip destfile="${app.imaginebatch}">
+			<fileset dir="${file.home}/imagine" includes="GgImagineBatch.cnfg"/>
+			<fileset dir="${dist.home}/" includes="GgImagineBatch.jar"/>
 			<fileset dir="." includes="LICENSE.txt"/>
 		</zip>
 	</target>

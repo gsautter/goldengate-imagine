@@ -1,0 +1,5 @@
+//	name of configuration to load, defaults to master (to use another configuration, remove double slash and enter configuration name)
+//configName = "<configNameToUse>";
+
+//	name of image markup tools to run, in order of application (fill in the names of the tools to run, separated by spaces)
+imageMarkupTools = "";

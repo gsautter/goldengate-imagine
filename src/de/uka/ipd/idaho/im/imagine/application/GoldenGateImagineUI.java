@@ -1711,7 +1711,7 @@ Add "Advanced" menu to GG Imagine
 		MultipartUndoAction(String label, ImDocumentEditorTab target) {
 			super(label, target);
 		}
-		void addUndoAction(UndoAction ua) {
+		synchronized void addUndoAction(UndoAction ua) {
 			this.parts.addFirst(ua);
 		}
 		void doExecute() {
