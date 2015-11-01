@@ -34,7 +34,6 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -54,7 +53,7 @@ import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePlugin;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagineConstants;
-import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentExporter;
+import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentFileExporter;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImfIO;
@@ -330,7 +329,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		}
 		
 		//	get document exporters for additional output
-		ImageDocumentFileExporter[] idfes = getExporters(ggiConfig.getPlugins());
+		ImageDocumentFileExporter[] idfes = getFileExporters(ggiConfig.getPlugins());
 		
 		//	create progress monitor forking steps to console
 		ProgressMonitor pm = new ProgressMonitor() {
@@ -455,31 +454,12 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		}
 	}
 	
-	private static ImageDocumentFileExporter[] getExporters(GoldenGatePlugin[] ggPlugins) {
+	private static ImageDocumentFileExporter[] getFileExporters(GoldenGatePlugin[] ggPlugins) {
 		ArrayList idfeList = new ArrayList();
 		for (int p = 0; p < ggPlugins.length; p++) {
 			if (ggPlugins[p] instanceof ImageDocumentFileExporter)
 				idfeList.add(ggPlugins[p]);
 		}
 		return ((ImageDocumentFileExporter[]) idfeList.toArray(new ImageDocumentFileExporter[idfeList.size()]));
-	}
-	
-	/**
-	 * Image Document Exporter that can write directly to a file, without a
-	 * user choosing the export destination file in some sort of way.
-	 * 
-	 * @author sautter
-	 */
-	public static interface ImageDocumentFileExporter extends ImageDocumentExporter {
-		
-		/**
-		 * Export a document. Implementations may extend the name of the
-		 * argument file to avoid collisions, but should not modify the parent
-		 * file, i.e., the destination path.
-		 * @param doc the document to export
-		 * @param destFile the destination file
-		 * @param pm a progress monitor observing export progress
-		 */
-		public abstract void exportDocument(final ImDocument doc, File destFile, ProgressMonitor pm) throws IOException;
 	}
 }
