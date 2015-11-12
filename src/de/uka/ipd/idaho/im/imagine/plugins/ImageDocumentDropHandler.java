@@ -27,6 +27,7 @@
  */
 package de.uka.ipd.idaho.im.imagine.plugins;
 
+import java.awt.datatransfer.Transferable;
 import java.awt.dnd.DropTargetDropEvent;
 
 import de.uka.ipd.idaho.im.ImPage;
@@ -47,7 +48,12 @@ public interface ImageDocumentDropHandler extends GoldenGateImaginePlugin {
 	 * target location indicated in the drop event to this coordinate space. If
 	 * an implementation handles the drop, it has to return <code>true</code>
 	 * to indicate so, and client code should not consult any further drop
-	 * handlers soon as one indicates having handled the drop.
+	 * handlers soon as one indicates having handled the drop. This method
+	 * signature has the advantage that it takes the actual drop event as an
+	 * argument, so all related information is available. However, it does not
+	 * easily support emulated calls, as a <code>DropTargetDropEvent</code> is
+	 * hard to create without an actual drop happening on an actual
+	 * <code>DropTarget</code>.
 	 * @param idmp the document markup panel the drop event occurred on
 	 * @param page the page the drop occurred on
 	 * @param pageX the X coordinate of the drop point in the argument page
@@ -56,4 +62,26 @@ public interface ImageDocumentDropHandler extends GoldenGateImaginePlugin {
 	 * @return true to indicate the drop was handled, false otherwise
 	 */
 	public abstract boolean handleDrop(ImDocumentMarkupPanel idmp, ImPage page, int pageX, int pageY, DropTargetDropEvent dtde);
+	
+	/**
+	 * Handle a drop event on an Image Markup document. The argument drop
+	 * coordinates are relative to the argument page, and in the resolution
+	 * of the page. Client code is responsible for translating whichever drop
+	 * target location indicated in the drop event to this coordinate space. If
+	 * an implementation handles the drop, it has to return <code>true</code>
+	 * to indicate so, and client code should not consult any further drop
+	 * handlers soon as one indicates having handled the drop. This method
+	 * signature only accepts the actual transfer data, so any additional
+	 * information is not accessible. On the other hand, it easily supports
+	 * emulated calls, as a <code>Transferable</code> is a lot more easy to
+	 * create than an actual <code>DropTargetDropEvent</code> when no actual
+	 * drop has happened on an actual <code>DropTarget</code>.
+	 * @param idmp the document markup panel the drop event occurred on
+	 * @param page the page the drop occurred on
+	 * @param pageX the X coordinate of the drop point in the argument page
+	 * @param pageY the Y coordinate of the drop point in the argument page
+	 * @param transfer the dropped data
+	 * @return true to indicate the drop was handled, false otherwise
+	 */
+	public abstract boolean handleDrop(ImDocumentMarkupPanel idmp, ImPage page, int pageX, int pageY, Transferable transfer);
 }
