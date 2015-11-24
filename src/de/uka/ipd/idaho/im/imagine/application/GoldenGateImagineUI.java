@@ -69,6 +69,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -157,6 +158,7 @@ import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.TwoClickActionMessenger;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.TwoClickSelectionAction;
 import de.uka.ipd.idaho.im.util.ImImageEditorPanel.ImImageEditTool;
 import de.uka.ipd.idaho.im.util.ImfIO;
+import de.uka.ipd.idaho.im.util.ImfIO.ImfEntry;
 import de.uka.ipd.idaho.im.util.SymbolTable;
 
 /**
@@ -371,10 +373,12 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			public void actionPerformed(ActionEvent ae) {
 				clearFileFilters(fileChooser);
 				fileChooser.addChoosableFileFilter(imfFileFilter);
+				fileChooser.addChoosableFileFilter(imdFileFilter);
 				fileChooser.addChoosableFileFilter(genericPdfFileFilter);
 				fileChooser.addChoosableFileFilter(textPdfFileFilter);
 				fileChooser.addChoosableFileFilter(imagePdfFileFilter);
 				fileChooser.addChoosableFileFilter(imageAndMetaPdfFileFilter);
+				fileChooser.setFileFilter(imfFileFilter);
 				if (this.loadFileFilter != null)
 					fileChooser.setFileFilter(this.loadFileFilter);
 				if (fileChooser.showOpenDialog(GoldenGateImagineUI.this) != JFileChooser.APPROVE_OPTION)
@@ -382,9 +386,14 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				File file = fileChooser.getSelectedFile();
 				this.loadFileFilter = fileChooser.getFileFilter();
 				try {
-					InputStream in = new BufferedInputStream(new FileInputStream(file));
-					loadDocument(file.getName(), file, null, this.loadFileFilter, in, ((int) file.length()));
-					in.close();
+					if (this.loadFileFilter == imdFileFilter) {
+						loadDocument(file.getName(), file, null, this.loadFileFilter, null, -1);
+					}
+					else {
+						InputStream in = new BufferedInputStream(new FileInputStream(file));
+						loadDocument(file.getName(), file, null, this.loadFileFilter, in, ((int) file.length()));
+						in.close();
+					}
 				}
 				catch (Exception e) {
 					JOptionPane.showMessageDialog(GoldenGateImagineUI.this, ("An error occurred while loading a document from '" + file.getAbsolutePath() + "':\n" + e.getMessage()), "Error Loading Document", JOptionPane.ERROR_MESSAGE);
@@ -478,6 +487,8 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 					try {
 						FileFilter matchFileFilter;
 						if (imfFileFilter.accept(droppedFile))
+							matchFileFilter = imfFileFilter;
+						else if (imdFileFilter.accept(droppedFile))
 							matchFileFilter = imfFileFilter;
 						else if (genericPdfFileFilter.accept(droppedFile))
 							matchFileFilter = genericPdfFileFilter;
@@ -1473,7 +1484,7 @@ Add "Advanced" menu to GG Imagine
 			this.config.setSetting("lastDocFolder", docSource.getParentFile().getAbsolutePath());
 		
 		//	load IMF
-		if (docName.toLowerCase().endsWith(".imf")) {
+		if (fileFilter == imfFileFilter) {
 			final IOException[] loadException = {null};
 			final ResourceSplashScreen loadScreen = new ResourceSplashScreen(this, ("Loading IMF Archive '" + docName + "'"), "", true, false);
 			System.out.println("Creating load thread");
@@ -1486,8 +1497,42 @@ Add "Advanced" menu to GG Imagine
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
 						ggImagine.notifyDocumentOpened(doc);
-						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource));
+						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, imfFileFilter));
 						in.close();
+					}
+					catch (IOException ioe) {
+						loadException[0] = ioe;
+					}
+					finally {
+						loadScreen.dispose();
+					}
+				}
+			};
+			loadThread.start();
+			loadScreen.setVisible(true);
+			if (loadException[0] == null)
+				return;
+			else throw loadException[0];
+		}
+		
+		//	load IMD
+		if (fileFilter == imdFileFilter) {
+			final IOException[] loadException = {null};
+			final ResourceSplashScreen loadScreen = new ResourceSplashScreen(this, ("Loading IMF Directory '" + docName + "'"), "", true, false);
+			System.out.println("Creating load thread");
+			Thread loadThread = new Thread("LoaderThread") {
+				public void run() {
+					try {
+						File docFolder = new File(docSource.getAbsolutePath() + "ir");
+						if (!docFolder.exists())
+							throw new FileNotFoundException("Data directory not found for " + docSource.getName());
+						loadScreen.setStep("Loading IMF Directory");
+						ImDocument doc = ImfIO.loadDocument(docFolder, loadScreen);
+						doc.setAttribute(DOCUMENT_NAME_ATTRIBUTE, docName);
+						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
+							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
+						ggImagine.notifyDocumentOpened(doc);
+						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, imdFileFilter));
 					}
 					catch (IOException ioe) {
 						loadException[0] = ioe;
@@ -1602,7 +1647,7 @@ Add "Advanced" menu to GG Imagine
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
 						ggImagine.notifyDocumentOpened(doc);
-						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource));
+						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, imfFileFilter));
 					}
 					catch (IOException ioe) {
 						loadException[0] = ioe;
@@ -1744,6 +1789,7 @@ Add "Advanced" menu to GG Imagine
 		
 		String docName;
 		File docSource;
+		FileFilter docFormat = imfFileFilter;
 		
 		ImDocumentMarkupPanel idmp;
 		JScrollPane idmpBox;
@@ -1763,11 +1809,12 @@ Add "Advanced" menu to GG Imagine
 		int modCount = 0;
 		int savedModCount = 0;
 		
-		ImDocumentEditorTab(GoldenGateImagineUI parent, ImDocument doc, String docName, File docSource) {
+		ImDocumentEditorTab(GoldenGateImagineUI parent, ImDocument doc, String docName, File docSource, FileFilter docFormat) {
 			super(new BorderLayout(), true);
 			this.parent = parent;
 			this.docName = docName;
 			this.docSource = docSource;
+			this.docFormat = ((docFormat == null) ? imfFileFilter : docFormat);
 			
 			this.idmp = new ImDocumentEditorPanel(doc);
 			
@@ -2565,13 +2612,15 @@ Add "Advanced" menu to GG Imagine
 			if (!this.isDirty())
 				return true;
 			else if (this.docSource != null)
-				return this.saveAs(this.docSource);
+				return this.saveAs(this.docSource, this.docFormat);
 			else return false;
 		}
 		
 		boolean saveAs(JFileChooser fileChooser) {
 			clearFileFilters(fileChooser);
 			fileChooser.addChoosableFileFilter(imfFileFilter);
+			fileChooser.addChoosableFileFilter(imdFileFilter);
+			fileChooser.setFileFilter(this.docFormat);
 			if (this.docSource != null)
 				fileChooser.setSelectedFile(this.docSource);
 			else if (true) {
@@ -2588,14 +2637,24 @@ Add "Advanced" menu to GG Imagine
 			File file = fileChooser.getSelectedFile();
 			if (file.isDirectory())
 				return false;
-			return this.saveAs(file);
+			return this.saveAs(file, fileChooser.getFileFilter());
 		}
 		
-		boolean saveAs(File file) {
+		boolean saveAs(File file, final FileFilter fileFormat) {
 			
 			//	check file name
-			if (!file.getName().endsWith(".imf"))
-				file = new File(file.getAbsolutePath() + ".imf");
+			if ((fileFormat == imfFileFilter) && !file.getName().endsWith(".imf")) {
+				String fileName = file.getAbsolutePath();
+				if (fileName.endsWith(".imd"))
+					fileName = fileName.substring(0, (fileName.length() - ".imd".length()));
+				file = new File(fileName + ".imf");
+			}
+			if ((fileFormat == imdFileFilter) && !file.getName().endsWith(".imd")) {
+				String fileName = file.getAbsolutePath();
+				if (fileName.endsWith(".imf"))
+					fileName = fileName.substring(0, (fileName.length() - ".imf".length()));
+				file = new File(fileName + ".imd");
+			}
 			
 			//	create splash screen
 			final ResourceSplashScreen saveSplashScreen = new ResourceSplashScreen(this.parent, "Saving Document, Please Wait", "", false, false);
@@ -2622,14 +2681,34 @@ Add "Advanced" menu to GG Imagine
 							saveFile[0] = new File(fileName);
 						}
 						
-						//	save document
-						OutputStream out = new BufferedOutputStream(new FileOutputStream(saveFile[0]));
-						ImfIO.storeDocument(ImDocumentEditorTab.this.idmp.document, out, saveSplashScreen);
-						out.flush();
-						out.close();
+						//	save document to folder, and entry list as file
+						if (fileFormat == imdFileFilter) {
+							File docFolder = new File(saveFile[0].getAbsolutePath() + "ir");
+							if (!docFolder.exists())
+								docFolder.mkdirs();
+							ImfEntry[] imfEntries = ImfIO.storeDocument(ImDocumentEditorTab.this.idmp.document, docFolder, saveSplashScreen);
+							BufferedWriter eOut = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(saveFile[0]), "UTF-8"));
+							for (int e = 0; e < imfEntries.length; e++) {
+								eOut.write(imfEntries[e].toTabString());
+								eOut.newLine();
+							}
+							eOut.flush();
+							eOut.close();
+						}
+						
+						//	save document to zip archive
+						else {
+							OutputStream dOut = new BufferedOutputStream(new FileOutputStream(saveFile[0]));
+							ImfIO.storeDocument(ImDocumentEditorTab.this.idmp.document, dOut, saveSplashScreen);
+							dOut.flush();
+							dOut.close();
+						}
+						
+						//	remember saving
 						ImDocumentEditorTab.this.savedModCount = ImDocumentEditorTab.this.modCount;
 						ImDocumentEditorTab.this.docName = saveFile[0].getName();
 						ImDocumentEditorTab.this.docSource = saveFile[0];
+						ImDocumentEditorTab.this.docFormat = fileFormat;
 						ImDocumentEditorTab.this.parent.docTabs.setTitleAt(ImDocumentEditorTab.this.parent.docTabs.indexOfComponent(ImDocumentEditorTab.this), ImDocumentEditorTab.this.docName);
 						saveSuccess[0] = true;
 						
@@ -2694,6 +2773,17 @@ Add "Advanced" menu to GG Imagine
 		}
 		public String getDescription() {
 			return "Image Markup Files";
+		}
+		public String toString() {
+			return this.getDescription();
+		}
+	};
+	private static final FileFilter imdFileFilter = new FileFilter() {
+		public boolean accept(File file) {
+			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".imd"));
+		}
+		public String getDescription() {
+			return "Image Markup Directories";
 		}
 		public String toString() {
 			return this.getDescription();
