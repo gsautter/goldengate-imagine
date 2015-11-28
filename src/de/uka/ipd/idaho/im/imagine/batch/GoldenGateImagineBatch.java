@@ -260,12 +260,12 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			}
 			
 			//	redirect System.out
-			logFileOut.getParentFile().mkdirs();
+			logFileOut.getAbsoluteFile().getParentFile().mkdirs();
 			logFileOut.createNewFile();
 			System.setOut(new PrintStream(new BufferedOutputStream(new FileOutputStream(logFileOut)), true, "UTF-8"));
 			
 			//	redirect System.err
-			logFileErr.getParentFile().mkdirs();
+			logFileErr.getAbsoluteFile().getParentFile().mkdirs();
 			logFileErr.createNewFile();
 			System.setErr(new PrintStream(new BufferedOutputStream(new FileOutputStream(logFileErr)), true, "UTF-8"));
 		}
@@ -354,7 +354,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			String dataOutName = (dataInFiles[d].getName() + ".imf");
 			File dataOutFile;
 			if (dataOutPath == null)
-				dataOutFile = new File(dataInFiles[d].getParentFile(), dataOutName);
+				dataOutFile = new File(dataInFiles[d].getAbsoluteFile().getParentFile(), dataOutName);
 			else dataOutFile = new File(dataOutPath, dataOutName);
 			
 			//	we've processed this one before
@@ -400,7 +400,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			}
 			
 			//	store document
-			dataOutFile.getParentFile().mkdirs();
+			dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
 			OutputStream out = new BufferedOutputStream(new FileOutputStream(dataOutFile));
 			systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
 			ImfIO.storeDocument(doc, out, pm);
