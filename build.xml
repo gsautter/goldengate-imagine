@@ -31,6 +31,7 @@
 	
 	<target name="zips" description="pack the jar files" >
 		<antcall target="dir.copy" />
+		<antcall target="dir.copywebappjars" />
 		<antcall target="dist.zips" />
 	</target>
 </project>
