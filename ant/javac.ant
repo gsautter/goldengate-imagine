@@ -13,6 +13,9 @@
 	    <fileset dir="${lib.home}">
 	        <include name="*.jar" />
 	    </fileset>
+	    <fileset dir="${webLib.home}">
+	        <include name="*.jar" />
+	    </fileset>
 	</path>
 	
 	<!-- The task off all tasks -->

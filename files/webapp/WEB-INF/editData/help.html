@@ -1,0 +1,79 @@
+<html>
+<head>
+<title>GoldenGATE Imagine Online Help</title>
+<script type="text/javascript">
+function getById(id) {
+  return document.getElementById(id);
+}
+function getByName(name) {
+  var elements = document.getElementsByTagName(name);
+  return (((elements != null) && (elements.length != 0)) ? elements[0] : null);
+}
+function newElement(type, id, cssClass, text) {
+  var element = document.createElement(type);
+  if (id != null)
+    setAttribute(element, 'id', id);
+  if (cssClass != null)
+    setAttribute(element, 'class', cssClass);
+  if (text != null)
+    element.appendChild(document.createTextNode(text));
+  return element;
+}
+function removeElement(node) {
+  if (node.parentNode != null)
+    node.parentNode.removeChild(node);
+}
+function setAttribute(node, name, value) {
+  if (!node.setAttributeNode)
+    return;
+  var attribute = document.createAttribute(name);
+  attribute.nodeValue = value;
+  node.setAttributeNode(attribute);
+}
+function getOverlay(id, cssClass, add) {
+  var overlay = newElement('div', id, cssClass, null);
+  setAttribute(overlay, 'style', 'position: fixed; left: 0; top: 0; width: 100%; height: 100%;');
+  if (add) {
+    var body = getByName('body');
+    if (body != null)
+      body.appendChild(overlay);
+  }
+  return overlay;
+}
+</script>
+<script type="text/javascript" src="./helpHelpers.js"></script>
+<script type="text/javascript" src="./help.js"></script>
+<style type="text/css">
+#helpTree {
+	cursor: default;
+}
+.helpTreeEntry {
+	display: inline-block;
+	padding: 1px 2px 1px;
+	white-space: nowrap;
+}
+.helpTreeToggle {
+	display: inline-block;
+	width: 25px;
+	padding: 0px auto 0px;
+	text-align: center;
+}
+.helpTreeTitle {
+	display: inline-block;
+	white-space: nowrap;
+}
+</style>
+</head>
+<body>
+<table height="100%" style="border: 0px; border-spacing: 0px; cell-padding: 0px; cell-spacing: 0px;"><tr>
+<td><div id="helpTree" style="float: left; width: 200px; height: 100%; border: 2px solid #888888; overflow: auto;"></div></td>
+<td><div id="helpContentBox" style="float: left; width: 500px; height: 100%; border: 2px solid #888888;">
+<iframe id="helpContent" src="about:blank" style="width: 100%; height: 100%; border: 0px;"></iframe>
+</div></td>
+</tr></table>
+<script type="text/javascript">
+//hBuildChapterTree();
+//hShowChapter('HLP-917673314');
+</script>
+</body>
+</html>

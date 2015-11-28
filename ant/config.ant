@@ -16,6 +16,9 @@
 	<!-- directory that contains all libraries that are required in the .war -->
 	<property name="lib.home" value="lib" />
 	
+	<!-- directory that contains all libraries that are required in the .war -->
+	<property name="webLib.home" value="tomcatLib" />
+	
 	<!-- build directory that will contain all the .jars and what else is required for a .war -->
 	<property name="build.home" value="build" />
 	
@@ -45,6 +48,9 @@
 	
 	<!-- path to the application .zip file that shall be created -->
 	<property name="app.imaginebatch" value="${dist.home}/GoldenGateImagineBatch.zip" />
+	
+	<!-- path to the application .zip file that shall be created -->
+	<property name="app.imagineweb" value="${dist.home}/GoldenGateImagineWeb.zip" />
 	
 	<!-- path to the application .zip file that shall be created -->
 	<property name="app.vpacker" value="${dist.home}/VersionPacker.imagine.zip" />

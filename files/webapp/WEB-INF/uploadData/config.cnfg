@@ -1,0 +1,8 @@
+//	maximum permitted size of a PDF to upload (suffix with K or M for KB or MB, respectively)
+maxUploadFileSize = "10M";
+
+//	maximum aggregated size of supplements of a single document to hold in memory before caching to disc (suffix with K or M for KB or MB, respectively)
+//	IMPORTANT setting this threshold low reduces memory requirements, but also incurs more disc
+//	writes for smaller documents. Thus it is good to choose a small threshold for fast disc cache,
+//	e.g. on a RAM disc, and larger thresholds for slower disc caches.
+maxInMemorySupplementSize = "50M";

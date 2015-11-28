@@ -1,0 +1,6 @@
+authProviderName = "PlaziCommunity";
+authProviderLabel = "Plazi Markup Community";
+cssNames = "createAccount.css";
+
+//reCaptchaPublicKey = "6Ldp2coSAAAAAKKkQR7NEaUgr4kyKkiLE-sQg6bL";
+//reCaptchaPrivateKey = "6Ldp2coSAAAAAJkM5IT19VyL4tKT0JvM5qlTPD2e";

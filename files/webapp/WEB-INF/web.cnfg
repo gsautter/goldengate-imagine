@@ -1,0 +1,11 @@
+//	the name of the file containing the GoldenGATE Imagine Online
+//iconFileName = "<putIconFileHere>";
+
+//	cache root folder (relative to the WEB-INF folder, or absolute, ideally pointing to a RAM disc)
+cacheRootPath = "./cache";
+
+//	root folder of GoldenGATE Imagine application (relative to the WEB-INF folder, or absolute)
+//	IMPORTANT the user in whose name the surrounding Servlet container is running MUST have
+//	sufficient privileges to execute binaries in this folder, as OCR and image conversion use
+//	third party tools and scripts via the command line.
+ggImagineRootPath = "./ggImagine";

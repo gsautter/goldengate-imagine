@@ -1,0 +1,45 @@
+<html>
+<body>
+<div id="mainMenu" style="position: fixed; z-index: 100; left: 0; top: 0; width: 20px; height: 100%; overflow: hidden; border: 0px solid red; background-color: #BBBBBB; margin: 0px;"></div>
+<div id="twoClickActionLabel" style="position: fixed; left: 0; top: 0; width: 100%; border: 0px solid red; background-color: #FF8888; padding: 5px; text-align: center; display: none;">LABEL</div>
+<table id="main" style="height: 99%; margin-left: 16px; border: 0px; border-spacing: 0px; cell-spacing: 0px;"><tr>
+<td><div id="display" onstartdrag="return false;" ondragstart="return false;" ondragover="cancelDragDefault(event);" ondragenter="cancelDragDefault(event);" ondrop="return false;" style="width: 900px; height: 100%; float: left; overflow: auto; border: 2px solid black; margin-right: 16px; -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;">
+</div></td>
+<td><div id="displayControlAll" style="height: 100%; float: left; margin-left: 16px; border: 2px solid black; cursor: default;">
+	<div id="displayZoom" style="height: 4%;">Document Zoom: <select id="control_zoom" name="zoom" style="float: right;" onchange="changeZoom();">
+		<option value="24">25 %</option>
+		<option value="32">33 %</option>
+		<option value="48">50 %</option>
+		<option value="64">67 %</option>
+		<option value="96" selected="selected">100 %</option>
+		<option value="144">150 %</option>
+		<option value="192">200 %</option>
+		<option value="288">300 %</option>
+		<option value="384">400 %</option>
+	</select></div>
+	<div id="displayPageDirection" style="height: 4%;">Show Pages: <select id="control_pageDirection" name="pageDirection" style="float: right;" onchange="changePageDirection();">
+		<option value="td" selected="selected">Top-Down</option>
+		<option value="lr">Left-Right</option>
+	</select></div>
+	<div id="displayControl" style="height: 92%; overflow: auto;">
+		<div id="control_words" style="margin-top: 5px;">
+			<input id="control_paintTextStreams" type="checkbox" name="paintTextStreams" value="true" onchange="togglePaintTextStreams();" />
+			<span id="control_color_word" class="control_color">word</span>
+		</div>
+		<div id="control_regions" style="margin-top: 5px;">
+			<div id="control_regions_paintAllNone">
+				<button id="control_paintRegionsAll" onclick="togglePaintRegionsAll(true);">Show All</button>
+				<button id="control_paintRegionsNone" onclick="togglePaintRegionsAll(false);">Hide All</button>
+			</div>
+		</div>
+		<div id="control_annots" style="margin-top: 5px;">
+			<div id="control_annots_paintAllNone">
+				<button id="control_paintAnnotsAll" onclick="togglePaintAnnotsAll(true);">Show All</button>
+				<button id="control_paintAnnotsNone" onclick="togglePaintAnnotsAll(false);">Hide All</button>
+			</div>
+		</div>
+	</div>
+</div></td>
+</tr></table>
+</body>
+</html>

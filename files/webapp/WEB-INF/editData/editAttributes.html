@@ -1,0 +1,277 @@
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<title>GoldenGATE Imagine Online</title>
+	<link rel="stylesheet" type="text/css" href="resources/popin.css" />
+	<script type="text/javascript" src="resources/popin.js"></script>
+<style type="text/css">
+.alertForm {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	
+	padding: 10px;
+	border-color: #888888;
+	border-style: solid;
+	border-width: 10px;
+	-moz-border-radius:: 10px;
+	-webkit-border-radius: 10px;
+	border-radius: 10px;
+	background-color: #FFFFFF;
+}
+.alertTitle {
+	font-weight: bold;
+	cursor: default;
+}
+.alertMessage {
+	white-space: nowrap;
+	margin-top: 10px;
+	margin-bottom: 10px;
+	display: block;
+	cursor: default;
+}
+.confirmFormTitle {
+	font-weight: bold;
+	margin-bottom: 5px;
+	cursor: default;
+}
+.confirmFormLabel {
+	white-space: nowrap;
+	cursor: default;
+}
+.confirmFormButtons {
+	margin-top: 10px;
+}
+.editAttributesMain {
+	width: 500px;
+	margin: 10px;
+}
+.editAttributesTitle {
+	font-weight: bold;
+	cursor: default;
+	text-align: center;
+	padding: 5px;
+}
+#attributeTable {
+	border: 1px solid black;
+	cursor: default;
+	height: 300px;
+}
+.attributeTableRow {
+	border-bottom: 1px solid #AAAAAA;
+	white-space: nowrap;
+}
+.editAttributesFields {
+	margin-top: 5px;
+	border: 1px solid black;
+}
+.editAttributesButtons {
+	margin-top: 5px;
+	text-align: center;
+}
+.attributeRemoveButton {
+	margin: 2px;
+	padding: 2px;
+	font-weight: bold;
+}
+.attributeName {
+	padding-left: 5px;
+	font-weight: bold;
+}
+.attributeValue {
+	padding-left: 5px;
+	white-space: nowrap;
+}
+#attributeNameField {
+	width: 69%;
+	margin: 2px;
+}
+.attributeAddButton {
+	width: 29%;
+	float: right;
+	margin: 2px;
+}
+#attributeValueField {
+	width: 99%;
+	margin: 2px;
+}
+
+table, tr, td, th {
+	border: 0px;
+	margin: 0px;
+	padding: 0px;
+}
+</style>
+<script type="text/javascript">
+var attributesById = new Object();
+var attributes = new Array();
+function setDataAttribute(name, value) {
+	//alert('Setting ' + name + ' to ' + value);
+	var attr = attributesById[name];
+	if (!attr || (attr == null)) {
+		attr = new Object();
+		attr.name = name;
+		attr.value = value;
+		attributesById[name] = attr;
+		
+		var atRow = newElement('div', null, 'attributeTableRow', null);
+		atRow.onclick = function() {
+			activateDataAttribute(name);
+		}
+		var atRemove = newElement('button', null, 'attributeRemoveButton', 'X');
+		atRemove.title = ('Remove attribute \'' + name + '\'');
+		atRemove.onclick = function() {
+			removeDataAttribute(name);
+		};
+		atRow.appendChild(atRemove);
+		var atName = newElement('span', null, 'attributeName', name);
+		atRow.appendChild(atName);
+		var atValue = newElement('span', null, 'attributeValue', value);
+		atRow.appendChild(atValue);
+		
+		attr.atRow = atRow;
+		attr.atValue = atValue;
+		
+		for (var a = 0; a < attributes.length; a++)
+			if (attributes[a].name.localeCompare(name) > 0) {
+				var aAttr = attributes[a];
+				attributes.splice(a, 0, attr);
+				aAttr.atRow.parentNode.insertBefore(attr.atRow, aAttr.atRow);
+				attr = null;
+				break;
+			}
+		if (attr != null) {
+			attributes[attributes.length] = attr;
+			getById('attributeTable').appendChild(attr.atRow);
+		}
+	}
+	else {
+		attr.value = value;
+		while (attr.atValue.firstChild)
+			attr.atValue.removeChild(attr.atValue.firstChild);
+		attr.atValue.appendChild(document.createTextNode(value));
+	}
+}
+function removeDataAttribute(name) {
+	var attr = attributesById[name];
+	if (attr == null)
+		return;
+	delete attributesById[name];
+	for (var a = 0; a < attributes.length; a++)
+		if (attributes[a].name == name) {
+			attributes.splice(a, 1);
+			break;
+		}
+	removeElement(attr.atRow);
+}
+function activateDataAttribute(name) {
+	var attr = attributesById[name];
+	if (attr) {
+		getById('attributeNameField').value = attr.name;
+		getById('attributeValueField').value = attr.value;
+	}
+	getById('attributeValueField').focus();
+	//	TODO update data list of value field
+}
+function addDataAttribute() {
+	var nameInput = getById('attributeNameField');
+	var valueInput = getById('attributeValueField');
+	
+	var name = nameInput.value;
+	nameInput.value = '';
+	var value = valueInput.value;
+	valueInput.value = '';
+	
+	if (name == null)
+		return false;
+	name = name.trim();
+	if (name.length == 0)
+		return false;
+	if (!/^[a-zA-Z\-\_\.][a-zA-Z0-9\-\_\.\:]*$/i.test(name)) {
+		alert('\'' + name + '\' is not a valid attribute name'); // TODO maybe use parent window alert code with respective parameters
+		return false;
+	}
+	
+	if ((value == null) || (value.length == 0))
+		removeDataAttribute(name);
+	else setDataAttribute(name, value);
+	getById('attributeNameField').focus();
+	
+	return false;
+}
+function catchReturnKeyInAttributeName(event) {
+	if (event.keyCode == 13) {
+		var name = getById('attributeNameField').value;
+		if (attributesById[name])
+			getById('attributeValueField').value = attributesById[name].value;
+		else getById('attributeValueField').value = '';
+		getById('attributeValueField').focus();
+		event.stopPropagation();
+		return false;
+	}
+	else return true;
+}
+function updateAttributeValueSuggestions() {
+	var attrValueList = getById('attributeValues');
+	while (attrValueList.firstElementChild)
+		attrValueList.removeChild(attrValueList.firstElementChild);
+	var attrValues = attributeValuesById[getById('attributeNameField').value];
+	if (attrValues == null)
+		return;
+	for (var v = 0; v < attrValues.length; v++) {
+		var attrValueOption = newElement('option', null, null, null);
+		attrValueOption.value = attrValues[v];
+		attrValueList.appendChild(attrValueOption);
+	}
+}
+function catchReturnKeyInAttributeValue(event) {
+	if (event.keyCode == 13) {
+		addDataAttribute();
+		event.stopPropagation();
+		return false;
+	}
+	else return true;
+}
+function submitDataAttributes() {
+	var attrForm = getById('attributeForm');
+	//var params = '';
+	for (var a = 0; a < attributes.length; a++) {
+		var attrField = newElement('input', null, null, null);
+		attrField.type = 'hidden';
+		attrField.name = ('ATTR_' + attributes[a].name);
+		attrField.value = attributes[a].value;
+		attrForm.appendChild(attrField);
+		//params += ('&ATTR_' + attributes[a].name + '=' + attributes[a].value);
+	}
+	//alert(params);
+	attrForm.submit();
+}
+</script>
+</head>
+<body>
+	<div class="editAttributesMain">
+	<div class="editAttributesTitle"><includeTitle/></div>
+	<div id="attributeTable" class="editAttributesTable" style="overflow: auto;"></div>
+	<div class="editAttributesFields"><div class="editAttributesFieldRow">
+	<input type="text" id="attributeNameField" placeholder="&lt;Enter Attribute Name&gt;" list="attributeNames" onkeyup="return catchReturnKeyInAttributeName(event);" />
+	<datalist id="attributeNames">
+	<includeAttributeNames/>
+	</datalist>
+	<button class="attributeAddButton" onclick="return addDataAttribute();">Add / Set Attribute</button>
+	</div><div class="editAttributesFieldRow">
+	<input type="text" id="attributeValueField" placeholder="&lt;Enter Attribute Value&gt;" list="attributeValues" onfocus="updateAttributeValueSuggestions();" onkeyup="return catchReturnKeyInAttributeValue(event);" />
+	<datalist id="attributeValues"></datalist>
+	</div></div>
+	<div class="editAttributesButtons">
+	<button class="attributeMainButton" onclick="submitDataAttributes();">OK</button>
+	<button class="attributeMainButton" onclick="window.close();">Cancel</button>
+	<button class="attributeMainButton" onclick="window.location.reload();">Reset</button>
+	</div>
+	</div>
+	
+	
+	<includeForm/>
+	<includeInitCalls/>
+</body>
+</html>

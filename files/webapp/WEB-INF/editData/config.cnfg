@@ -1,0 +1,7 @@
+//	access and configuration settings for GoldenGATE Imagine
+ggImagineConfigName = "Online.imagine";
+ggImagineConfigHost = "http://plazi.cs.umb.edu/GgServer/Configurations/";
+//ggImagineConfigPath = "E:/GoldenGATEv3/";
+
+//	list of demo files (use for freely accessible demos, try-yourself tutorials, etc., keep deactivated for production use)
+//demoDocList = "demoDocs.cnfg";
