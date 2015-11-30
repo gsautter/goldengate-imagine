@@ -1,12 +1,7 @@
 <html>
 <head>
-<!--
-TODO:
-- add status display styles to onlineEditor.css
-- update servlets and test the whole stuff!
--->
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-<!-- link rel="stylesheet" type="text/css" href="resources/popup.css" /-->
+<link rel="stylesheet" type="text/css" href="resources/popup.css" />
 <link rel="stylesheet" type="text/css" href="resources/popin.css" />
 <script type="text/javascript" src="resources/popin.js"></script>
 <title>GoldenGATE Imagine Online</title>
@@ -15,52 +10,10 @@ TODO:
 	white-space: nowrap;
 }
 </style>
-<script type="text/javascript">
-function getDocWidth() {
-	var D = document;
-	return Math.max(
-		Math.max(D.body.scrollWidth, D.documentElement.scrollWidth),
-		Math.max(D.body.offsetWidth, D.documentElement.offsetWidth),
-		Math.max(D.body.clientWidth, D.documentElement.clientWidth)
-	);
-}	
-function getDocHeight() {
-	var D = document;
-	return Math.max(
-		Math.max(D.body.scrollHeight, D.documentElement.scrollHeight),
-		Math.max(D.body.offsetHeight, D.documentElement.offsetHeight),
-		Math.max(D.body.clientHeight, D.documentElement.clientHeight)
-	);
-}
-function adjustWindowSize() {
-	var docWidth = getDocWidth();
-	var docHeight = getDocHeight();
-	var dspWidth = 0;
-	var dspHeight = 0;
-	if (document.body && document.body.offsetWidth) {
-		dspWidth = document.body.offsetWidth;
-		dspHeight = document.body.offsetHeight;
-	}
-	if (document.compatMode=='CSS1Compat' && document.documentElement && document.documentElement.offsetWidth) {
-		dspWidth = document.documentElement.offsetWidth;
-		dspHeight = document.documentElement.offsetHeight;
-	}
-	if (window.innerWidth && window.innerHeight) {
-		dspWidth = window.innerWidth;
-		dspHeight = window.innerHeight;
-	}
-	if ((dspWidth * dspHeight) < 1)
-		return;
-	window.outerWidth = Math.min((window.outerWidth + docWidth - dspWidth), 1024);
-	window.outerHeight = Math.min((window.outerHeight + docHeight - dspHeight), 768);
-	if ((window.outerWidth + docWidth - dspWidth) > 1024)
-		window.outerHeight = window.outerHeight + 50;
-	if ((window.outerHeight + docHeight - dspHeight) > 768)
-		window.outerWidth = window.outerWidth + 50;
-}
-</script>
 </head>
 <body>
 <includeBody/>
+<includeFile file="adjustWindowSize.html"/>
+</body>
 </body>
 </html>

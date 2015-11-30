@@ -96,14 +96,15 @@ import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
 import de.uka.ipd.idaho.gamta.util.constants.LiteratureConstants;
 import de.uka.ipd.idaho.gamta.util.feedback.FeedbackPanel;
 import de.uka.ipd.idaho.gamta.util.feedback.html.FeedbackFormBuilder;
+import de.uka.ipd.idaho.gamta.util.feedback.html.FeedbackFormBuilder.SubmitMode;
 import de.uka.ipd.idaho.gamta.util.feedback.html.FeedbackFormPageBuilder;
 import de.uka.ipd.idaho.gamta.util.feedback.html.FeedbackPanelHtmlRenderer;
-import de.uka.ipd.idaho.gamta.util.feedback.html.FeedbackFormBuilder.SubmitMode;
 import de.uka.ipd.idaho.gamta.util.feedback.html.FeedbackPanelHtmlRenderer.FeedbackPanelHtmlRendererInstance;
 import de.uka.ipd.idaho.gamta.util.feedback.html.renderers.BufferedLineWriter;
 import de.uka.ipd.idaho.gamta.util.imaging.BoundingBox;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImageInputStream;
 import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder;
+import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost;
 import de.uka.ipd.idaho.htmlXmlUtil.grammars.Html;
 import de.uka.ipd.idaho.im.ImAnnotation;
 import de.uka.ipd.idaho.im.ImDocument;
@@ -133,7 +134,7 @@ import de.uka.ipd.idaho.im.util.ImfIO;
  * 
  * @author sautter
  */
-public class GoldenGateImagineServletEditor implements LiteratureConstants {
+public class GoldenGateImagineServletEditor implements LiteratureConstants, HtmlPageBuilderHost {
 	
 	//	TODO implement OCR overlay (mostly in JavaScript)
 	
@@ -166,6 +167,130 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 		this.userName = userName;
 	}
 	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost#findFile(java.lang.String)
+	 */
+	public File findFile(String fileName) {
+		return this.parent.findFile(fileName);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost#getRelativeDataPath()
+	 */
+	public String getRelativeDataPath() {
+		return this.parent.getRelativeDataPath();
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost#getCssStylesheets()
+	 */
+	public String[] getCssStylesheets() {
+		return this.parent.getCssStylesheets();
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost#getJavaScriptFiles()
+	 */
+	public String[] getJavaScriptFiles() {
+		return this.parent.getJavaScriptFiles();
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost#getIcon()
+	 */
+	public String getIcon() {
+		return this.parent.getIcon();
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost#writePageHeadExtensions(de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder)
+	 */
+	public void writePageHeadExtensions(HtmlPageBuilder hpb) throws IOException {
+		this.parent.writePageHeadExtensions(hpb);
+		
+		hpb.writeLine("<script type=\"text/javascript\">");
+		
+		//	show alert (in a DIV sitting on top of an overlay, no need for an IFRAME)
+		hpb.writeLine("function showAlertDialog(message, title, type) {");
+		hpb.writeLine("  var alertOverlay = getOverlay(null, 'alertOverlay', true);");
+		hpb.writeLine("  var alertDiv = newElement('div', null, 'alertForm', null);");
+		//	add title (if any)
+		hpb.writeLine("  if (title != null) {");
+		hpb.writeLine("    var titleDiv = newElement('div', null, 'alertTitle', title);");
+		hpb.writeLine("    titleDiv.style.align = 'center';");
+		hpb.writeLine("    alertDiv.appendChild(titleDiv);");
+		hpb.writeLine("  }");
+		//	get icon name (if any)
+		hpb.writeLine("  var iconName = null;");
+		hpb.writeLine("  if (type == " + JOptionPane.QUESTION_MESSAGE + ")");
+		hpb.writeLine("    iconName = 'question.png';");
+		hpb.writeLine("  else if (type == " + JOptionPane.WARNING_MESSAGE + ")");
+		hpb.writeLine("    iconName = 'warning.png';");
+		hpb.writeLine("  else if (type == " + JOptionPane.ERROR_MESSAGE + ")");
+		hpb.writeLine("    iconName = 'error.png';");
+		hpb.writeLine("  else if (type == " + JOptionPane.INFORMATION_MESSAGE + ")");
+		hpb.writeLine("    iconName = 'info.png';");
+		//	add message, line-wise
+		hpb.writeLine("  var messageDiv = newElement('div', null, 'alertMessage', null);");
+		hpb.writeLine("  var messageParts = message.split(/(\\r\\n|\\r|\\n)/);");
+		hpb.writeLine("  for (var p = 0; p < messageParts.length; p++) {");
+		hpb.writeLine("    if (p != 0)");
+		hpb.writeLine("      messageDiv.appendChild(newElement('br', null, null, null));");
+		hpb.writeLine("    messageDiv.appendChild(document.createTextNode(messageParts[p]));");
+		hpb.writeLine("  }");
+		//	simply add message if we don't have an icon
+		hpb.writeLine("  if (iconName == null)");
+		hpb.writeLine("    alertDiv.appendChild(messageDiv);");
+		//	add message and icon in table to keep icon to right of message
+		hpb.writeLine("  else {");
+		hpb.writeLine("	var icon = newElement('img', null, null, null);");
+		hpb.writeLine("	icon.src = ('" + hpb.request.getContextPath() + this.parent.getStaticResourcePath() + "/' + iconName);");
+		hpb.writeLine("	var iconDiv = newElement('div', null, 'alertIcon', null);");
+		hpb.writeLine("	iconDiv.appendChild(icon);");
+		hpb.writeLine("    var amtd = newElement('td', null, null, null);");
+		hpb.writeLine("	amtd.appendChild(messageDiv);");
+		hpb.writeLine("    var aitd = newElement('td', null, null, null);");
+		hpb.writeLine("	aitd.appendChild(iconDiv);");
+		hpb.writeLine("    var atr = newElement('tr', null, null, null);");
+		hpb.writeLine("    atr.appendChild(amtd);");
+		hpb.writeLine("    atr.appendChild(aitd);");
+		hpb.writeLine("    var at = newElement('table', null, null, null);");
+		hpb.writeLine("    at.appendChild(atr);");
+		hpb.writeLine("    alertDiv.appendChild(at);");
+		hpb.writeLine("  }");
+		//	add close button
+		hpb.writeLine("  var alertButton = newElement('button', null, 'alertButton', 'OK');");
+		hpb.writeLine("  alertButton.onclick = function() {");
+		hpb.writeLine("    removeElement(alertDiv);");
+		hpb.writeLine("    removeElement(alertOverlay);");
+		hpb.writeLine("  }");
+		hpb.writeLine("  alertDiv.appendChild(alertButton);");
+		//	show alert
+		hpb.writeLine("  alertOverlay.appendChild(alertDiv);");
+		hpb.writeLine("}");
+		
+		//	open confirm dialog (in an IFRAME)
+		hpb.writeLine("function showConfirmDialog() {");
+		hpb.writeLine("  window.open(('" + hpb.request.getContextPath() + hpb.request.getServletPath() + "/" + this.id + "/confirm'), 'Please Confirm', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes');");
+		hpb.writeLine("}");
+		
+		hpb.writeLine("</script>");
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost#getOnloadCalls()
+	 */
+	public String[] getOnloadCalls() {
+		return this.parent.getOnloadCalls();
+	}
+
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost#getOnunloadCalls()
+	 */
+	public String[] getOnunloadCalls() {
+		return this.parent.getOnunloadCalls();
+	}
+	
 	boolean handleRequest(HttpServletRequest request, HttpServletResponse response, String pathInfo) throws IOException {
 		
 		//	handle request for base page
@@ -177,11 +302,11 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 		//	handle requests document views
 		if (this.docView != null) {
 			
-			//	request for view page
+			//	request for view page TODO figure out how to inject alert() and confirm() here
 			if (pathInfo.equals("/view") && "GET".equalsIgnoreCase(request.getMethod())) {
 				response.setContentType("text/html");
 				response.setCharacterEncoding("UTF-8");
-				HtmlPageBuilder viewPageBuilder = this.docView.getViewPageBuilder(this.parent, request, response);
+				HtmlPageBuilder viewPageBuilder = this.docView.getViewPageBuilder(this, request, response);
 				Reader viewBasePage = this.docView.getViewBasePage();
 				if (viewBasePage == null)
 					this.parent.sendPopupHtmlPage(viewPageBuilder);
@@ -345,7 +470,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 		//	send page, generating loading scripts to end of body
 		response.setContentType("text/html");
 		response.setCharacterEncoding("UTF-8");
-		this.parent.sendHtmlPage(new HtmlPageBuilder(this.parent, request, response) {
+		this.parent.sendHtmlPage(new HtmlPageBuilder(this, request, response) {
 			protected boolean includeJavaScriptDomHelpers() {
 				return true;
 			}
@@ -406,70 +531,70 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 				parent.writeJavaScriptTag(this, "updateHelpers.js", false);
 				parent.writeJavaScriptTag(this, "interactHelpers.js", false);
 				this.writeLine("<script type=\"text/javascript\">");
-				
-				//	show alert (in a DIV sitting on top of an overlay, no need for an IFRAME)
-				this.writeLine("function showAlertDialog(message, title, type) {");
-				this.writeLine("  var alertOverlay = getOverlay(null, 'alertOverlay', true);");
-				this.writeLine("  var alertDiv = newElement('div', null, 'alertForm', null);");
-				//	add title (if any)
-				this.writeLine("  if (title != null) {");
-				this.writeLine("    var titleDiv = newElement('div', null, 'alertTitle', title);");
-				this.writeLine("    titleDiv.style.align = 'center';");
-				this.writeLine("    alertDiv.appendChild(titleDiv);");
-				this.writeLine("  }");
-				//	get icon name (if any)
-				this.writeLine("  var iconName = null;");
-				this.writeLine("  if (type == " + JOptionPane.QUESTION_MESSAGE + ")");
-				this.writeLine("    iconName = 'question.png';");
-				this.writeLine("  else if (type == " + JOptionPane.WARNING_MESSAGE + ")");
-				this.writeLine("    iconName = 'warning.png';");
-				this.writeLine("  else if (type == " + JOptionPane.ERROR_MESSAGE + ")");
-				this.writeLine("    iconName = 'error.png';");
-				this.writeLine("  else if (type == " + JOptionPane.INFORMATION_MESSAGE + ")");
-				this.writeLine("    iconName = 'info.png';");
-				//	add message, line-wise
-				this.writeLine("  var messageDiv = newElement('div', null, 'alertMessage', null);");
-				this.writeLine("  var messageParts = message.split(/(\\r\\n|\\r|\\n)/);");
-				this.writeLine("  for (var p = 0; p < messageParts.length; p++) {");
-				this.writeLine("    if (p != 0)");
-				this.writeLine("      messageDiv.appendChild(newElement('br', null, null, null));");
-				this.writeLine("    messageDiv.appendChild(document.createTextNode(messageParts[p]));");
-				this.writeLine("  }");
-				//	simply add message if we don't have an icon
-				this.writeLine("  if (iconName == null)");
-				this.writeLine("    alertDiv.appendChild(messageDiv);");
-				//	add message and icon in table to keep icon to right of message
-				this.writeLine("  else {");
-				this.writeLine("	var icon = newElement('img', null, null, null);");
-				this.writeLine("	icon.src = ('" + this.request.getContextPath() + parent.getStaticResourcePath() + "/' + iconName);");
-				this.writeLine("	var iconDiv = newElement('div', null, 'alertIcon', null);");
-				this.writeLine("	iconDiv.appendChild(icon);");
-				this.writeLine("    var amtd = newElement('td', null, null, null);");
-				this.writeLine("	amtd.appendChild(messageDiv);");
-				this.writeLine("    var aitd = newElement('td', null, null, null);");
-				this.writeLine("	aitd.appendChild(iconDiv);");
-				this.writeLine("    var atr = newElement('tr', null, null, null);");
-				this.writeLine("    atr.appendChild(amtd);");
-				this.writeLine("    atr.appendChild(aitd);");
-				this.writeLine("    var at = newElement('table', null, null, null);");
-				this.writeLine("    at.appendChild(atr);");
-				this.writeLine("    alertDiv.appendChild(at);");
-				this.writeLine("  }");
-				//	add close button
-				this.writeLine("  var alertButton = newElement('button', null, 'alertButton', 'OK');");
-				this.writeLine("  alertButton.onclick = function() {");
-				this.writeLine("    removeElement(alertDiv);");
-				this.writeLine("    removeElement(alertOverlay);");
-				this.writeLine("  }");
-				this.writeLine("  alertDiv.appendChild(alertButton);");
-				//	show alert
-				this.writeLine("  alertOverlay.appendChild(alertDiv);");
-				this.writeLine("}");
-				
-				//	open confirm dialog (in an IFRAME)
-				this.writeLine("function showConfirmDialog() {");
-				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/confirm'), 'Please Confirm', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes');");
-				this.writeLine("}");
+//				
+//				//	show alert (in a DIV sitting on top of an overlay, no need for an IFRAME) TODO_ne also include in pop-ups and pop-ins
+//				this.writeLine("function showAlertDialog(message, title, type) {");
+//				this.writeLine("  var alertOverlay = getOverlay(null, 'alertOverlay', true);");
+//				this.writeLine("  var alertDiv = newElement('div', null, 'alertForm', null);");
+//				//	add title (if any)
+//				this.writeLine("  if (title != null) {");
+//				this.writeLine("    var titleDiv = newElement('div', null, 'alertTitle', title);");
+//				this.writeLine("    titleDiv.style.align = 'center';");
+//				this.writeLine("    alertDiv.appendChild(titleDiv);");
+//				this.writeLine("  }");
+//				//	get icon name (if any)
+//				this.writeLine("  var iconName = null;");
+//				this.writeLine("  if (type == " + JOptionPane.QUESTION_MESSAGE + ")");
+//				this.writeLine("    iconName = 'question.png';");
+//				this.writeLine("  else if (type == " + JOptionPane.WARNING_MESSAGE + ")");
+//				this.writeLine("    iconName = 'warning.png';");
+//				this.writeLine("  else if (type == " + JOptionPane.ERROR_MESSAGE + ")");
+//				this.writeLine("    iconName = 'error.png';");
+//				this.writeLine("  else if (type == " + JOptionPane.INFORMATION_MESSAGE + ")");
+//				this.writeLine("    iconName = 'info.png';");
+//				//	add message, line-wise
+//				this.writeLine("  var messageDiv = newElement('div', null, 'alertMessage', null);");
+//				this.writeLine("  var messageParts = message.split(/(\\r\\n|\\r|\\n)/);");
+//				this.writeLine("  for (var p = 0; p < messageParts.length; p++) {");
+//				this.writeLine("    if (p != 0)");
+//				this.writeLine("      messageDiv.appendChild(newElement('br', null, null, null));");
+//				this.writeLine("    messageDiv.appendChild(document.createTextNode(messageParts[p]));");
+//				this.writeLine("  }");
+//				//	simply add message if we don't have an icon
+//				this.writeLine("  if (iconName == null)");
+//				this.writeLine("    alertDiv.appendChild(messageDiv);");
+//				//	add message and icon in table to keep icon to right of message
+//				this.writeLine("  else {");
+//				this.writeLine("	var icon = newElement('img', null, null, null);");
+//				this.writeLine("	icon.src = ('" + this.request.getContextPath() + parent.getStaticResourcePath() + "/' + iconName);");
+//				this.writeLine("	var iconDiv = newElement('div', null, 'alertIcon', null);");
+//				this.writeLine("	iconDiv.appendChild(icon);");
+//				this.writeLine("    var amtd = newElement('td', null, null, null);");
+//				this.writeLine("	amtd.appendChild(messageDiv);");
+//				this.writeLine("    var aitd = newElement('td', null, null, null);");
+//				this.writeLine("	aitd.appendChild(iconDiv);");
+//				this.writeLine("    var atr = newElement('tr', null, null, null);");
+//				this.writeLine("    atr.appendChild(amtd);");
+//				this.writeLine("    atr.appendChild(aitd);");
+//				this.writeLine("    var at = newElement('table', null, null, null);");
+//				this.writeLine("    at.appendChild(atr);");
+//				this.writeLine("    alertDiv.appendChild(at);");
+//				this.writeLine("  }");
+//				//	add close button
+//				this.writeLine("  var alertButton = newElement('button', null, 'alertButton', 'OK');");
+//				this.writeLine("  alertButton.onclick = function() {");
+//				this.writeLine("    removeElement(alertDiv);");
+//				this.writeLine("    removeElement(alertOverlay);");
+//				this.writeLine("  }");
+//				this.writeLine("  alertDiv.appendChild(alertButton);");
+//				//	show alert
+//				this.writeLine("  alertOverlay.appendChild(alertDiv);");
+//				this.writeLine("}");
+//				
+//				//	open confirm dialog (in an IFRAME) TODO_ne also include in pop-ups and pop-ins
+//				this.writeLine("function showConfirmDialog() {");
+//				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/confirm'), 'Please Confirm', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes');");
+//				this.writeLine("}");
 				
 				//	open confirm dialog (in an IFRAME)
 				this.writeLine("function showFeedbackDialog() {");
@@ -809,7 +934,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 	private void sendEditAttributesForm(HttpServletRequest request, HttpServletResponse response, final Attributed target) throws IOException {
 		response.setContentType("text/html");
 		response.setCharacterEncoding("UTF-8");
-		this.parent.sendHtmlPage("editAttributes.html", new HtmlPageBuilder(this.parent, request, response) {
+		this.parent.sendHtmlPage("editAttributes.html", new HtmlPageBuilder(this, request, response) {
 			private Attributed[] targetContext = getEditAttributesContext(target);
 			protected void include(String type, String tag) throws IOException {
 				if ("includeTitle".equals(type))
@@ -845,6 +970,8 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 				return true;
 			}
 			protected void writePageHeadExtensions() throws IOException {
+				
+				//	TODO use out own alert() function for errors
 				
 				//	open script and create attribute value index
 				this.writeLine("<script type=\"text/javascript\">");
@@ -1416,6 +1543,8 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 		catch (final IOException ioe) {
 			response.setContentType("text/html");
 			response.setCharacterEncoding("UTF-8");
+			
+			//	create error page builder (we're OK with parent as page builder host, we _build_ an alert(), and won't confirm() inside it)
 			this.parent.sendHtmlPage("exportError.html", new HtmlPageBuilder(this.parent, request, response) {
 				protected void include(String type, String tag) throws IOException {
 					if ("includeBody".equals(type))
@@ -1438,6 +1567,8 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 		if (expFile == null) {
 			response.setContentType("text/html");
 			response.setCharacterEncoding("UTF-8");
+			
+			//	create error page builder (we're OK with parent as page builder host, we _build_ an alert(), and won't confirm() inside it)
 			this.parent.sendHtmlPage("exportError.html", new HtmlPageBuilder(this.parent, request, response) {
 				protected void include(String type, String tag) throws IOException {
 					if ("includeBody".equals(type))
@@ -1884,6 +2015,8 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 		}
 		
 		HtmlPageBuilder getConfirmPageBuilder(HttpServletRequest request, HttpServletResponse response) throws IOException {
+			
+			//	create confirm form page builder (we're OK with parent as page builder host, won't need alert(), and we _build_ the confirm() dialog)
 			return new HtmlPageBuilder(parent, request, response) {
 				protected void include(String type, String tag) throws IOException {
 					if ("includeBody".equals(type))
@@ -2088,7 +2221,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants {
 		}
 		HtmlPageBuilder getFeedbackFormPageBuilder(HttpServletRequest request, HttpServletResponse response) throws IOException {
 			
-			//	create form page builder
+			//	create form page builder (we're OK with parent as page builder host, won't need alert() and confirm() in feedback dialog)
 			return new FeedbackFormPageBuilder(parent, request, response, this.feedbackPanel, this.feedbackPanelRenderer, actionThreadFeedbackSubmitModes, id) {
 				protected String getFormActionPathInfo() {
 					return ("/" + id + "/giveFeedback");
