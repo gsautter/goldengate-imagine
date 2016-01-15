@@ -142,6 +142,7 @@ import de.uka.ipd.idaho.im.ImRegion;
 import de.uka.ipd.idaho.im.ImWord;
 import de.uka.ipd.idaho.im.gamta.ImDocumentRoot;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
+import de.uka.ipd.idaho.im.imagine.plugins.ImDocumentIoProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentExporter;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageEditToolProvider;
@@ -167,6 +168,18 @@ import de.uka.ipd.idaho.im.util.SymbolTable;
  * @author sautter
  */
 public class GoldenGateImagineUI extends JFrame implements ImagingConstants, GoldenGateConstants {
+	
+	/* TODO facilitate plug-in based IO
+	 * - create ImDocumentIoProvider (extending GoldenGateImaginePlugin)
+	 * - ... with loadDocument() ==> ImDocument ...
+	 * - ... and saveDocument() ==> String methods
+	 * 
+	 * - remember source and (last) destination ImDocumentIO for each document ...
+	 * - ... along with file filter of native IO ...
+	 * - ... to behave as expected on 'Save Document'
+	 * 
+	 * - maybe add separators to 'File' menu
+	 */
 	
 	private GoldenGateImagine ggImagine;
 	private Settings config;
@@ -364,9 +377,13 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		});
 		this.helpMenu.add(helpMi);
 		
+		//	get document IO providers
+		ImDocumentIoProvider[] docIoProviders = this.ggImagine.getDocumentIoProviders();
+		
 		JMenu menu = new JMenu("File");
 		JMenuItem mi;
 		
+		//	add built-in loading options
 		mi = new JMenuItem("Open Document");
 		mi.addActionListener(new ActionListener() {
 			private FileFilter loadFileFilter = null;
@@ -414,6 +431,25 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		});
 		menu.add(mi);
 		
+		//	add loading items from custom document IO providers
+		if (docIoProviders.length != 0) {
+			for (int p = 0; p < docIoProviders.length; p++) {
+				String sourceName = docIoProviders[p].getLoadSourceName();
+				if (sourceName == null)
+					continue;
+				final ImDocumentIoProvider idip = docIoProviders[p];
+				mi = new JMenuItem("Load Document from " + sourceName);
+				mi.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						loadDocument(idip);
+					}
+				});
+				menu.add(mi);
+			}
+			menu.addSeparator();
+		}
+		
+		//	add built-in saving options
 		mi = new JMenuItem("Save Document");
 		mi.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent ae) {
@@ -437,6 +473,27 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			}
 		});
 		menu.add(mi);
+		
+		//	add saving items from custom document IO providers
+		if (docIoProviders.length != 0) {
+			for (int p = 0; p < docIoProviders.length; p++) {
+				String destName = docIoProviders[p].getSaveDestinationName();
+				if (destName == null)
+					continue;
+				final ImDocumentIoProvider idip = docIoProviders[p];
+				mi = new JMenuItem("Save Document to " + destName);
+				mi.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						ImDocumentEditorTab idet = getActiveDocument();
+						if (idet == null)
+							return;
+						idet.saveAs(idip);
+					}
+				});
+				menu.add(mi);
+			}
+			menu.addSeparator();
+		}
 		
 		mi = new JMenuItem("Close Document");
 		mi.addActionListener(new ActionListener() {
@@ -1497,7 +1554,7 @@ Add "Advanced" menu to GG Imagine
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
 						ggImagine.notifyDocumentOpened(doc);
-						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, imfFileFilter));
+						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, fileFilter, null));
 						in.close();
 					}
 					catch (IOException ioe) {
@@ -1532,7 +1589,7 @@ Add "Advanced" menu to GG Imagine
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
 						ggImagine.notifyDocumentOpened(doc);
-						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, imdFileFilter));
+						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, fileFilter, null));
 					}
 					catch (IOException ioe) {
 						loadException[0] = ioe;
@@ -1647,7 +1704,7 @@ Add "Advanced" menu to GG Imagine
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
 						ggImagine.notifyDocumentOpened(doc);
-						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, imfFileFilter));
+						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, null, null));
 					}
 					catch (IOException ioe) {
 						loadException[0] = ioe;
@@ -1686,6 +1743,29 @@ Add "Advanced" menu to GG Imagine
 			}
 			return baos.toByteArray();
 		}
+	}
+	
+	void loadDocument(final ImDocumentIoProvider idip) {
+		final ResourceSplashScreen loadScreen = new ResourceSplashScreen(this, ("Loading Document from " + idip.getLoadSourceName()), "", true, false);
+		System.out.println("Creating load thread");
+		Thread loadThread = new Thread("LoaderThread") {
+			public void run() {
+				try {
+					loadScreen.setStep("Loading Document");
+					ImDocument doc = idip.loadDocument(loadScreen);
+					if (doc == null)
+						return;
+					String docName = ((String) doc.getAttribute(DOCUMENT_NAME_ATTRIBUTE));
+					ggImagine.notifyDocumentOpened(doc);
+					addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, null, null, ((idip.getSaveDestinationName() == null) ? null : idip)));
+				}
+				finally {
+					loadScreen.dispose();
+				}
+			}
+		};
+		loadThread.start();
+		loadScreen.setVisible(true);
 	}
 	
 	void addDocument(ImDocumentEditorTab idet) {
@@ -1790,6 +1870,7 @@ Add "Advanced" menu to GG Imagine
 		String docName;
 		File docSource;
 		FileFilter docFormat = imfFileFilter;
+		ImDocumentIoProvider docIo;
 		
 		ImDocumentMarkupPanel idmp;
 		JScrollPane idmpBox;
@@ -1809,12 +1890,13 @@ Add "Advanced" menu to GG Imagine
 		int modCount = 0;
 		int savedModCount = 0;
 		
-		ImDocumentEditorTab(GoldenGateImagineUI parent, ImDocument doc, String docName, File docSource, FileFilter docFormat) {
+		ImDocumentEditorTab(GoldenGateImagineUI parent, ImDocument doc, String docName, File docSource, FileFilter docFormat, ImDocumentIoProvider docIo) {
 			super(new BorderLayout(), true);
 			this.parent = parent;
 			this.docName = docName;
 			this.docSource = docSource;
 			this.docFormat = ((docFormat == null) ? imfFileFilter : docFormat);
+			this.docIo = docIo;
 			
 			this.idmp = new ImDocumentEditorPanel(doc);
 			
@@ -2597,22 +2679,14 @@ Add "Advanced" menu to GG Imagine
 				((Graphics2D) g).drawString(this.tcaMessage, ((this.getViewRect().width - wtl.getAdvance()) / 2), ((int) Math.ceil(wtl.getBounds().getHeight() + wtl.getDescent())));
 			}
 		}
-//		
-//		String getDocumentName() {
-//			if (this.file != null)
-//				return this.file.getName();
-//			else return ((String) this.idmp.document.getAttribute(DOCUMENT_NAME_ATTRIBUTE, "Unknown Document"));
-//		}
-		
-		boolean isDirty() {
-			return (this.modCount != this.savedModCount);
-		}
 		
 		boolean save() {
 			if (!this.isDirty())
 				return true;
 			else if (this.docSource != null)
 				return this.saveAs(this.docSource, this.docFormat);
+			else if (this.docIo != null)
+				return this.saveAs(this.docIo);
 			else return false;
 		}
 		
@@ -2705,11 +2779,7 @@ Add "Advanced" menu to GG Imagine
 						}
 						
 						//	remember saving
-						ImDocumentEditorTab.this.savedModCount = ImDocumentEditorTab.this.modCount;
-						ImDocumentEditorTab.this.docName = saveFile[0].getName();
-						ImDocumentEditorTab.this.docSource = saveFile[0];
-						ImDocumentEditorTab.this.docFormat = fileFormat;
-						ImDocumentEditorTab.this.parent.docTabs.setTitleAt(ImDocumentEditorTab.this.parent.docTabs.indexOfComponent(ImDocumentEditorTab.this), ImDocumentEditorTab.this.docName);
+						ImDocumentEditorTab.this.savedAs(saveFile[0].getName(), saveFile[0], fileFormat);
 						saveSuccess[0] = true;
 						
 						//	notify listeners of saving success
@@ -2735,6 +2805,76 @@ Add "Advanced" menu to GG Imagine
 			
 			//	finally ...
 			return saveSuccess[0];
+		}
+		
+		boolean saveAs(final ImDocumentIoProvider idip) {
+			
+			//	create splash screen
+			final ResourceSplashScreen saveSplashScreen = new ResourceSplashScreen(this.parent, "Saving Document, Please Wait", "", false, false);
+			
+			//	save document, in separate thread
+			final boolean[] saveSuccess = {false};
+			Thread saveThread = new Thread() {
+				public void run() {
+					try {
+						
+						//	wait for splash screen to come up (we must not reach the dispose() line before the splash screen even comes up)
+						while (!saveSplashScreen.isVisible()) try {
+							Thread.sleep(10);
+						} catch (InterruptedException ie) {}
+						
+						//	notify listeners that saving is imminent
+						ImDocumentEditorTab.this.parent.ggImagine.notifyDocumentSaving(ImDocumentEditorTab.this.idmp.document);
+						
+						//	save document
+						String docName = idip.saveDocument(ImDocumentEditorTab.this.idmp.document, ImDocumentEditorTab.this.docName, saveSplashScreen);
+						
+						//	remember saving
+						ImDocumentEditorTab.this.savedAs(docName, idip);
+						saveSuccess[0] = true;
+						
+						//	notify listeners of saving success
+						ImDocumentEditorTab.this.parent.ggImagine.notifyDocumentSaved(ImDocumentEditorTab.this.idmp.document);
+					}
+					
+					//	catch whatever might happen
+					catch (Throwable t) {
+						JOptionPane.showMessageDialog(ImDocumentEditorTab.this, ("An error occurred while saving the document to " + idip.getSaveDestinationName() + ":\n" + t.getMessage()), "Error Saving Document", JOptionPane.ERROR_MESSAGE);
+						t.printStackTrace(System.out);
+					}
+					
+					//	dispose splash screen
+					finally {
+						saveSplashScreen.dispose();
+					}
+				}
+			};
+			saveThread.start();
+			
+			//	open splash screen (this waits)
+			saveSplashScreen.setVisible(true);
+			
+			//	finally ...
+			return saveSuccess[0];
+		}
+		
+		boolean isDirty() {
+			return (this.modCount != this.savedModCount);
+		}
+		
+		void savedAs(String saveDocName, File saveFile, FileFilter saveFileFormat) {
+			this.savedAs(saveDocName, saveFile, saveFileFormat, null);
+		}
+		void savedAs(String saveDocName, ImDocumentIoProvider saveDest) {
+			this.savedAs(saveDocName, null, this.docFormat, saveDest);
+		}
+		private void savedAs(String saveDocName, File saveFile, FileFilter saveFileFormat, ImDocumentIoProvider saveDest) {
+			this.savedModCount = ImDocumentEditorTab.this.modCount;
+			this.docName = saveDocName;
+			this.docSource = saveFile;
+			this.docFormat = saveFileFormat;
+			this.docIo = saveDest;
+			this.parent.docTabs.setTitleAt(this.parent.docTabs.indexOfComponent(this), this.docName);
 		}
 		
 		void close() {
