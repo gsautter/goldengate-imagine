@@ -36,7 +36,7 @@ import de.uka.ipd.idaho.im.ImDocument;
  * 
  * @author sautter
  */
-public interface ImDocumentIoProvider extends GoldenGateImaginePlugin {
+public interface ImageDocumentIoProvider extends GoldenGateImaginePlugin {
 	
 	/**
 	 * Retrieve the name of the source documents are loaded from. If an IO

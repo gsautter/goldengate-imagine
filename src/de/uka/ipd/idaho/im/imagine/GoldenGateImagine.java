@@ -87,7 +87,7 @@ import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.ImSupplement;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineDocumentListener;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImaginePlugin;
-import de.uka.ipd.idaho.im.imagine.plugins.ImDocumentIoProvider;
+import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentIoProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentExporter;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageEditToolProvider;
@@ -304,8 +304,8 @@ public class GoldenGateImagine implements GoldenGateConstants {
 				this.registerSelectionActionProvider((SelectionActionProvider) ggps[p]);
 			if (ggps[p] instanceof ImageDocumentDropHandler)
 				this.registerDropHandler((ImageDocumentDropHandler) ggps[p]);
-			if (ggps[p] instanceof ImDocumentIoProvider)
-				this.registerDocumentIoProvider((ImDocumentIoProvider) ggps[p]);
+			if (ggps[p] instanceof ImageDocumentIoProvider)
+				this.registerDocumentIoProvider((ImageDocumentIoProvider) ggps[p]);
 			if (ggps[p] instanceof ImageDocumentExporter)
 				this.registerDocumentExporter((ImageDocumentExporter) ggps[p]);
 			if (ggps[p] instanceof ReactionProvider)
@@ -391,7 +391,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	//	register and lookup method for document IO providers
 	private HashMap docmentIoProvidersByClassName = new LinkedHashMap();
 	
-	private void registerDocumentIoProvider(ImDocumentIoProvider idip) {
+	private void registerDocumentIoProvider(ImageDocumentIoProvider idip) {
 		if (idip != null)
 			this.docmentIoProvidersByClassName.put(idip.getClass().getName(), idip);
 	}
@@ -401,17 +401,17 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	 * @param pluginClassName the class name of the desired IO provider
 	 * @return the document IO provider with the specified class name
 	 */
-	public ImDocumentIoProvider getDocumentIoProvider(String pluginClassName) {
-		return ((ImDocumentIoProvider) this.docmentIoProvidersByClassName.get(pluginClassName));
+	public ImageDocumentIoProvider getDocumentIoProvider(String pluginClassName) {
+		return ((ImageDocumentIoProvider) this.docmentIoProvidersByClassName.get(pluginClassName));
 	}
 	
 	/**
 	 * Get all document IO providers that are currently available.
 	 * @return an array holding all document IO providers registered
 	 */
-	public ImDocumentIoProvider[] getDocumentIoProviders() {
+	public ImageDocumentIoProvider[] getDocumentIoProviders() {
 		ArrayList idips = new ArrayList(this.docmentIoProvidersByClassName.values());
-		return ((ImDocumentIoProvider[]) idips.toArray(new ImDocumentIoProvider[idips.size()]));
+		return ((ImageDocumentIoProvider[]) idips.toArray(new ImageDocumentIoProvider[idips.size()]));
 	}
 	
 	//	register and lookup method for document exporters

@@ -57,8 +57,9 @@ import de.uka.ipd.idaho.gamta.util.constants.LiteratureConstants;
 import de.uka.ipd.idaho.gamta.util.feedback.html.renderers.BufferedLineWriter;
 import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder;
 import de.uka.ipd.idaho.im.ImDocument;
-import de.uka.ipd.idaho.im.util.ImfIO;
-import de.uka.ipd.idaho.im.util.ImfIO.ImfEntry;
+import de.uka.ipd.idaho.im.imagine.web.GoldenGateImagineWebUtils.IsolatorOutputStream;
+import de.uka.ipd.idaho.im.util.ImDocumentData.ImDocumentEntry;
+import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.plugins.bibRefs.BibRefUtils;
 import de.uka.ipd.idaho.plugins.bibRefs.BibRefUtils.RefData;
 
@@ -98,8 +99,8 @@ public class GoldenGateImagineDocumentServlet extends GoldenGateImagineServlet i
 		String toJsonString() {
 			StringBuffer json = new StringBuffer("{");
 			json.append("\"id\": \"" + this.id + "\",");
-			json.append("\"name\": \"" + escapeForJavaScript(this.name) + "\",");
-			json.append("\"description\": \"" + ((this.description == null) ? "" : escapeForJavaScript(this.description)) + "\",");
+			json.append("\"name\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.name) + "\",");
+			json.append("\"description\": \"" + ((this.description == null) ? "" : GoldenGateImagineWebUtils.escapeForJavaScript(this.description)) + "\",");
 			json.append("\"created\": \"" + this.created + "\",");
 			json.append("\"updated\": \"" + this.updated + "\"");
 			json.append("}");
@@ -206,7 +207,7 @@ public class GoldenGateImagineDocumentServlet extends GoldenGateImagineServlet i
 				response.sendError(HttpServletResponse.SC_NOT_FOUND);
 				return;
 			}
-			ImDocument doc = ImfIO.loadDocument(docFolder);
+			ImDocument doc = ImDocumentIO.loadDocument(docFolder);
 			if (doc == null) {
 				response.sendError(HttpServletResponse.SC_NOT_FOUND);
 				return;
@@ -218,7 +219,7 @@ public class GoldenGateImagineDocumentServlet extends GoldenGateImagineServlet i
 			
 			//	export document (making sure not to flush response stream prematurely)
 			OutputStream out = response.getOutputStream();
-			ImfIO.storeDocument(doc, new BufferedOutputStream(new IsolatorOutputStream(out)), ProgressMonitor.dummy);
+			ImDocumentIO.storeDocument(doc, new BufferedOutputStream(new IsolatorOutputStream(out)), ProgressMonitor.dummy);
 			out.flush();
 			return;
 		}
@@ -485,14 +486,14 @@ public class GoldenGateImagineDocumentServlet extends GoldenGateImagineServlet i
 		ArrayList imfEntries = new ArrayList();
 		BufferedReader imfEntryIn = new BufferedReader(new InputStreamReader(new FileInputStream(new File(docFolder, ("entries." + userName + ".txt"))), "UTF-8"));
 		for (String imfEntryLine; (imfEntryLine = imfEntryIn.readLine()) != null;) {
-			ImfEntry imfe = ImfEntry.fromTabString(imfEntryLine);
-			if (imfe != null)
-				imfEntries.add(imfe);
+			ImDocumentEntry ime = ImDocumentEntry.fromTabString(imfEntryLine);
+			if (ime != null)
+				imfEntries.add(ime);
 		}
 		imfEntryIn.close();
 		
 		//	load document from folder
-		return ImfIO.loadDocument(docFolder, ((ImfEntry[]) imfEntries.toArray(new ImfEntry[imfEntries.size()])));
+		return ImDocumentIO.loadDocument(docFolder, ((ImDocumentEntry[]) imfEntries.toArray(new ImDocumentEntry[imfEntries.size()])));
 	}
 	
 	String[] storeDocument(ImDocument doc, String userName, ProgressMonitor pm) throws IOException {
@@ -579,7 +580,7 @@ public class GoldenGateImagineDocumentServlet extends GoldenGateImagineServlet i
 		 */
 		//	try and store document in local storage
 		File docFolder = this.getDocFolder(doc.docId, true);
-		ImfEntry[] docEntries = ImfIO.storeDocument(doc, docFolder);
+		ImDocumentEntry[] docEntries = ImDocumentIO.storeDocument(doc, docFolder);
 		
 		//	write user version specific entry list (in that way, multiple users can have the document without interference, but sharing all entries that are identical)
 		File entryListFile = new File(docFolder, ("entries." + userName + ".txt"));

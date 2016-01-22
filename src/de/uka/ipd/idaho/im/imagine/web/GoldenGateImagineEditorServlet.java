@@ -79,10 +79,10 @@ import de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
 import de.uka.ipd.idaho.im.imagine.web.GoldenGateImagineServletEditor.ActionThread;
 import de.uka.ipd.idaho.im.imagine.web.GoldenGateImagineServletEditor.ImsDocumentMarkupPanel;
+import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImUtils;
 import de.uka.ipd.idaho.im.util.ImUtils.CopyManager;
-import de.uka.ipd.idaho.im.util.ImfIO;
 import de.uka.ipd.idaho.stringUtils.StringVector;
 
 /**
@@ -730,9 +730,9 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 		for (int e = 0; e < this.exportMenuExporters.length; e++) {
 			blw.writeLine("    ,");
 			blw.writeLine("    {");
-			blw.writeLine("      \"label\": \"" + escapeForJavaScript(this.exportMenuExporters[e].getExportMenuLabel()) + "\",");
+			blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.exportMenuExporters[e].getExportMenuLabel()) + "\",");
 			if (this.exportMenuExporters[e].getExportMenuTooltip() != null)
-				blw.writeLine("      \"tooltip\": \"" + escapeForJavaScript(this.exportMenuExporters[e].getExportMenuTooltip()) + "\",");
+				blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.exportMenuExporters[e].getExportMenuTooltip()) + "\",");
 			blw.writeLine("      \"exportUrl\": \"" + request.getContextPath() + request.getServletPath() + "/" + idme.id + "/export?exportId=" + this.exportMenuExporters[e].hashCode() + "\",");
 			blw.writeLine("      \"id\": \"EXP-" + this.exportMenuExporters[e].hashCode() + "\"");
 			blw.writeLine("    }");
@@ -748,9 +748,9 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			if (i != 0)
 				blw.writeLine(",");
 			blw.writeLine("    {");
-			blw.writeLine("      \"label\": \"" + escapeForJavaScript(this.editMenuImTools[i].getLabel()) + "\",");
+			blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.editMenuImTools[i].getLabel()) + "\",");
 			if (this.editMenuImTools[i].getTooltip() != null)
-				blw.writeLine("      \"tooltip\": \"" + escapeForJavaScript(this.editMenuImTools[i].getTooltip()) + "\",");
+				blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.editMenuImTools[i].getTooltip()) + "\",");
 			blw.writeLine("      \"id\": \"EDT-" + this.editMenuImTools[i].hashCode() + "\"");
 			blw.writeLine("    }");
 		}
@@ -774,9 +774,9 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			if (i != 0)
 				blw.writeLine(",");
 			blw.writeLine("    {");
-			blw.writeLine("      \"label\": \"" + escapeForJavaScript(this.toolsMenuImTools[i].getLabel()) + "\",");
+			blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.toolsMenuImTools[i].getLabel()) + "\",");
 			if (this.toolsMenuImTools[i].getTooltip() != null)
-				blw.writeLine("      \"tooltip\": \"" + escapeForJavaScript(this.toolsMenuImTools[i].getTooltip()) + "\",");
+				blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.toolsMenuImTools[i].getTooltip()) + "\",");
 			blw.writeLine("      \"id\": \"TLS-" + this.toolsMenuImTools[i].hashCode() + "\"");
 			blw.writeLine("    }");
 		}
@@ -796,7 +796,7 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			blw.writeLine(",");
 			HelpChapter hc = ((HelpChapter) this.helpRoot.getChildAt(i));
 			blw.writeLine("    {");
-			blw.writeLine("      \"label\": \"" + escapeForJavaScript(hc.getTitle()) + "\",");
+			blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(hc.getTitle()) + "\",");
 			blw.writeLine("      \"contentPath\": \"" + request.getContextPath() + request.getServletPath() + "/help/" + hc.hashCode() + "\",");
 			blw.writeLine("      \"id\": \"HLP-" + hc.hashCode() + "\"");
 			blw.writeLine("    }");
@@ -898,7 +898,7 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 	
 	private void writeHelpChapter(HttpServletRequest request, HelpChapter hc, BufferedLineWriter blw, String indent) throws IOException {
 		blw.writeLine(indent + "{");
-		blw.writeLine(indent + "  \"title\": \"" + escapeForJavaScript(hc.getTitle()) + "\",");
+		blw.writeLine(indent + "  \"title\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(hc.getTitle()) + "\",");
 		blw.writeLine(indent + "  \"path\": \"" + request.getContextPath() + request.getServletPath() + "/help/" + hc.hashCode() + "\",");
 		if (hc.getChildCount() > 0) {
 			blw.writeLine(indent + "  \"subChapters\": [");
@@ -1130,7 +1130,7 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			File demoDocFile = ((File) this.demoDocList.get(docId));
 			if (demoDocFile == null)
 				throw new IOException("Document '" + docId + "' not found");
-			else return ImfIO.loadDocument(demoDocFile);
+			else return ImDocumentIO.loadDocument(demoDocFile);
 		}
 	}
 	

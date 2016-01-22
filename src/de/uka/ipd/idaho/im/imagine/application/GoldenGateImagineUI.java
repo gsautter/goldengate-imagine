@@ -142,14 +142,16 @@ import de.uka.ipd.idaho.im.ImRegion;
 import de.uka.ipd.idaho.im.ImWord;
 import de.uka.ipd.idaho.im.gamta.ImDocumentRoot;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
-import de.uka.ipd.idaho.im.imagine.plugins.ImDocumentIoProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentExporter;
+import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentIoProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageEditToolProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ReactionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.util.ImDocumentData.ImDocumentEntry;
+import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.PagePoint;
@@ -158,8 +160,6 @@ import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.SelectionAction;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.TwoClickActionMessenger;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.TwoClickSelectionAction;
 import de.uka.ipd.idaho.im.util.ImImageEditorPanel.ImImageEditTool;
-import de.uka.ipd.idaho.im.util.ImfIO;
-import de.uka.ipd.idaho.im.util.ImfIO.ImfEntry;
 import de.uka.ipd.idaho.im.util.SymbolTable;
 
 /**
@@ -168,18 +168,6 @@ import de.uka.ipd.idaho.im.util.SymbolTable;
  * @author sautter
  */
 public class GoldenGateImagineUI extends JFrame implements ImagingConstants, GoldenGateConstants {
-	
-	/* TODO facilitate plug-in based IO
-	 * - create ImDocumentIoProvider (extending GoldenGateImaginePlugin)
-	 * - ... with loadDocument() ==> ImDocument ...
-	 * - ... and saveDocument() ==> String methods
-	 * 
-	 * - remember source and (last) destination ImDocumentIO for each document ...
-	 * - ... along with file filter of native IO ...
-	 * - ... to behave as expected on 'Save Document'
-	 * 
-	 * - maybe add separators to 'File' menu
-	 */
 	
 	private GoldenGateImagine ggImagine;
 	private Settings config;
@@ -378,7 +366,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		this.helpMenu.add(helpMi);
 		
 		//	get document IO providers
-		ImDocumentIoProvider[] docIoProviders = this.ggImagine.getDocumentIoProviders();
+		ImageDocumentIoProvider[] docIoProviders = this.ggImagine.getDocumentIoProviders();
 		
 		JMenu menu = new JMenu("File");
 		JMenuItem mi;
@@ -437,7 +425,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				String sourceName = docIoProviders[p].getLoadSourceName();
 				if (sourceName == null)
 					continue;
-				final ImDocumentIoProvider idip = docIoProviders[p];
+				final ImageDocumentIoProvider idip = docIoProviders[p];
 				mi = new JMenuItem("Load Document from " + sourceName);
 				mi.addActionListener(new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
@@ -480,7 +468,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				String destName = docIoProviders[p].getSaveDestinationName();
 				if (destName == null)
 					continue;
-				final ImDocumentIoProvider idip = docIoProviders[p];
+				final ImageDocumentIoProvider idip = docIoProviders[p];
 				mi = new JMenuItem("Save Document to " + destName);
 				mi.addActionListener(new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
@@ -1549,7 +1537,7 @@ Add "Advanced" menu to GG Imagine
 				public void run() {
 					try {
 						loadScreen.setStep("Loading IMF Archive");
-						ImDocument doc = ImfIO.loadDocument(in, loadScreen, inLength);
+						ImDocument doc = ImDocumentIO.loadDocument(in, loadScreen, inLength);
 						doc.setAttribute(DOCUMENT_NAME_ATTRIBUTE, docName);
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
@@ -1584,7 +1572,7 @@ Add "Advanced" menu to GG Imagine
 						if (!docFolder.exists())
 							throw new FileNotFoundException("Data directory not found for " + docSource.getName());
 						loadScreen.setStep("Loading IMF Directory");
-						ImDocument doc = ImfIO.loadDocument(docFolder, loadScreen);
+						ImDocument doc = ImDocumentIO.loadDocument(docFolder, loadScreen);
 						doc.setAttribute(DOCUMENT_NAME_ATTRIBUTE, docName);
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
@@ -1677,7 +1665,7 @@ Add "Advanced" menu to GG Imagine
 							}
 							
 							System.out.println("Converter process response finished, reading document");
-							doc = ImfIO.loadDocument(fromConverter, loadScreen);
+							doc = ImDocumentIO.loadDocument(fromConverter, loadScreen);
 							fromConverter.close();
 						}
 						
@@ -1745,7 +1733,7 @@ Add "Advanced" menu to GG Imagine
 		}
 	}
 	
-	void loadDocument(final ImDocumentIoProvider idip) {
+	void loadDocument(final ImageDocumentIoProvider idip) {
 		final ResourceSplashScreen loadScreen = new ResourceSplashScreen(this, ("Loading Document from " + idip.getLoadSourceName()), "", true, false);
 		System.out.println("Creating load thread");
 		Thread loadThread = new Thread("LoaderThread") {
@@ -1870,7 +1858,7 @@ Add "Advanced" menu to GG Imagine
 		String docName;
 		File docSource;
 		FileFilter docFormat = imfFileFilter;
-		ImDocumentIoProvider docIo;
+		ImageDocumentIoProvider docIo;
 		
 		ImDocumentMarkupPanel idmp;
 		JScrollPane idmpBox;
@@ -1890,7 +1878,7 @@ Add "Advanced" menu to GG Imagine
 		int modCount = 0;
 		int savedModCount = 0;
 		
-		ImDocumentEditorTab(GoldenGateImagineUI parent, ImDocument doc, String docName, File docSource, FileFilter docFormat, ImDocumentIoProvider docIo) {
+		ImDocumentEditorTab(GoldenGateImagineUI parent, ImDocument doc, String docName, File docSource, FileFilter docFormat, ImageDocumentIoProvider docIo) {
 			super(new BorderLayout(), true);
 			this.parent = parent;
 			this.docName = docName;
@@ -2760,10 +2748,10 @@ Add "Advanced" menu to GG Imagine
 							File docFolder = new File(saveFile[0].getAbsolutePath() + "ir");
 							if (!docFolder.exists())
 								docFolder.mkdirs();
-							ImfEntry[] imfEntries = ImfIO.storeDocument(ImDocumentEditorTab.this.idmp.document, docFolder, saveSplashScreen);
+							ImDocumentEntry[] docEntries = ImDocumentIO.storeDocument(ImDocumentEditorTab.this.idmp.document, docFolder, saveSplashScreen);
 							BufferedWriter eOut = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(saveFile[0]), "UTF-8"));
-							for (int e = 0; e < imfEntries.length; e++) {
-								eOut.write(imfEntries[e].toTabString());
+							for (int e = 0; e < docEntries.length; e++) {
+								eOut.write(docEntries[e].toTabString());
 								eOut.newLine();
 							}
 							eOut.flush();
@@ -2773,7 +2761,7 @@ Add "Advanced" menu to GG Imagine
 						//	save document to zip archive
 						else {
 							OutputStream dOut = new BufferedOutputStream(new FileOutputStream(saveFile[0]));
-							ImfIO.storeDocument(ImDocumentEditorTab.this.idmp.document, dOut, saveSplashScreen);
+							ImDocumentIO.storeDocument(ImDocumentEditorTab.this.idmp.document, dOut, saveSplashScreen);
 							dOut.flush();
 							dOut.close();
 						}
@@ -2807,7 +2795,7 @@ Add "Advanced" menu to GG Imagine
 			return saveSuccess[0];
 		}
 		
-		boolean saveAs(final ImDocumentIoProvider idip) {
+		boolean saveAs(final ImageDocumentIoProvider idip) {
 			
 			//	create splash screen
 			final ResourceSplashScreen saveSplashScreen = new ResourceSplashScreen(this.parent, "Saving Document, Please Wait", "", false, false);
@@ -2865,10 +2853,10 @@ Add "Advanced" menu to GG Imagine
 		void savedAs(String saveDocName, File saveFile, FileFilter saveFileFormat) {
 			this.savedAs(saveDocName, saveFile, saveFileFormat, null);
 		}
-		void savedAs(String saveDocName, ImDocumentIoProvider saveDest) {
+		void savedAs(String saveDocName, ImageDocumentIoProvider saveDest) {
 			this.savedAs(saveDocName, null, this.docFormat, saveDest);
 		}
-		private void savedAs(String saveDocName, File saveFile, FileFilter saveFileFormat, ImDocumentIoProvider saveDest) {
+		private void savedAs(String saveDocName, File saveFile, FileFilter saveFileFormat, ImageDocumentIoProvider saveDest) {
 			this.savedModCount = ImDocumentEditorTab.this.modCount;
 			this.docName = saveDocName;
 			this.docSource = saveFile;

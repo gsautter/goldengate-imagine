@@ -28,9 +28,7 @@
 package de.uka.ipd.idaho.im.imagine.web;
 
 import java.io.File;
-import java.io.FilterOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -99,56 +97,7 @@ public abstract class GoldenGateImagineServlet extends HtmlServlet implements Li
 	 * @throws IOException
 	 */
 	protected HtmlPageBuilder getClosePopinWindowPageBuilder(HttpServletRequest request, HttpServletResponse response, final String[] javaScriptCalls) throws IOException {
-		return new HtmlPageBuilder(this, request, response) {
-			protected void include(String type, String tag) throws IOException {
-				if ("includeBody".equals(type)) {
-					this.writeLine("<script type=\"text/javascript\">");
-					if (javaScriptCalls != null) {
-						for (int c = 0; c < javaScriptCalls.length; c++)
-							this.writeLine(javaScriptCalls[c]);
-					}
-					//	close status window (we need to wait until pop-in parent has replaced close() function)
-					this.writeLine("window.setTimeout('window.close()', 100);");
-					this.writeLine("</script>");
-				}
-				else super.include(type, tag);
-			}
-		};
-	}
-	
-	/**
-	 * An output stream that will not pass through a <code>flush()</code> to
-	 * its wrapped stream, to prevent HTTP response output streams from being
-	 * flushed prematurely.
-	 * 
-	 * @author sautter
-	 */
-	public static class IsolatorOutputStream extends FilterOutputStream {
-		public IsolatorOutputStream(OutputStream out) {
-			super(out);
-		}
-		public void flush() throws IOException {}
-	}
-	
-	/**
-	 * Escape a string for JavaScript and JSON use.
-	 * @param str the string to escape
-	 * @return the escaped string
-	 */
-	public static String escapeForJavaScript(String str) {
-		if (str == null)
-			return null;
-		StringBuffer escaped = new StringBuffer();
-		char ch;
-		for (int c = 0; c < str.length(); c++) {
-			ch = str.charAt(c);
-			if ((ch == '\\') || (ch == '\''))
-				escaped.append('\\');
-			if (ch < 32)
-				escaped.append(' ');
-			else escaped.append(ch);
-		}
-		return escaped.toString();
+		return GoldenGateImagineWebUtils.getClosePopinWindowPageBuilder(this, request, response, javaScriptCalls);
 	}
 	
 	/**

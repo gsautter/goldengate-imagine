@@ -55,8 +55,8 @@ import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagineConstants;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentFileExporter;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
-import de.uka.ipd.idaho.im.util.ImfIO;
 import de.uka.ipd.idaho.stringUtils.StringVector;
 
 /**
@@ -403,7 +403,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
 			OutputStream out = new BufferedOutputStream(new FileOutputStream(dataOutFile));
 			systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
-			ImfIO.storeDocument(doc, out, pm);
+			ImDocumentIO.storeDocument(doc, out, pm);
 			out.flush();
 			out.close();
 			systemOut.println("Document stored");

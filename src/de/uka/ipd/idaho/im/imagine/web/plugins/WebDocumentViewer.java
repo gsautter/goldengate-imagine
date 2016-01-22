@@ -198,11 +198,24 @@ public interface WebDocumentViewer extends ImageMarkupTool {
 		}
 		
 		/**
-		 * Test if an HTTP request if directed at this view, and process it if
-		 * that is the case. If this method returns true, the surrounding code
-		 * should do nothing further about the argument request. If the argument
-		 * request closes the view (i.e., <code>isCloseRequest()</code> will
-		 * return true), this method must return false.
+		 * Handle an HTTP request directed at this view. Every request whose
+		 * path starts with the one handed to the constructor is routed to this
+		 * method, and it is up to implementations to indicate unsupported or
+		 * invalid requests and send respective error messages. There is one
+		 * exception, however: if <code>isCloseRequest()</code> returns true
+		 * for some request, implementations have to take respective action in
+		 * the latter method, and this one will not be called.<br/>
+		 * If this method takes any action that will potentially block, e.g. on
+		 * a call to <code>DialogPanel.confirm()</code>, it has to read all the
+		 * request parameters it requires before the (first) blocking call, and
+		 * may open a writer to the response only after the (last) blocking
+		 * call returns. Further, such blocking calls are only allowed on
+		 * requests that dynamically GET a JavaScript. Both restrictions exist
+		 * because showing a <code>confirm()</code> prompt in the browser side
+		 * UI requires an additional round trip, and the response to submitting
+		 * the prompt is expected to consist of JavaScript calls to the HTML
+		 * page created by the page builder this class provides via its
+		 * implementation of <code>getViewPageBuilder()</code>.
 		 * @param request the HTTP request to handle
 		 * @param response the HTTP response to write to
 		 * @param pathInfo the part of the URL after the base URL
