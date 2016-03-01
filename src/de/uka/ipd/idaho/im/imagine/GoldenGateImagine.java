@@ -362,6 +362,13 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		return this.configuration.getHelpDataProvider();
 	}
 	
+	/**
+	 * @return the configuration underlying this GoldenGATE instance
+	 */
+	public GoldenGateConfiguration getConfiguration() {
+		return this.configuration;
+	}
+	
 	//	register and lookup method for drop handlers
 	private HashMap dropHandlersByClassName = new LinkedHashMap();
 	

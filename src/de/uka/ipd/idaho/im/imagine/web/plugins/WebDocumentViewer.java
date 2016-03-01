@@ -119,6 +119,8 @@ public interface WebDocumentViewer extends ImageMarkupTool {
 		 */
 		public final void process(ImDocument doc, ImAnnotation annot, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
 			
+			//	TODO consider storing document and annotation in protected variables, we need them all too often
+			
 			//	do processing before opening dialog
 			this.preProcess(doc, annot, idmp);
 			
@@ -188,7 +190,7 @@ public interface WebDocumentViewer extends ImageMarkupTool {
 		/**
 		 * Get a <code>Reader</code> that provides the static basic view page.
 		 * If this method returns null, the surrounding code should use the
-		 * default popup page template, with 'includeBody' being the only
+		 * default pop-up page template, with 'includeBody' being the only
 		 * marker tag. This default implementation does return null, sub
 		 * classes are welcome to overwrite it as needed.
 		 * @return a reader for the static basic HTML page.

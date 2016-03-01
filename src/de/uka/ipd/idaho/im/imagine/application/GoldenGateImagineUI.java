@@ -64,6 +64,7 @@ import java.awt.event.WindowEvent;
 import java.awt.font.TextLayout;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -73,14 +74,18 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
@@ -211,12 +216,45 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		this.helpContent = this.buildHelpContentRoot();
 		this.helpMenu = this.createHelpMenu();
 		
+		//	read main menu layout settings
+		ArrayList fileMenuItemNames = new ArrayList();
+		ArrayList exportMenuItemNames = new ArrayList();
+		ArrayList editMenuItemNames = new ArrayList();
+		ArrayList toolsMenuItemNames = new ArrayList();
+		try {
+			ArrayList menuItemNames = null;
+			BufferedReader mlIn;
+			if (this.ggImagine.getConfiguration().isDataAvailable("GgImagine.menus.cnfg"))
+				mlIn = new BufferedReader(new InputStreamReader(this.ggImagine.getConfiguration().getInputStream("GgImagine.menus.cnfg"), "UTF-8"));
+			else mlIn = new BufferedReader(new InputStreamReader(new FileInputStream(new File("./GgImagine.menus.cnfg")), "UTF-8"));
+			for (String mll; (mll = mlIn.readLine()) != null;) {
+				mll = mll.trim();
+				if ((mll.length() == 0) || mll.startsWith("//"))
+					continue;
+				if ("FILE-MENU".equals(mll))
+					menuItemNames = fileMenuItemNames;
+				else if ("EXPORT-MENU".equals(mll))
+					menuItemNames = exportMenuItemNames;
+				else if ("EDIT-MENU".equals(mll))
+					menuItemNames = editMenuItemNames;
+				else if ("TOOLS-MENU".equals(mll))
+					menuItemNames = toolsMenuItemNames;
+				else if (menuItemNames != null)
+					menuItemNames.add(mll);
+			}
+			mlIn.close();
+		}
+		catch (IOException ioe) {
+			System.out.println("Error reading menu layout: " + ioe.getMessage());
+			ioe.printStackTrace(System.out);
+		}
+		
 		//	build main menu
-		this.addFileMenu();
-		this.addExportMenu();
-		this.addEditMenu();
+		this.addFileMenu(fileMenuItemNames);
+		this.addExportMenu(exportMenuItemNames);
+		this.addEditMenu(editMenuItemNames);
 		this.addMenu(this.undoMenu);
-		this.addToolsMenu();
+		this.addToolsMenu(toolsMenuItemNames);
 		
 		//	finish help
 		this.finishHelpMenu();
@@ -354,7 +392,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		this.setLocationRelativeTo(null);
 	}
 	
-	private void addFileMenu() {
+	private void addFileMenu(ArrayList itemNames) {
 		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'File'", this.helpDataProvider, "GgImagine.FileMenu.html");
 		this.helpContent.addSubChapter(menuHelp);
 		JMenuItem helpMi = new JMenuItem("Menu 'File'");
@@ -368,7 +406,15 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		//	get document IO providers
 		ImageDocumentIoProvider[] docIoProviders = this.ggImagine.getDocumentIoProviders();
 		
-		JMenu menu = new JMenu("File");
+		if (LOCAL_MASTER_CONFIG_NAME.equals(this.ggImagine.getConfigurationName()))
+			System.out.println("FILE-MENU");
+		HashMap items = new LinkedHashMap() {
+			public Object put(Object key, Object value) {
+				if (LOCAL_MASTER_CONFIG_NAME.equals(ggImagine.getConfigurationName()))
+					System.out.println(key);
+				return super.put(key, value);
+			}
+		};
 		JMenuItem mi;
 		
 		//	add built-in loading options
@@ -406,7 +452,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				}
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		mi = new JMenuItem("Load Document from URL");
 		mi.addActionListener(new ActionListener() {
@@ -417,10 +463,10 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				this.loadFormat = uld.getFormat();
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		//	add loading items from custom document IO providers
-		if (docIoProviders.length != 0) {
+		if (docIoProviders.length != 0)
 			for (int p = 0; p < docIoProviders.length; p++) {
 				String sourceName = docIoProviders[p].getLoadSourceName();
 				if (sourceName == null)
@@ -432,10 +478,8 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 						loadDocument(idip);
 					}
 				});
-				menu.add(mi);
+				items.put(mi.getText(), mi);
 			}
-			menu.addSeparator();
-		}
 		
 		//	add built-in saving options
 		mi = new JMenuItem("Save Document");
@@ -449,7 +493,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				idet.saveAs(fileChooser);
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		mi = new JMenuItem("Save Document As");
 		mi.addActionListener(new ActionListener() {
@@ -460,10 +504,10 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				idet.saveAs(fileChooser);
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		//	add saving items from custom document IO providers
-		if (docIoProviders.length != 0) {
+		if (docIoProviders.length != 0)
 			for (int p = 0; p < docIoProviders.length; p++) {
 				String destName = docIoProviders[p].getSaveDestinationName();
 				if (destName == null)
@@ -478,10 +522,8 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 						idet.saveAs(idip);
 					}
 				});
-				menu.add(mi);
+				items.put(mi.getText(), mi);
 			}
-			menu.addSeparator();
-		}
 		
 		mi = new JMenuItem("Close Document");
 		mi.addActionListener(new ActionListener() {
@@ -489,7 +531,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				closeDocument();
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		mi = new JMenuItem("Exit");
 		mi.addActionListener(new ActionListener() {
@@ -497,9 +539,8 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				exit();
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
-		menu.addSeparator();
 		mi = new JMenuItem("Select Pages");
 		mi.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent ae) {
@@ -508,9 +549,10 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 					idet.selectVisiblePages();
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
-		this.addMenu(menu);
+		//	finally ...
+		this.addMenu("File", itemNames, items);
 	}
 	
 	private void handleDrop(Transferable transfer) {
@@ -830,7 +872,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		}
 	}
 	
-	private void addExportMenu() {
+	private void addExportMenu(ArrayList itemNames) {
 		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'Export'", this.helpDataProvider, "GgImagine.ExportMenu.html");
 		this.helpContent.addSubChapter(menuHelp);
 		JMenuItem helpMi = new JMenuItem("Menu 'Export'");
@@ -841,7 +883,15 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		});
 		this.helpMenu.add(helpMi);
 		
-		JMenu menu = new JMenu("Export");
+		if (LOCAL_MASTER_CONFIG_NAME.equals(this.ggImagine.getConfigurationName()))
+			System.out.println("EXPORT-MENU");
+		HashMap items = new LinkedHashMap() {
+			public Object put(Object key, Object value) {
+				if (LOCAL_MASTER_CONFIG_NAME.equals(ggImagine.getConfigurationName()))
+					System.out.println(key);
+				return super.put(key, value);
+			}
+		};
 		JMenuItem mi;
 		
 		mi = new JMenuItem("As XML (without element IDs)");
@@ -866,7 +916,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				}
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		mi = new JMenuItem("As XML (with element IDs)");
 		mi.addActionListener(new ActionListener() {
@@ -890,7 +940,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				}
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		mi = new JMenuItem("As Raw XML (without element IDs)");
 		mi.addActionListener(new ActionListener() {
@@ -914,7 +964,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				}
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		mi = new JMenuItem("As Raw XML (with element IDs)");
 		mi.addActionListener(new ActionListener() {
@@ -938,7 +988,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				}
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		mi = new JMenuItem("As GAMTA XML");
 		mi.addActionListener(new ActionListener() {
@@ -979,12 +1029,11 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				}
 			}
 		});
-		menu.add(mi);
+		items.put(mi.getText(), mi);
 		
 		//	add document exports from configuration
 		DocumentSaver[] docSavers = this.ggImagine.getDocumentSavers();
 		if (docSavers.length != 0) {
-			menu.addSeparator();
 			for (int s = 0; s < docSavers.length; s++) {
 				final DocumentSaver docSaver = docSavers[s];
 				JMenuItem dsmi = docSavers[s].getSaveDocumentMenuItem();
@@ -1003,7 +1052,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 						}
 					}
 				});
-				menu.add(mi);
+				items.put(mi.getText(), mi);
 				
 				//	add plugin specific help chapter if available
 				HelpChapter docSaverHelp = ((GoldenGatePlugin) docSavers[s]).getHelp();
@@ -1015,7 +1064,6 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		//	add dedicated exporters
 		ImageDocumentExporter[] ides = this.ggImagine.getDocumentExporters();
 		if (ides.length != 0) {
-			menu.addSeparator();
 			for (int e = 0; e < ides.length; e++) {
 				final ImageDocumentExporter ide = ides[e];
 				mi = new JMenuItem(ide.getExportMenuLabel());
@@ -1027,7 +1075,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 							exportDocument(idet.idmp.document, ide);
 					}
 				});
-				menu.add(mi);
+				items.put(mi.getText(), mi);
 				
 				//	add exporter specific help chapter if available
 				HelpChapter ideHelp = ((GoldenGatePlugin) ides[e]).getHelp();
@@ -1037,7 +1085,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		}
 		
 		//	finally ...
-		this.addMenu(menu);
+		this.addMenu("Export", itemNames, items);
 	}
 	
 	private void exportDocument(final ImDocument doc, final ImageDocumentExporter ide) {
@@ -1114,7 +1162,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		dso.saveDocument(xmlDoc);
 	}
 	
-	private void addEditMenu() {
+	private void addEditMenu(ArrayList itemNames) {
 		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'Edit'", this.helpDataProvider, "GgImagine.EditMenu.html");
 		this.helpContent.addSubChapter(menuHelp);
 		JMenuItem helpMi = new JMenuItem("Menu 'Edit'");
@@ -1125,18 +1173,25 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		});
 		this.helpMenu.add(helpMi);
 		
-		JMenu menu = new JMenu("Edit");
+		
+		if (LOCAL_MASTER_CONFIG_NAME.equals(this.ggImagine.getConfigurationName()))
+			System.out.println("EDIT-MENU");
+		HashMap items = new LinkedHashMap() {
+			public Object put(Object key, Object value) {
+				if (LOCAL_MASTER_CONFIG_NAME.equals(ggImagine.getConfigurationName()))
+					System.out.println(key);
+				return super.put(key, value);
+			}
+		};
 		JMenuItem mi;
 		
-		menu.add(this.allowReactionPrompts);
+		items.put(this.allowReactionPrompts.getText(), this.allowReactionPrompts);
 		
 		ImageMarkupToolProvider[] imtps = this.ggImagine.getImageMarkupToolProviders();
 		for (int p = 0; p < imtps.length; p++) {
 			String[] emImtNames = imtps[p].getEditMenuItemNames();
 			if ((emImtNames == null) || (emImtNames.length == 0))
 				continue;
-			if (menu.getMenuComponentCount() != 0)
-				menu.addSeparator();
 			for (int n = 0; n < emImtNames.length; n++) {
 				final ImageMarkupTool emImt = imtps[p].getImageMarkupTool(emImtNames[n]);
 				mi = new JMenuItem(emImt.getLabel());
@@ -1148,7 +1203,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 							idet.idmp.applyMarkupTool(emImt, null);
 					}
 				});
-				menu.add(mi);
+				items.put(mi.getText(), mi);
 				
 				//	add help chapter if available
 				String imtHelpText = emImt.getHelpText();
@@ -1156,11 +1211,11 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			}
 		}
 		
-		if (menu.getMenuComponentCount() != 0)
-			this.addMenu(menu);
+		//	finally ...
+		this.addMenu("Edit", itemNames, items);
 	}
 	
-	private void addToolsMenu() {
+	private void addToolsMenu(ArrayList itemNames) {
 		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'Tools'", this.helpDataProvider, "GgImagine.ToolsMenu.html");
 		this.helpContent.addSubChapter(menuHelp);
 		JMenuItem helpMi = new JMenuItem("Menu 'Tools'");
@@ -1172,7 +1227,15 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		this.helpMenu.add(helpMi);
 		helpMi = null; // set to null to mark first entry of custom tool section
 		
-		JMenu menu = new JMenu("Tools");
+		if (LOCAL_MASTER_CONFIG_NAME.equals(this.ggImagine.getConfigurationName()))
+			System.out.println("TOOLS-MENU");
+		HashMap items = new LinkedHashMap() {
+			public Object put(Object key, Object value) {
+				if (LOCAL_MASTER_CONFIG_NAME.equals(ggImagine.getConfigurationName()))
+					System.out.println(key);
+				return super.put(key, value);
+			}
+		};
 		JMenuItem mi;
 		
 		ImageMarkupToolProvider[] imtps = this.ggImagine.getImageMarkupToolProviders();
@@ -1180,8 +1243,6 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			String[] tmImtNames = imtps[p].getToolsMenuItemNames();
 			if ((tmImtNames == null) || (tmImtNames.length == 0))
 				continue;
-			if (menu.getMenuComponentCount() != 0)
-				menu.addSeparator();
 			for (int n = 0; n < tmImtNames.length; n++) {
 				final ImageMarkupTool tmImt = imtps[p].getImageMarkupTool(tmImtNames[n]);
 				mi = new JMenuItem(tmImt.getLabel());
@@ -1193,7 +1254,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 							idet.idmp.applyMarkupTool(tmImt, null);
 					}
 				});
-				menu.add(mi);
+				items.put(mi.getText(), mi);
 				
 				//	add help menu entry (with separator before first IMT specific entry)
 				if (helpMi == null)
@@ -1227,8 +1288,6 @@ Add "Advanced" menu to GG Imagine
 			//	TODO prompt for normalization level before applying DocumentProcessor ==> even more simplifies testing
 			
 			DocumentProcessorManager[] dpms = this.ggImagine.getDocumentProcessorProviders();
-			if ((dpms.length != 0 ) && (menu.getMenuComponentCount() != 0))
-				menu.addSeparator();
 			for (int m = 0; m < dpms.length; m++) {
 				final DocumentProcessorManager dpm = dpms[m];
 				final String toolsMenuLabel = dpm.getToolsMenuLabel();
@@ -1280,8 +1339,8 @@ Add "Advanced" menu to GG Imagine
 						}, null);
 					}
 				});
-				menu.add(mi);
-//				
+				items.put(mi.getText(), mi);
+				
 //				//	add help chapter if available SKIP THOSE, TOO GENERIC (MOSTLY ADMIN DOCUMENTATION)
 //				HelpChapter dpmHelp = dpms[m].getHelp();
 //				if (dpmHelp != null)
@@ -1290,8 +1349,8 @@ Add "Advanced" menu to GG Imagine
 			
 		}
 		
-		if (menu.getMenuComponentCount() != 0)
-			this.addMenu(menu);
+		//	finally ...
+		this.addMenu("Tools", itemNames, items);
 	}
 	
 	private HelpChapter buildHelpContentRoot() {
@@ -1488,6 +1547,61 @@ Add "Advanced" menu to GG Imagine
 				return ((obj instanceof ZoomLevel) && (((ZoomLevel) obj).dpi == this.dpi));
 			}
 		}
+	}
+	
+	private void addMenu(String name, ArrayList itemNames, HashMap items) {
+		
+		//	build menu
+		JMenu menu = new JMenu(name);
+		JMenuItem mi;
+		boolean lastWasItem = false;
+		
+		//	add configured items first
+		for (int i = 0; i < itemNames.size(); i++) {
+			String itemName = ((String) itemNames.get(i));
+			
+			//	add separator
+			if ("---".equals(itemName)) {
+				if (lastWasItem)
+					menu.addSeparator();
+				lastWasItem = false;
+				continue;
+			}
+			
+			//	add menu item
+			mi = ((JMenuItem) items.remove(itemName));
+			if (mi != null) {
+				menu.add(mi);
+				lastWasItem = true;
+			}
+		}
+		
+		//	add remaining items
+		if (lastWasItem && (items.size() != 0)) {
+			menu.addSeparator();
+			lastWasItem = false;
+		}
+		for (Iterator init = items.keySet().iterator(); init.hasNext();) {
+			String itemName = ((String) init.next());
+			
+			//	add separator
+			if ("---".equals(itemName) && init.hasNext()) {
+				if (lastWasItem)
+					menu.addSeparator();
+				lastWasItem = false;
+				continue;
+			}
+			
+			//	add menu item
+			mi = ((JMenuItem) items.get(itemName));
+			if (mi != null) {
+				menu.add(mi);
+				lastWasItem = true;
+			}
+		}
+		
+		//	finally ...
+		this.addMenu(menu);
 	}
 	
 	void addMenu(JMenu menu) {

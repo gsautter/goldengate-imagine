@@ -152,6 +152,7 @@ public class GoldenGateImagineConfigurationManager extends AbstractConfiguration
 	 */
 	protected void adjustConfiguration(String exportName, Configuration config) {
 		config.addDataItem(new DataItem("GgImagine.cnfg", config.configTimestamp));
+		config.addDataItem(new DataItem("GgImagine.menus.cnfg", config.configTimestamp));
 	}
 	
 	/* (non-Javadoc)
@@ -162,6 +163,8 @@ public class GoldenGateImagineConfigurationManager extends AbstractConfiguration
 			public InputStream getInputStream(String dataName) throws IOException {
 				if ("GgImagine.cnfg".equals(dataName))
 					return dataProvider.getInputStream("GgImagine.cnfg");
+				else if ("GgImagine.menus.cnfg".equals(dataName))
+					return dataProvider.getInputStream("GgImagine.menus.cnfg");
 				else return sdh.getInputStream(dataName);
 			}
 		};
