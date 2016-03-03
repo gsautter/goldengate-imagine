@@ -308,8 +308,9 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			if (!cacheRootPath.endsWith("/"))
 				cacheRootPath += "/";
 			Settings set = ggiConfig.getSettings();
+			set.setSetting("cacheRootFolder", cacheRootPath);
 			set.setSetting("pageImageFolder", (cacheRootPath + "PageImages"));
-			set.setSetting("supplementImageFolder", (cacheRootPath + "SupplementImages"));
+			set.setSetting("supplementFolder", (cacheRootPath + "Supplements"));
 		}
 		
 		//	instantiate GoldenGATE Imagine

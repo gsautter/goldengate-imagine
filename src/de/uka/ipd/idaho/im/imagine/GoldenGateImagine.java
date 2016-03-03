@@ -130,12 +130,27 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		//	get settings
 		Settings set = configuration.getSettings();
 		
+		//	read cache root path
+		String cacheRootPathName = set.getSetting("cacheRootFolder");
+		File cacheRootPath;
+		if (cacheRootPathName == null)
+			cacheRootPath = path;
+		else {
+			if (cacheRootPathName.startsWith("/") || (cacheRootPathName.indexOf(':') != -1))
+				cacheRootPath = new File(cacheRootPathName);
+			else cacheRootPath = new File(path, cacheRootPathName);
+			if (!cacheRootPath.exists())
+				cacheRootPath.mkdirs();
+		}
+		
 		//	create page image store
-		String pageImageFolderName = set.getSetting("pageImageFolder", "PageImages");
+		String pageImageFolderName = set.getSetting("pageImageFolder", "./PageImages");
 		final File pageImageFolder;
 		if (pageImageFolderName.startsWith("/") || (pageImageFolderName.indexOf(':') != -1))
 			pageImageFolder = new File(pageImageFolderName);
-		else pageImageFolder = new File(path, pageImageFolderName);
+		else if (pageImageFolderName.startsWith("./"))
+			pageImageFolder = new File(path, pageImageFolderName.substring("./".length()));
+		else pageImageFolder = new File(cacheRootPath, pageImageFolderName);
 		if (!pageImageFolder.exists())
 			pageImageFolder.mkdirs();
 		this.pageImageStore = new AbstractPageImageStore() {
@@ -180,14 +195,16 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		PageImage.addPageImageSource(this.pageImageStore);
 		
 		//	create PDF reader caching supplements on disc
-		String supplementImageFolderName = set.getSetting("supplementImageFolder", "SupplementImages");
-		final File supplementImageFolder;
-		if (supplementImageFolderName.startsWith("/") || (supplementImageFolderName.indexOf(':') != -1))
-			supplementImageFolder = new File(supplementImageFolderName);
-		else supplementImageFolder = new File(path, supplementImageFolderName);
-		if (!supplementImageFolder.exists())
-			supplementImageFolder.mkdirs();
-		this.pdfExtractor = new PdfExtractor(path, this.pageImageStore, true) {
+		String supplementFolderName = set.getSetting("supplementFolder", "Supplements");
+		final File supplementFolder;
+		if (supplementFolderName.startsWith("/") || (supplementFolderName.indexOf(':') != -1))
+			supplementFolder = new File(supplementFolderName);
+		else if (supplementFolderName.startsWith("./"))
+			supplementFolder = new File(path, supplementFolderName.substring("./".length()));
+		else supplementFolder = new File(cacheRootPath, supplementFolderName);
+		if (!supplementFolder.exists())
+			supplementFolder.mkdirs();
+		this.pdfExtractor = new PdfExtractor(path, cacheRootPath, this.pageImageStore, true) {
 			protected ImDocument createDocument(String docId) {
 				return new ImDocument(docId) {
 					private long inMemorySupplementBytes = 0;
@@ -251,7 +268,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 							sDataType = sDataType.substring(sDataType.indexOf('/') + "/".length());
 						
 						//	create file
-						final File sFile = new File(supplementImageFolder, (this.docId + "." + sDataName + "." + sDataType));
+						final File sFile = new File(supplementFolder, (this.docId + "." + sDataName + "." + sDataType));
 						
 						//	store supplement in file (if not done in previous run)
 						if (!sFile.exists()) {
