@@ -153,45 +153,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		else pageImageFolder = new File(cacheRootPath, pageImageFolderName);
 		if (!pageImageFolder.exists())
 			pageImageFolder.mkdirs();
-		this.pageImageStore = new AbstractPageImageStore() {
-			public boolean isPageImageAvailable(String name) {
-				if (!name.endsWith(IMAGE_FORMAT))
-					name += ("." + IMAGE_FORMAT);
-				File pif = new File(pageImageFolder, name);
-				return pif.exists();
-			}
-			public PageImageInputStream getPageImageAsStream(String name) throws IOException {
-				if (!name.endsWith(IMAGE_FORMAT))
-					name += ("." + IMAGE_FORMAT);
-				File pif = new File(pageImageFolder, name);
-				if (pif.exists())
-					return new PageImageInputStream(new BufferedInputStream(new FileInputStream(pif)), this);
-				else return null;
-			}
-			public boolean storePageImage(String name, PageImage pageImage) throws IOException {
-				if (!name.endsWith(IMAGE_FORMAT))
-					name += ("." + IMAGE_FORMAT);
-				try {
-					File pif = new File(pageImageFolder, name);
-					if (pif.exists()) {
-						String pifName = pif.getAbsolutePath();
-						pif.renameTo(new File(pifName + "." + System.currentTimeMillis() + ".old"));
-						pif = new File(pifName);
-					}
-					OutputStream imageOut = new BufferedOutputStream(new FileOutputStream(pif));
-					pageImage.write(imageOut);
-					imageOut.close();
-					return true;
-				}
-				catch (IOException ioe) {
-					ioe.printStackTrace(System.out);
-					return false;
-				}
-			}
-			public int getPriority() {
-				return 0; // we're a general page image store, yield to more specific ones
-			}
-		};
+		this.pageImageStore = new GgiPageImageStore(pageImageFolder);
 		PageImage.addPageImageSource(this.pageImageStore);
 		
 		//	create PDF reader caching supplements on disc
@@ -204,107 +166,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		else supplementFolder = new File(cacheRootPath, supplementFolderName);
 		if (!supplementFolder.exists())
 			supplementFolder.mkdirs();
-		this.pdfExtractor = new PdfExtractor(path, cacheRootPath, this.pageImageStore, true) {
-			protected ImDocument createDocument(String docId) {
-				return new ImDocument(docId) {
-					private long inMemorySupplementBytes = 0;
-					public ImSupplement addSupplement(ImSupplement ims) {
-						
-						//	store known type supplements on disc if there are too many or too large
-						if ((ims instanceof ImSupplement.Figure) || (ims instanceof ImSupplement.Scan) || (ims instanceof ImSupplement.Source)) try {
-							
-							//	threshold already exceeded, disc cache right away
-							if (this.inMemorySupplementBytes > maxInMemoryImageSupplementBytes)
-								ims = this.createDiscSupplement(ims, null);
-							
-							//	still below threshold, check source
-							else {
-								InputStream sis = ims.getInputStream();
-								
-								//	this one resides in memory, count it
-								if (sis instanceof ByteArrayInputStream)
-									this.inMemorySupplementBytes += sis.available();
-								
-								//	threshold just exceeded
-								if (this.inMemorySupplementBytes > maxInMemoryImageSupplementBytes) {
-									
-									//	disc cache all existing image supplements
-									ImSupplement[] imss = this.getSupplements();
-									for (int s = 0; s < imss.length; s++) {
-										if ((imss[s] instanceof ImSupplement.Figure) || (imss[s] instanceof ImSupplement.Scan))
-											super.addSupplement(this.createDiscSupplement(imss[s], null));
-									}
-									
-									//	disc cache argument supplement
-									ims = this.createDiscSupplement(ims, sis);
-								}
-							}
-						}
-						catch (IOException ioe) {
-							System.out.println("Error caching supplement '" + ims.getId() + "': " + ioe.getMessage());
-							ioe.printStackTrace(System.out);
-						}
-						
-						//	store (possibly modified) supplement
-						return super.addSupplement(ims);
-					}
-					
-					private ImSupplement createDiscSupplement(ImSupplement ims, InputStream sis) throws IOException {
-						
-						//	get input stream if not already done
-						if (sis == null)
-							sis = ims.getInputStream();
-						
-						//	this one's not in memory, close input stream and we're done
-						if (!(sis instanceof ByteArrayInputStream)) {
-							sis.close();
-							return ims;
-						}
-						
-						//	get file name and extension
-						String sDataName = ims.getId().replaceAll("[^a-zA-Z0-9]", "_");
-						String sDataType = ims.getMimeType();
-						if (sDataType.indexOf('/') != -1)
-							sDataType = sDataType.substring(sDataType.indexOf('/') + "/".length());
-						
-						//	create file
-						final File sFile = new File(supplementFolder, (this.docId + "." + sDataName + "." + sDataType));
-						
-						//	store supplement in file (if not done in previous run)
-						if (!sFile.exists()) {
-							sFile.createNewFile();
-							OutputStream sos = new BufferedOutputStream(new FileOutputStream(sFile));
-							byte[] sBuffer = new byte[1024];
-							for (int r; (r = sis.read(sBuffer, 0, sBuffer.length)) != -1;)
-								sos.write(sBuffer, 0, r);
-							sos.flush();
-							sos.close();
-						}
-						
-						//	replace supplement with disc based one
-						if (ims instanceof ImSupplement.Figure)
-							return new ImSupplement.Figure(this, ims.getMimeType(), ((ImSupplement.Figure) ims).getPageId(), ((ImSupplement.Figure) ims).getDpi(), ((ImSupplement.Figure) ims).getBounds()) {
-								public InputStream getInputStream() throws IOException {
-									return new BufferedInputStream(new FileInputStream(sFile));
-								}
-							};
-						else if (ims instanceof ImSupplement.Scan)
-							return new ImSupplement.Scan(this, ims.getMimeType(), ((ImSupplement.Scan) ims).getPageId(), ((ImSupplement.Scan) ims).getDpi()) {
-								public InputStream getInputStream() throws IOException {
-									return new BufferedInputStream(new FileInputStream(sFile));
-								}
-							};
-						else if (ims instanceof ImSupplement.Source)
-							return new ImSupplement.Source(this, ims.getMimeType()) {
-								public InputStream getInputStream() throws IOException {
-									return new BufferedInputStream(new FileInputStream(sFile));
-								}
-							};
-						else return ims; // never gonna happen, but Java don't know
-					}
-				};
-			}
-		};
+		this.pdfExtractor = new GgiPdfExtractor(path, cacheRootPath, this.pageImageStore, true, supplementFolder);
 		
 		//	get and index applicable plugins (only now, as instance proper is fully initialized)
 		GoldenGatePlugin[] ggps = this.goldenGate.getPlugins();
@@ -329,6 +191,165 @@ public class GoldenGateImagine implements GoldenGateConstants {
 				this.registerReactionProvider((ReactionProvider) ggps[p]);
 			if (ggps[p] instanceof GoldenGateImagineDocumentListener)
 				this.registerDocumentListener((GoldenGateImagineDocumentListener) ggps[p]);
+		}
+	}
+	
+	private static class GgiPageImageStore extends AbstractPageImageStore {
+		private File pageImageFolder;
+		GgiPageImageStore(File pageImageFolder) {
+			this.pageImageFolder = pageImageFolder;
+		}
+		public boolean isPageImageAvailable(String name) {
+			if (!name.endsWith(IMAGE_FORMAT))
+				name += ("." + IMAGE_FORMAT);
+			File pif = new File(this.pageImageFolder, name);
+			return pif.exists();
+		}
+		public PageImageInputStream getPageImageAsStream(String name) throws IOException {
+			if (!name.endsWith(IMAGE_FORMAT))
+				name += ("." + IMAGE_FORMAT);
+			File pif = new File(this.pageImageFolder, name);
+			if (pif.exists())
+				return new PageImageInputStream(new BufferedInputStream(new FileInputStream(pif)), this);
+			else return null;
+		}
+		public boolean storePageImage(String name, PageImage pageImage) throws IOException {
+			if (!name.endsWith(IMAGE_FORMAT))
+				name += ("." + IMAGE_FORMAT);
+			try {
+				File pif = new File(this.pageImageFolder, name);
+				if (pif.exists()) {
+					String pifName = pif.getAbsolutePath();
+					pif.renameTo(new File(pifName + "." + System.currentTimeMillis() + ".old"));
+					pif = new File(pifName);
+				}
+				OutputStream imageOut = new BufferedOutputStream(new FileOutputStream(pif));
+				pageImage.write(imageOut);
+				imageOut.close();
+				return true;
+			}
+			catch (IOException ioe) {
+				ioe.printStackTrace(System.out);
+				return false;
+			}
+		}
+		public int getPriority() {
+			return 0; // we're a general page image store, yield to more specific ones
+		}
+	}
+	
+	private static class GgiPdfExtractor extends PdfExtractor {
+		private File supplementFolder;
+		GgiPdfExtractor(File basePath, File cachePath, PageImageStore imageStore, boolean useMultipleCores, File supplementFolder) {
+			super(basePath, cachePath, imageStore, useMultipleCores);
+			this.supplementFolder = supplementFolder;
+		}
+		protected ImDocument createDocument(String docId) {
+			return new GgiImDocument(docId, this.supplementFolder);
+		}
+	}
+	
+	private static class GgiImDocument extends ImDocument {
+		private File supplementFolder;
+		GgiImDocument(String docId, File supplementFolder) {
+			super(docId);
+			this.supplementFolder = supplementFolder;
+		}
+		
+		private long inMemorySupplementBytes = 0;
+		public ImSupplement addSupplement(ImSupplement ims) {
+			
+			//	store known type supplements on disc if there are too many or too large
+			if ((ims instanceof ImSupplement.Figure) || (ims instanceof ImSupplement.Scan) || (ims instanceof ImSupplement.Source)) try {
+				
+				//	threshold already exceeded, disc cache right away
+				if (this.inMemorySupplementBytes > maxInMemoryImageSupplementBytes)
+					ims = this.createDiscSupplement(ims, null);
+				
+				//	still below threshold, check source
+				else {
+					InputStream sis = ims.getInputStream();
+					
+					//	this one resides in memory, count it
+					if (sis instanceof ByteArrayInputStream)
+						this.inMemorySupplementBytes += sis.available();
+					
+					//	threshold just exceeded
+					if (this.inMemorySupplementBytes > maxInMemoryImageSupplementBytes) {
+						
+						//	disc cache all existing image supplements
+						ImSupplement[] imss = this.getSupplements();
+						for (int s = 0; s < imss.length; s++) {
+							if ((imss[s] instanceof ImSupplement.Figure) || (imss[s] instanceof ImSupplement.Scan))
+								super.addSupplement(this.createDiscSupplement(imss[s], null));
+						}
+						
+						//	disc cache argument supplement
+						ims = this.createDiscSupplement(ims, sis);
+					}
+				}
+			}
+			catch (IOException ioe) {
+				System.out.println("Error caching supplement '" + ims.getId() + "': " + ioe.getMessage());
+				ioe.printStackTrace(System.out);
+			}
+			
+			//	store (possibly modified) supplement
+			return super.addSupplement(ims);
+		}
+		
+		private ImSupplement createDiscSupplement(ImSupplement ims, InputStream sis) throws IOException {
+			
+			//	get input stream if not already done
+			if (sis == null)
+				sis = ims.getInputStream();
+			
+			//	this one's not in memory, close input stream and we're done
+			if (!(sis instanceof ByteArrayInputStream)) {
+				sis.close();
+				return ims;
+			}
+			
+			//	get file name and extension
+			String sDataName = ims.getId().replaceAll("[^a-zA-Z0-9]", "_");
+			String sDataType = ims.getMimeType();
+			if (sDataType.indexOf('/') != -1)
+				sDataType = sDataType.substring(sDataType.indexOf('/') + "/".length());
+			
+			//	create file
+			final File sFile = new File(this.supplementFolder, (this.docId + "." + sDataName + "." + sDataType));
+			
+			//	store supplement in file (if not done in previous run)
+			if (!sFile.exists()) {
+				sFile.createNewFile();
+				OutputStream sos = new BufferedOutputStream(new FileOutputStream(sFile));
+				byte[] sBuffer = new byte[1024];
+				for (int r; (r = sis.read(sBuffer, 0, sBuffer.length)) != -1;)
+					sos.write(sBuffer, 0, r);
+				sos.flush();
+				sos.close();
+			}
+			
+			//	replace supplement with disc based one
+			if (ims instanceof ImSupplement.Figure)
+				return new ImSupplement.Figure(this, ims.getMimeType(), ((ImSupplement.Figure) ims).getPageId(), ((ImSupplement.Figure) ims).getDpi(), ((ImSupplement.Figure) ims).getBounds()) {
+					public InputStream getInputStream() throws IOException {
+						return new BufferedInputStream(new FileInputStream(sFile));
+					}
+				};
+			else if (ims instanceof ImSupplement.Scan)
+				return new ImSupplement.Scan(this, ims.getMimeType(), ((ImSupplement.Scan) ims).getPageId(), ((ImSupplement.Scan) ims).getDpi()) {
+					public InputStream getInputStream() throws IOException {
+						return new BufferedInputStream(new FileInputStream(sFile));
+					}
+				};
+			else if (ims instanceof ImSupplement.Source)
+				return new ImSupplement.Source(this, ims.getMimeType()) {
+					public InputStream getInputStream() throws IOException {
+						return new BufferedInputStream(new FileInputStream(sFile));
+					}
+				};
+			else return ims; // never gonna happen, but Java don't know
 		}
 	}
 	
