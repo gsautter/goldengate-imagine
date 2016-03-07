@@ -29,6 +29,7 @@ package de.uka.ipd.idaho.im.imagine.batch;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileFilter;
@@ -36,6 +37,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -55,6 +57,7 @@ import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagineConstants;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentFileExporter;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.util.ImDocumentData.ImDocumentEntry;
 import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.stringUtils.StringVector;
@@ -73,6 +76,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 	private static final String DATA_PARAMETER = "DATA";
 	private static final String DATA_TYPE_PARAMETER = "DT";
 	private static final String OUT_PARAMETER = "OUT";
+	private static final String OUT_TYPE_PARAMETER = "OT";
 	private static final String HELP_PARAMETER = "HELP";
 	
 	private static File BASE_PATH = null;
@@ -93,6 +97,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		String dataBaseName = null;
 		String dataType = "G";
 		String dataOutPath = null;
+		String dataOutType = "F";
 		boolean printHelpImplicit = true;
 		boolean printHelpExplicit = false;
 		
@@ -116,6 +121,8 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 				dataType = args[a].substring((DATA_TYPE_PARAMETER + "=").length());
 			else if (args[a].startsWith(OUT_PARAMETER + "="))
 				dataOutPath = args[a].substring((OUT_PARAMETER + "=").length());
+			else if (args[a].startsWith(OUT_TYPE_PARAMETER + "="))
+				dataOutType = args[a].substring((OUT_TYPE_PARAMETER + "=").length());
 			else if (args[a].equals(LOG_PARAMETER + "=IDE") || args[a].equals(LOG_PARAMETER + "=NO"))
 				logFileName = null;
 			else if (args[a].startsWith(LOG_PARAMETER + "="))
@@ -137,6 +144,9 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			System.out.println("\t- set to 'S' to indicate scanned PDF files");
 			System.out.println("\t- set to 'G' or omit to indicate generic PDF files (expects both\r\n\t  born-digital and scanned, determining type on a per-file basis)");
 			System.out.println("OUT:\tthe folder to store the produced IMF files in (defaults to the folder\r\n\teach individual source PDF file was loaded from)");
+			System.out.println("OT:\tthe way of storing the produced IMF files (defaults to 'F' for 'file'):");
+			System.out.println("\t- set to 'F' or omit to indicate (zipped) single file storage");
+			System.out.println("\t- set to 'D' to indicate indicate (non-zipped) folder storage");
 			System.out.println("LOG:\tthe name for the log files to write respective information to (file\r\n\tnames are suffixed with '.out.log' and '.err.log', set to 'IDE' or 'NO'\r\n\tto log directly to the console)");
 			System.out.println("HELP:\tprint this help text");
 			System.out.println("");
@@ -146,8 +156,10 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			System.exit(0);
 		}
 		
-		//	get list of files to process (either all PDFs in some folder, or the ones listed in some TXT file)
+		//	get list of files to process (either all PDFs in some folder, or the ones listed in some TXT file, or some already-decoded files)
 		File[] dataInFiles = null;
+		
+		//	folder to process
 		File dataInBase = new File(dataBaseName);
 		if (dataInBase.isDirectory()) {
 			dataInFiles = dataInBase.listFiles(new FileFilter() {
@@ -352,7 +364,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		for (int d = 0; d < dataInFiles.length; d++) try {
 			
 			//	determine where to store document
-			String dataOutName = (dataInFiles[d].getName() + ".imf");
+			String dataOutName = (dataInFiles[d].getName() + ("D".equals(dataOutType) ? ".imd" : ".imf"));
 			File dataOutFile;
 			if (dataOutPath == null)
 				dataOutFile = new File(dataInFiles[d].getAbsoluteFile().getParentFile(), dataOutName);
@@ -400,14 +412,35 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 				imts[t].process(doc, null, null, pm);
 			}
 			
-			//	store document
-			dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
-			OutputStream out = new BufferedOutputStream(new FileOutputStream(dataOutFile));
-			systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
-			ImDocumentIO.storeDocument(doc, out, pm);
-			out.flush();
-			out.close();
-			systemOut.println("Document stored");
+			//	store document to directory ...
+			if ("D".equals(dataOutType)) {
+				dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
+				File dataOutFolder = new File(dataOutFile.getAbsolutePath() + "ir");
+				if (!dataOutFolder.exists())
+					dataOutFolder.mkdirs();
+				systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
+				ImDocumentEntry[] entries = ImDocumentIO.storeDocument(doc, dataOutFile, pm);
+				systemOut.println("Document entries stored");
+				BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(dataOutFile), "UTF-8"));
+				for (int e = 0; e < entries.length; e++) {
+					out.write(entries[e].toTabString());
+					out.newLine();
+				}
+				out.flush();
+				out.close();
+				systemOut.println("Document stored");
+			}
+			
+			//	... or file
+			else {
+				dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
+				OutputStream out = new BufferedOutputStream(new FileOutputStream(dataOutFile));
+				systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
+				ImDocumentIO.storeDocument(doc, out, pm);
+				out.flush();
+				out.close();
+				systemOut.println("Document stored");
+			}
 			
 			//	export additional data formats
 			for (int e = 0; e < idfes.length; e++) try {
