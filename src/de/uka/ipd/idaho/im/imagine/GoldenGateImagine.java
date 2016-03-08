@@ -48,9 +48,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
@@ -87,9 +89,9 @@ import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.ImSupplement;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineDocumentListener;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImaginePlugin;
-import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentIoProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentExporter;
+import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentIoProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageEditToolProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ReactionProvider;
@@ -238,24 +240,26 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		}
 	}
 	
-	private static class GgiPdfExtractor extends PdfExtractor {
+	private Map docSupplementFoldersById = Collections.synchronizedMap(new HashMap());
+	private class GgiPdfExtractor extends PdfExtractor {
 		private File supplementFolder;
 		GgiPdfExtractor(File basePath, File cachePath, PageImageStore imageStore, boolean useMultipleCores, File supplementFolder) {
 			super(basePath, cachePath, imageStore, useMultipleCores);
 			this.supplementFolder = supplementFolder;
 		}
 		protected ImDocument createDocument(String docId) {
-			return new GgiImDocument(docId, this.supplementFolder);
+			File docSupplementFolder = new File(this.supplementFolder, ("doc" + docId));
+			docSupplementFoldersById.put(docId, docSupplementFolder);
+			return new GgiImDocument(docId, docSupplementFolder);
 		}
 	}
 	
-	private static class GgiImDocument extends ImDocument {
+	private class GgiImDocument extends ImDocument {
 		private File supplementFolder;
 		GgiImDocument(String docId, File supplementFolder) {
 			super(docId);
 			this.supplementFolder = supplementFolder;
 		}
-		
 		private long inMemorySupplementBytes = 0;
 		public ImSupplement addSupplement(ImSupplement ims) {
 			
@@ -317,6 +321,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 				sDataType = sDataType.substring(sDataType.indexOf('/') + "/".length());
 			
 			//	create file
+			this.supplementFolder.mkdirs();
 			final File sFile = new File(this.supplementFolder, (this.docId + "." + sDataName + "." + sDataType));
 			
 			//	store supplement in file (if not done in previous run)
@@ -698,6 +703,19 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	public void notifyDocumentClosed(String docId) {
 		for (int l = 0; l < this.documentListeners.size(); l++)
 			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentClosed(docId);
+		
+		//	clean up supplement cache folder
+		File docSupplementFolder = ((File) this.docSupplementFoldersById.get(docId));
+		if ((docSupplementFolder != null) && docSupplementFolder.exists()) try {
+			File[] docSupplements = docSupplementFolder.listFiles();
+			for (int s = 0; s < docSupplements.length; s++)
+				docSupplements[s].delete();
+			docSupplementFolder.delete();
+		}
+		catch (Exception e) {
+			System.out.println("Error cleaning up import supplement cache for document '" + docId + "': " + e.getMessage());
+			e.printStackTrace(System.out);
+		}
 	}
 	
 	/**
