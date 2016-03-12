@@ -188,6 +188,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	private JMenu helpMenu;
 	
 	private JFileChooser fileChooser = new JFileChooser();
+	private File docCacheRoot;
 	private PdfExtractor pdfExtractor;
 	
 	private ViewControl viewControl = new ViewControl();
@@ -195,13 +196,16 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	
 	private SelectionActionUsageStats saUsageStats = new SelectionActionUsageStats();
 	
-	GoldenGateImagineUI(GoldenGateImagine ggImagine, Settings config) {
+	GoldenGateImagineUI(GoldenGateImagine ggImagine, File docCacheRoot, Settings config) {
 		super("GoldenGATE Imagine - " + ggImagine.getConfigurationName());
 		this.ggImagine = ggImagine;
 		this.config = config;
 		
 		//	set window icon
 		this.setIconImage(this.ggImagine.getGoldenGateIcon());
+		
+		//	set folder for caching IMF contents
+		this.docCacheRoot = docCacheRoot;
 		
 		//	get PDF reader
 		this.pdfExtractor = this.ggImagine.getPdfExtractor();
@@ -1651,7 +1655,20 @@ Add "Advanced" menu to GG Imagine
 				public void run() {
 					try {
 						loadScreen.setStep("Loading IMF Archive");
-						ImDocument doc = ImDocumentIO.loadDocument(in, loadScreen, inLength);
+						ImDocument doc;
+						
+						 // 50 MB should OK to hold in memory
+						if (inLength < (1024 * 1024 * 50))
+							doc = ImDocumentIO.loadDocument(in, loadScreen, inLength);
+						
+						//	use disk based cache if IMF is larger
+						else {
+							File docDataCache = new File(docCacheRoot, docName);
+							docDataCache.mkdirs();
+							doc = ImDocumentIO.loadDocument(in, docDataCache, loadScreen, inLength);
+						}
+						
+						//	open document in UI
 						doc.setAttribute(DOCUMENT_NAME_ATTRIBUTE, docName);
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
@@ -1887,6 +1904,8 @@ Add "Advanced" menu to GG Imagine
 		ImDocumentEditorTab idet = getActiveDocument();
 		if (idet == null)
 			return true;
+		
+		//	save document if dirty
 		if (idet.isDirty()) {
 			int choice = JOptionPane.showConfirmDialog(GoldenGateImagineUI.this, ("Document '" + idet.docName + "' has un-saved changes. Save them before closing it?"), "Save Changes?", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
 			if (choice == JOptionPane.CANCEL_OPTION)
@@ -1897,6 +1916,17 @@ Add "Advanced" menu to GG Imagine
 			}
 		}
 		idet.close();
+		
+		//	clean up any cached files
+		File docDataCache = new File(this.docCacheRoot, idet.docName);
+		if (docDataCache.exists()) {
+			File[] docDataFiles = docDataCache.listFiles();
+			for (int f = 0; f < docDataFiles.length; f++)
+				docDataFiles[f].delete();
+			docDataCache.delete();
+		}
+		
+		//	finally ...
 		return true;
 	}
 	

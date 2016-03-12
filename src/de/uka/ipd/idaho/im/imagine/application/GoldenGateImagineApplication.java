@@ -107,6 +107,8 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 	private static StringVector UPDATE_HOSTS = new StringVector();
 	private static StringVector CONFIG_HOSTS = new StringVector();
 	
+	private static final String CACHE_PATH_PARAMETER = "CACHE";
+	
 	private static final String LOG_TIMESTAMP_DATE_FORMAT = "yyyyMMdd-HHmm";
 	private static final DateFormat LOG_TIMESTAMP_FORMATTER = new SimpleDateFormat(LOG_TIMESTAMP_DATE_FORMAT);
 	
@@ -224,6 +226,7 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 		
 		//	adjust basic parameters
 		String basePath = "./";
+		String cacheRootPath = null;
 		StringVector filesToOpen = new StringVector();
 		String logFileName = ("GgImagine." + LOG_TIMESTAMP_FORMATTER.format(new Date()) + ".log");
 		
@@ -233,6 +236,8 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 			if (arg != null) {
 				if (arg.startsWith(BASE_PATH_PARAMETER + "="))
 					basePath = arg.substring((BASE_PATH_PARAMETER + "=").length());
+				else if (args[a].startsWith(CACHE_PATH_PARAMETER + "="))
+					cacheRootPath = args[a].substring((CACHE_PATH_PARAMETER + "=").length());
 				else if (ONLINE_PARAMETER.equals(arg))
 					ONLINE = true;
 				else if (arg.equals(LOG_PARAMETER + "=IDE") || arg.equals(LOG_PARAMETER + "=NO"))
@@ -374,6 +379,16 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 		//	remote configuration selected
 		else ggiConfig = new UrlConfiguration((configuration.host + (configuration.host.endsWith("/") ? "" : "/") + configuration.name), configuration.name);
 		
+		//	if cache path set, add settings for page image and supplement cache
+		if (cacheRootPath != null) {
+			if (!cacheRootPath.endsWith("/"))
+				cacheRootPath += "/";
+			Settings set = ggiConfig.getSettings();
+			set.setSetting("cacheRootFolder", cacheRootPath);
+			set.setSetting("pageImageFolder", (cacheRootPath + "PageImages"));
+			set.setSetting("supplementFolder", (cacheRootPath + "Supplements"));
+		}
+		
 		//	TODOne (selector popup remains specific to this class): create factory for configuration, select implementation there
 		GoldenGateImagine goldenGateImagine = GoldenGateImagine.openGoldenGATE(ggiConfig, BASE_PATH, true);
 		System.out.println("GoldenGATE Imagine core created, configuration is " + configuration.name);
@@ -381,8 +396,19 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 		//	load GoldenGATE Imagine specific settings
 		final Settings ggiSettings = Settings.loadSettings(new File(BASE_PATH, "GgImagine.cnfg"));
 		
+		//	create document cache folder
+		String docCacheFolderName = ((cacheRootPath == null) ? "./DocumentData" : (cacheRootPath + "DocumentData"));
+		File docCacheFolder;
+		if (docCacheFolderName.startsWith("/") || (docCacheFolderName.indexOf(':') != -1))
+			docCacheFolder = new File(docCacheFolderName);
+		else if (docCacheFolderName.startsWith("./"))
+			docCacheFolder = new File(BASE_PATH, docCacheFolderName.substring("./".length()));
+		else docCacheFolder = new File(BASE_PATH, docCacheFolderName);
+		if (!docCacheFolder.exists())
+			docCacheFolder.mkdirs();
+		
 		//	open GoldenGATE Imagine window
-		GoldenGateImagineUI ggiUi = new GoldenGateImagineUI(goldenGateImagine, ggiSettings);
+		GoldenGateImagineUI ggiUi = new GoldenGateImagineUI(goldenGateImagine, docCacheFolder, ggiSettings);
 		ggiUi.setIconImage(ggiConfig.getIconImage());
 		ggiUi.setVisible(true);
 		System.out.println(" - window opened");

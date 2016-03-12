@@ -147,7 +147,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		
 		//	create page image store
 		String pageImageFolderName = set.getSetting("pageImageFolder", "./PageImages");
-		final File pageImageFolder;
+		File pageImageFolder;
 		if (pageImageFolderName.startsWith("/") || (pageImageFolderName.indexOf(':') != -1))
 			pageImageFolder = new File(pageImageFolderName);
 		else if (pageImageFolderName.startsWith("./"))
@@ -160,7 +160,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		
 		//	create PDF reader caching supplements on disc
 		String supplementFolderName = set.getSetting("supplementFolder", "Supplements");
-		final File supplementFolder;
+		File supplementFolder;
 		if (supplementFolderName.startsWith("/") || (supplementFolderName.indexOf(':') != -1))
 			supplementFolder = new File(supplementFolderName);
 		else if (supplementFolderName.startsWith("./"))
