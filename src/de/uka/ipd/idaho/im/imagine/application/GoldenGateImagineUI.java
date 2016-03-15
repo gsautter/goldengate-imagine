@@ -433,6 +433,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				fileChooser.addChoosableFileFilter(textPdfFileFilter);
 				fileChooser.addChoosableFileFilter(imagePdfFileFilter);
 				fileChooser.addChoosableFileFilter(imageAndMetaPdfFileFilter);
+				fileChooser.addChoosableFileFilter(imageAndOcrPdfFileFilter);
 				fileChooser.setFileFilter(imfFileFilter);
 				if (this.loadFileFilter != null)
 					fileChooser.setFileFilter(this.loadFileFilter);
@@ -646,6 +647,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			this.formatChooser.addItem(textPdfFileFilter);
 			this.formatChooser.addItem(imagePdfFileFilter);
 			this.formatChooser.addItem(imageAndMetaPdfFileFilter);
+			this.formatChooser.addItem(imageAndOcrPdfFileFilter);
 			this.formatChooser.setSelectedItem((format == null) ? genericPdfFileFilter : format);
 			this.formatChooser.setBorder(BorderFactory.createLoweredBevelBorder());
 			this.formatChooser.setEditable(false);
@@ -1749,6 +1751,8 @@ Add "Advanced" menu to GG Imagine
 								pdfConverterCommand += " -t S";
 							else if (fileFilter == imageAndMetaPdfFileFilter)
 								pdfConverterCommand += " -t M";
+							else if (fileFilter == imageAndOcrPdfFileFilter)
+								pdfConverterCommand += " -t O";
 							
 							System.out.println("PDF converter command is " + pdfConverterCommand);
 							Process pdfConverter = Runtime.getRuntime().exec(pdfConverterCommand, new String[0], new File("."));
@@ -1815,6 +1819,8 @@ Add "Advanced" menu to GG Imagine
 								doc = pdfExtractor.loadImagePdf(baos.toByteArray(), loadScreen);
 							else if (fileFilter == imageAndMetaPdfFileFilter)
 								doc = pdfExtractor.loadImagePdf(baos.toByteArray(), true, loadScreen);
+							else if (fileFilter == imageAndOcrPdfFileFilter)
+								doc = pdfExtractor.loadImagePdf(baos.toByteArray(), true, true, loadScreen);
 							else doc = pdfExtractor.loadGenericPdf(baos.toByteArray(), loadScreen);
 						}
 						
@@ -2961,12 +2967,16 @@ Add "Advanced" menu to GG Imagine
 						//	save document
 						String docName = idip.saveDocument(ImDocumentEditorTab.this.idmp.document, ImDocumentEditorTab.this.docName, saveSplashScreen);
 						
-						//	remember saving
-						ImDocumentEditorTab.this.savedAs(docName, idip);
-						saveSuccess[0] = true;
-						
-						//	notify listeners of saving success
-						ImDocumentEditorTab.this.parent.ggImagine.notifyDocumentSaved(ImDocumentEditorTab.this.idmp.document);
+						//	check success
+						if (docName != null) {
+							
+							//	remember saving
+							ImDocumentEditorTab.this.savedAs(docName, idip);
+							saveSuccess[0] = true;
+							
+							//	notify listeners of saving success
+							ImDocumentEditorTab.this.parent.ggImagine.notifyDocumentSaved(ImDocumentEditorTab.this.idmp.document);
+						}
 					}
 					
 					//	catch whatever might happen
@@ -3100,6 +3110,17 @@ Add "Advanced" menu to GG Imagine
 		}
 		public String getDescription() {
 			return "PDF Documents (scanned, with meta pages)";
+		}
+		public String toString() {
+			return this.getDescription();
+		}
+	};
+	private static final FileFilter imageAndOcrPdfFileFilter = new FileFilter() {
+		public boolean accept(File file) {
+			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+		}
+		public String getDescription() {
+			return "PDF Documents (scanned, with embedded OCR)";
 		}
 		public String toString() {
 			return this.getDescription();
