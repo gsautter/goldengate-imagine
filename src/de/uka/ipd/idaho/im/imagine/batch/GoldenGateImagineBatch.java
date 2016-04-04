@@ -298,6 +298,9 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		}
 		String[] imtNames = imtNameString.split("\\s+");
 		
+		//	get exporters to use
+		String exporterNames = ggiSettings.getSetting("documentExporters");
+		
 		//	use configuration specified in settings (default to 'Default.imagine' for now)
 		String ggiConfigName = ggiSettings.getSetting("configName");
 		
@@ -342,7 +345,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		}
 		
 		//	get document exporters for additional output
-		ImageDocumentFileExporter[] idfes = getFileExporters(ggiConfig.getPlugins());
+		ImageDocumentFileExporter[] idfes = getFileExporters(ggiConfig.getPlugins(), exporterNames);
 		
 		//	create progress monitor forking steps to console
 		ProgressMonitor pm = new ProgressMonitor() {
@@ -488,12 +491,19 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		}
 	}
 	
-	private static ImageDocumentFileExporter[] getFileExporters(GoldenGatePlugin[] ggPlugins) {
+	private static ImageDocumentFileExporter[] getFileExporters(GoldenGatePlugin[] ggPlugins, String exporterClassNames) {
 		ArrayList idfeList = new ArrayList();
-		for (int p = 0; p < ggPlugins.length; p++) {
-			if (ggPlugins[p] instanceof ImageDocumentFileExporter)
-				idfeList.add(ggPlugins[p]);
-		}
+		for (int p = 0; p < ggPlugins.length; p++)
+			if (ggPlugins[p] instanceof ImageDocumentFileExporter) {
+				if (exporterClassNames == null)
+					idfeList.add(ggPlugins[p]);
+				else {
+					String exporterClassName = ggPlugins[p].getClass().getName();
+					exporterClassName = exporterClassName.substring(exporterClassName.lastIndexOf('.') + 1);
+					if (exporterClassNames.indexOf(exporterClassName) != -1)
+						idfeList.add(ggPlugins[p]);
+				}
+			}
 		return ((ImageDocumentFileExporter[]) idfeList.toArray(new ImageDocumentFileExporter[idfeList.size()]));
 	}
 }
