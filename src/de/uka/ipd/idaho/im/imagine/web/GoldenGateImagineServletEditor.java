@@ -51,6 +51,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -113,6 +114,7 @@ import de.uka.ipd.idaho.gamta.util.feedback.html.renderers.BufferedLineWriter;
 import de.uka.ipd.idaho.gamta.util.imaging.BoundingBox;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImage;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImageInputStream;
+import de.uka.ipd.idaho.gamta.util.web.ProgressMonitorHTML;
 import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder;
 import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost;
 import de.uka.ipd.idaho.htmlXmlUtil.grammars.Html;
@@ -146,30 +148,29 @@ import de.uka.ipd.idaho.im.util.ImUtils;
  * @author sautter
  */
 public class GoldenGateImagineServletEditor implements LiteratureConstants, HtmlPageBuilderHost {
-	
-	//	TODO implement OCR overlay (mostly in JavaScript, though)
-	
 	private static final Html html = new Html();
 	
 	final String id = Gamta.getAnnotationID();
 	final boolean isFullDocument;
 	final String userName;
 	
-	final ImsDocumentMarkupPanel idmp;
+	final WebImDocumentMarkupPanel idmp;
 	private GoldenGateImagineEditorServlet parent;
 	
 	private ActionThread actionThreadAwaitingConfirm = null;
 	private ActionThread actionThreadAwaitingFeedback = null;
-	
+	private ActionThread actionThreadEditingWord = null;
 	private WebDocumentView docView = null;
 	private ActionThread docViewActionThread = null;
+	private ActionThread mainMenuActionThread = null;
+	private MmActionResult mainMenuActionResult = null;
 	
 	private Map actionMap = Collections.synchronizedMap(new HashMap());
 	private TwoClickSelectionAction pendingTwoClickAction = null;
 	
 	private Transferable clipboardData = null;
 	
-	GoldenGateImagineServletEditor(GoldenGateImagineEditorServlet parent, ImsDocumentMarkupPanel idmp, boolean isFullDocument, String userName) {
+	GoldenGateImagineServletEditor(GoldenGateImagineEditorServlet parent, WebImDocumentMarkupPanel idmp, boolean isFullDocument, String userName) {
 		this.parent = parent;
 		this.idmp = idmp;
 		this.isFullDocument = isFullDocument;
@@ -252,14 +253,14 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		hpb.writeLine("    alertDiv.appendChild(messageDiv);");
 		//	add message and icon in table to keep icon to right of message
 		hpb.writeLine("  else {");
-		hpb.writeLine("	var icon = newElement('img', null, 'alertIcon', null);");
-		hpb.writeLine("	icon.src = ('" + hpb.request.getContextPath() + this.parent.getStaticResourcePath() + "/' + iconName);");
-		hpb.writeLine("	var iconDiv = newElement('div', null, 'alertIcon', null);");
-		hpb.writeLine("	iconDiv.appendChild(icon);");
+		hpb.writeLine("    var icon = newElement('img', null, 'alertIcon', null);");
+		hpb.writeLine("    icon.src = ('" + hpb.request.getContextPath() + this.parent.getStaticResourcePath() + "/' + iconName);");
+		hpb.writeLine("    var iconDiv = newElement('div', null, 'alertIcon', null);");
+		hpb.writeLine("    iconDiv.appendChild(icon);");
 		hpb.writeLine("    var amtd = newElement('td', null, null, null);");
-		hpb.writeLine("	amtd.appendChild(messageDiv);");
+		hpb.writeLine("    amtd.appendChild(messageDiv);");
 		hpb.writeLine("    var aitd = newElement('td', null, null, null);");
-		hpb.writeLine("	aitd.appendChild(iconDiv);");
+		hpb.writeLine("    aitd.appendChild(iconDiv);");
 		hpb.writeLine("    var atr = newElement('tr', null, null, null);");
 		hpb.writeLine("    atr.appendChild(amtd);");
 		hpb.writeLine("    atr.appendChild(aitd);");
@@ -280,10 +281,60 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		
 		//	open confirm dialog (in an IFRAME)
 		hpb.writeLine("function showConfirmDialog() {");
-		hpb.writeLine("  window.open(('" + hpb.request.getContextPath() + hpb.request.getServletPath() + "/" + this.id + "/confirm'), 'Please Confirm', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes');");
+//		hpb.writeLine("  window.open(('" + hpb.request.getContextPath() + hpb.request.getServletPath() + "/" + this.id + "/confirm'), 'Please Confirm', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes');");
+		hpb.writeLine("  window.open(('" + hpb.request.getContextPath() + hpb.request.getServletPath() + "/" + this.id + "/confirm'), 'Please Confirm', 'left=center,top=center,title=no');");
+		hpb.writeLine("}");
+		
+		//	open feedback dialog (in an IFRAME)
+		hpb.writeLine("function showFeedbackDialog() {");
+//		hpb.writeLine("  window.open(('" + hpb.request.getContextPath() + hpb.request.getServletPath() + "/" + this.id + "/askFeedback'), 'Please Give Feedback', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes');");
+		hpb.writeLine("  window.open(('" + hpb.request.getContextPath() + hpb.request.getServletPath() + "/" + this.id + "/askFeedback'), 'Please Give Feedback', 'left=center,top=center,resizable=yes');");
+		hpb.writeLine("}");
+		
+		//	show word editor
+		hpb.writeLine("function doEditWord(wordId) {");
+		hpb.writeLine("  var query = ((wordId == null) ? '' : ('?wordId=' + wordId));");
+		//	no word ID set: modal, no title, fixed size, centered
+		hpb.writeLine("  var wWindowFeatures = 'left=center,top=center,title=no';");
+		hpb.writeLine("  var word = ((wordId == null) ? null : wordsById[wordId]);");
+		//	valid word ID set: volatile, undecorated, top left corner aligned with word
+		hpb.writeLine("  if ((word != null) && (word.div != null)) {");
+		hpb.writeLine("    var wPos = word.div.getBoundingClientRect();");
+		hpb.writeLine("    wWindowFeatures = ('left=' + wPos.left + ',top=' + wPos.top + ',undecorated=yes,volatile=yes');");
+		hpb.writeLine("  }");
+		hpb.writeLine("  window.open(('" + hpb.request.getContextPath() + hpb.request.getServletPath() + "/" + id + "/editWord' + query), 'editWordWindow', wWindowFeatures);");
 		hpb.writeLine("}");
 		
 		hpb.writeLine("</script>");
+		
+		//	include styles for alert and confirm dialogs
+		String alertStyles = this.getAlertStyles();
+		if (alertStyles != null) {
+			hpb.writeLine("<style type=\"text/css\">");
+			hpb.writeLine(alertStyles);
+			hpb.writeLine("</style>");
+		}
+	}
+	
+	private String alertStyles = null;
+	private String getAlertStyles() {
+		if (this.alertStyles != null)
+			return this.alertStyles;
+		
+		//	load and cache styles from file (if available)
+		File alertStylesFile = this.findFile("alert.css");
+		if (alertStylesFile != null) try {
+			BufferedReader asIn = new BufferedReader(new InputStreamReader(new FileInputStream(alertStylesFile), "UTF-8"));
+			StringBuffer asLoader = new StringBuffer();
+			char[] asBuffer = new char[1024];
+			for (int r; (r = asIn.read(asBuffer, 0, asBuffer.length)) != -1;)
+				asLoader.append(asBuffer, 0, r);
+			asIn.close();
+			this.alertStyles = asLoader.toString();
+		} catch (IOException ioe) {}
+		
+		//	finally ...
+		return this.alertStyles;
 	}
 	
 	/* (non-Javadoc)
@@ -346,7 +397,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					//	send window closing page, including update script
 					response.setContentType("text/html");
 					response.setCharacterEncoding("UTF-8");
-					this.parent.sendPopupHtmlPage(this.parent.getClosePopinWindowPageBuilder(request, response, aJscs));
+					this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, aJscs));
 					return true;
 				}
 				
@@ -357,6 +408,29 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					}
 				};
 				at.start();
+				
+				//	wait for action thread to finish or block
+				String fbjsc = at.getFinalOrBlockingJavaScriptCall();
+				
+				//	if request belongs to document view, only send out final call if it is another confirm prompt
+				if (at.isDocViewAction()) {
+					if ("".equals(fbjsc))
+						fbjsc = null; // document view has already written the response
+				}
+				
+				//	send blocking JavaScript call (if any)
+				if (fbjsc != null) {
+					response.setContentType("text/plain");
+					response.setCharacterEncoding("UTF-8");
+					Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
+					BufferedLineWriter blw = new BufferedLineWriter(out);
+					blw.writeLine(fbjsc);
+					blw.flush();
+					out.flush();
+					blw.close();
+				}
+				
+				//	finally ...
 				return true;
 			}
 		}
@@ -421,9 +495,15 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			return true;
 		}
 		
-		//	handle main menu action
-		if (pathInfo.equals("/mmActionResult.js")) {
-			this.sendMainMenuActionResult(request, response);
+		//	handle main menu action status
+		if (pathInfo.equals("/mmActionStatus.js")) {
+			this.sendMainMenuActionStatus(request, response);
+			return true;
+		}
+		
+		//	handle main menu action status page
+		if (pathInfo.equals("/mmActionStatus")) {
+			this.sendMainMenuActionStatusPage(request, response);
 			return true;
 		}
 		
@@ -433,6 +513,18 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			return true;
 		}
 		
+//		//	handle main menu action result
+//		if (pathInfo.equals("/mmActionResult.js")) {
+//			this.sendMainMenuActionResult(request, response);
+//			return true;
+//		}
+//		
+//		//	handle request for menu action result page
+//		if (pathInfo.equals("/mmActionResult")) {
+//			this.sendMainMenuActionResultPage(request, response);
+//			return true;
+//		}
+//		
 		//	handle requests for export download
 		if (pathInfo.equals("/export")) {
 			this.handleExportAction(request, response);
@@ -520,10 +612,16 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					}
 					
 					//	if we have an IM Tool running, open status page
-					String runningImToolId = parent.getRunningMainMenuActionImToolId(GoldenGateImagineServletEditor.this);
-					if (runningImToolId != null) {
+//					String runningImToolId = parent.getRunningMainMenuActionImToolId(GoldenGateImagineServletEditor.this);
+//					if (runningImToolId != null) {
+//						this.writeLine("<script type=\"text/javascript\">");
+////						this.writeLine("window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/mmActionStatus/" + runningImToolId + "', 'mainMenuImToolStatus', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes')");
+//						this.writeLine("window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/mmActionStatus/" + runningImToolId + "', 'mainMenuImToolStatus', 'left=center,top=center,title=no')");
+//						this.writeLine("</script>");
+//					}
+					if (mainMenuActionThread != null) {
 						this.writeLine("<script type=\"text/javascript\">");
-						this.writeLine("window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/mmActionStatus/" + runningImToolId + "', 'mainMenuImToolStatus', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes')");
+						this.writeLine("openProgressMonitor();");
 						this.writeLine("</script>");
 					}
 					
@@ -534,10 +632,18 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 						this.writeLine("</script>");
 					}
 					
+					//	if we have an active action thread waiting for a word edit, send its respective call
+					if (actionThreadEditingWord != null) {
+						this.writeLine("<script type=\"text/javascript\">");
+						this.writeLine("doEditWord(null);");
+						this.writeLine("</script>");
+					}
+					
 					//	restore any open document view
 					if (docView != null) {
 						this.writeLine("<script type=\"text/javascript\">");
-						this.writeLine("window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/view', 'documentView', 'width=50,height=50,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes');");
+//						this.writeLine("window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/view', 'documentView', 'width=50,height=50,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes');");
+						this.writeLine("window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/view', 'documentView', 'left=center,top=center,title=no,resizable=yes');");
 						this.writeLine("</script>");
 					}
 					
@@ -557,11 +663,12 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 				parent.writeJavaScriptTag(this, "updateHelpers.js", false);
 				parent.writeJavaScriptTag(this, "interactHelpers.js", false);
 				this.writeLine("<script type=\"text/javascript\">");
-				
-				//	open confirm dialog (in an IFRAME)
-				this.writeLine("function showFeedbackDialog() {");
-				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/askFeedback'), 'Please Give Feedback', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes');");
-				this.writeLine("}");
+//				
+//				//	open feedback dialog (in an IFRAME)
+//				this.writeLine("function showFeedbackDialog() {");
+////				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/askFeedback'), 'Please Give Feedback', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes');");
+//				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/askFeedback'), 'Please Give Feedback', 'left=center,top=center,resizable=yes');");
+//				this.writeLine("}");
 				
 				//	perform some dynamic action via script tag replacement
 				this.writeLine("function getDynamicActionScript(name, params) {");
@@ -608,20 +715,40 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 				
 				//	show copied contents TODO_ne maybe refrain from re-using window
 				this.writeLine("function showCopiedContent() {");
+				//	TODO_not_here: extra window
 				this.writeLine("  window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/copy', 'clipboardContentWindow', 'width=500,height=400,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes', true);");
+				this.writeLine("}");
+				
+				//	open progress monitor for main menu action
+				this.writeLine("function openProgressMonitor() {");
+				this.writeLine("  window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/mmActionStatus', 'mainMenuImToolStatus', 'left=center,top=center,title=no')");
 				this.writeLine("}");
 				
 				//	show attribute editor
 				this.writeLine("function doEditAttributes(id) {");
-				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editAttributes?id=' + id), 'editAttributesWindow', 'width=50,height=50,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes');");
+//				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editAttributes?id=' + id), 'editAttributesWindow', 'width=50,height=50,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes');");
+				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editAttributes?id=' + id), 'editAttributesWindow', 'left=center,top=center,title=no,resizable=yes');");
 				this.writeLine("}");
-				
-				//	show attribute editor
-				this.writeLine("function doEditWord(wordId) {");
-				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editWord?wordId=' + wordId), 'editWordWindow', 'width=50,height=50,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes');");
-				this.writeLine("}");
+//				
+//				//	show attribute editor
+//				this.writeLine("function doEditWord(wordId) {");
+//				//	TODO_above word ID set: volatile, undecorated, top left corner aligned with word (get them coordinates, best from word DIV !!!)
+//				//	TODO_above no word ID: modal, no title, fixed size, centered
+//				//	left=center,top=center,title=no,resizable=yes
+//				this.writeLine("  var query = ((wordId == null) ? '' : ('?wordId=' + wordId));");
+//				this.writeLine("  window.open(('" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editWord' + query), 'editWordWindow', 'width=50,height=50,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes');");
+//				this.writeLine("}");
 				
 				this.writeLine("</script>");
+				
+				//	for born-digital documents, hide OCR overlay control
+				if (idmp.documentBornDigital) {
+					this.writeLine("<style type=\"text/css\">");
+					this.writeLine("#control_ocrOverlay {");
+					this.writeLine("  display: none !important;");
+					this.writeLine("}");
+					this.writeLine("</style>");
+				}
 			}
 		});
 	}
@@ -630,7 +757,11 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		
 		//	do we have an action thread waiting for a confirmation?
 		if (this.actionThreadAwaitingConfirm == null) {
-			response.sendError(HttpServletResponse.SC_NOT_FOUND, ("Invalid document ID '" + this.id + "'"));
+//			response.sendError(HttpServletResponse.SC_NOT_FOUND, ("Invalid document ID '" + this.id + "'"));
+			//	fail gracefully
+			response.setContentType("text/html");
+			response.setCharacterEncoding("UTF-8");
+			this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, null));
 			return;
 		}
 		
@@ -662,7 +793,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		String fbjsc = at.getFinalOrBlockingJavaScriptCall();
 		String[] jscs;
 		
-		//	if request belongs to document view, only send out final call it it is another confirm prompt
+		//	if request belongs to document view, only send out final call if it is another confirm prompt
 		if (at.isDocViewAction()) {
 			if ("".equals(fbjsc))
 				fbjsc = null; // document view has already written the response
@@ -691,14 +822,18 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		
 		//	do we have an action thread waiting for a confirmation?
 		if (this.actionThreadAwaitingFeedback == null) {
-			response.sendError(HttpServletResponse.SC_NOT_FOUND, ("Invalid document ID '" + this.id + "'"));
+//			response.sendError(HttpServletResponse.SC_NOT_FOUND, ("Invalid document ID '" + this.id + "'"));
+			//	fail gracefully
+			response.setContentType("text/html");
+			response.setCharacterEncoding("UTF-8");
+			this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, null));
 			return;
 		}
 		
 		//	send form page
 		response.setContentType("text/html");
 		response.setCharacterEncoding("UTF-8");
-		this.parent.sendHtmlPage("imtFeedback.html", this.actionThreadAwaitingFeedback.getFeedbackFormPageBuilder(request, response));
+		this.parent.sendHtmlPage("feedback.html", this.actionThreadAwaitingFeedback.getFeedbackFormPageBuilder(request, response));
 	}
 	
 	private void handleFeedback(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -712,21 +847,58 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		//	remember action thread locally, as giving feedback clears field
 		ActionThread at = this.actionThreadAwaitingFeedback;
 		
+		//	check if we're in a main menu action (data updates are no good on progress monitor !!)
+		boolean isMainMenuAction = (this.mainMenuActionThread != null);
+		
 		//	inject feedback
 		at.processFeedback(request);
 		
+		/* TODO figure out "Unexpected Token" in page closer
+		 * - it actually all looks OK, perfectly fine ...
+		 * - ... likely a "DOOH" kind of error
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<script type="text/javascript" src="/GgiWebTest/resources/popin.js"></script>
+</head>
+<body>
+<script type="text/javascript">
+function doExecuteCalls() {
+window.opener.showFeedbackDialog();
+}
+function executeCalls() {
+  if (window.opener && (window.opener != null)) {
+    doExecuteCalls();
+    window.close();
+  }
+  else window.setTimeout('executeCalls()', 100);
+}
+window.setTimeout('executeCalls()', 100);
+</script>
+</body>
+</html>
+		 */
+		
 		//	get JavaScript calls, and direct them at parent window
-		String fbjsc = at.getFinalOrBlockingJavaScriptCall();
-		String[] jscs = this.idmp.getJavaScriptCalls();
-		String[] aJscs = new String[jscs.length + 1];
-		for (int c = 0; c < jscs.length; c++)
-			aJscs[c] = ("window.opener." + jscs[c]);
-		aJscs[jscs.length] = ("window.opener." + fbjsc);
+		String[] aJscs;
+		if (isMainMenuAction) {
+			String fbjsc = at.getFinalOrBlockingJavaScriptCall();
+			aJscs = new String[1];
+			aJscs[0] = ("window.opener." + fbjsc);
+		}
+		else {
+			String fbjsc = at.getFinalOrBlockingJavaScriptCall();
+			String[] jscs = this.idmp.getJavaScriptCalls();
+			aJscs = new String[jscs.length + 1];
+			for (int c = 0; c < jscs.length; c++)
+				aJscs[c] = ("window.opener." + jscs[c]);
+			aJscs[jscs.length] = ("window.opener." + fbjsc);
+		}
 		
 		//	send window closing page, including update script
 		response.setContentType("text/html");
 		response.setCharacterEncoding("UTF-8");
-		this.parent.sendPopupHtmlPage(this.parent.getClosePopinWindowPageBuilder(request, response, aJscs));
+		this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, aJscs));
 	}
 	
 	private void sendClipboardContent(HttpServletResponse response) throws IOException {
@@ -743,6 +915,11 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Could not determine data flavor");
 			return;
 		}
+		
+		//	TODO offer this stuff as downloads, just like export results ...
+		//	... so users can open it in an application right away, ...
+		//	... unless it's HTML flavored
+		//	==> TODO support more data flavors
 		
 		//	send plain text or image
 		for (int f = 0; f < dfs.length; f++) try {
@@ -784,12 +961,11 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		if ("GET".equalsIgnoreCase(request.getMethod())) {
 			
 			//	get editing target
-//			Attributed target = this.findEditAttributesTarget(request);
 			Attributed target = GoldenGateImagineWebUtils.getAttributed(this.idmp.document, request.getParameter("id"));
 			if (target == null) {
 				response.setContentType("text/html");
 				response.setCharacterEncoding("UTF-8");
-				this.parent.sendPopupHtmlPage(this.parent.getClosePopinWindowPageBuilder(request, response, null));
+				this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, null));
 				return;
 			}
 			
@@ -801,311 +977,232 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		else if ("POST".equalsIgnoreCase(request.getMethod())) {
 			
 			//	get editing target
-//			Attributed target = this.findEditAttributesTarget(request);
 			Attributed target = GoldenGateImagineWebUtils.getAttributed(this.idmp.document, request.getParameter("id"));
 			
 			//	perform attribute updates
 			if (target != null) {
-//				this.idmp.beginAtomicAction(this.getEditAttributesActionLabel(target));
-//				String[] targetAttributeNames = target.getAttributeNames();
-//				HashMap requestAttributes = new HashMap();
-//				for (Enumeration pne = request.getParameterNames(); pne.hasMoreElements();) {
-//					String pn = ((String) pne.nextElement());
-//					if (!pn.startsWith("ATTR_"))
-//						continue;
-//					String pv = request.getParameter(pn);
-//					if (pv.length() == 0)
-//						continue;
-//					requestAttributes.put(pn.substring("ATTR_".length()), pv);
-//				}
-//				for (int n = 0; n < targetAttributeNames.length; n++) {
-//					String requestAttributeValue = ((String) requestAttributes.remove(targetAttributeNames[n]));
-//					if (requestAttributeValue == null)
-//						target.removeAttribute(targetAttributeNames[n]);
-//					else {
-//						Object targetAttributeValue = target.getAttribute(targetAttributeNames[n]);
-//						if ((targetAttributeValue == null) || !requestAttributeValue.equals(targetAttributeValue.toString()))
-//							target.setAttribute(targetAttributeNames[n], requestAttributeValue);
-//					}
-//				}
-//				for (Iterator ranit = requestAttributes.keySet().iterator(); ranit.hasNext();) {
-//					String requestAttributeName = ((String) ranit.next());
-//					Object requestAttributeValue = requestAttributes.get(requestAttributeName);
-//					target.setAttribute(requestAttributeName, requestAttributeValue);
-//				}
-//				this.idmp.endAtomicAction();
 				this.idmp.beginAtomicAction(GoldenGateImagineWebUtils.getAttributeEditActionLabel(target));
 				if (GoldenGateImagineWebUtils.processAttributeEditorSubmission(target, request))
 					this.idmp.endAtomicAction();
 			}
 			
-			//	get JavaScript calls, and direct them at parent window
-			String[] jscs = this.idmp.getJavaScriptCalls();
-			for (int c = 0; c < jscs.length; c++)
-				jscs[c] = ("window.opener." + jscs[c]);
+			//	get next target (if any)
+			Attributed nextTarget = GoldenGateImagineWebUtils.getAttributed(this.idmp.document, request.getParameter("nextId"));
 			
-			//	send window closing page, including update script
-			response.setContentType("text/html");
-			response.setCharacterEncoding("UTF-8");
-			this.parent.sendPopupHtmlPage(this.parent.getClosePopinWindowPageBuilder(request, response, jscs));
+			//	no next target given, close attribute editor
+			if (nextTarget == null) {
+				
+				//	get JavaScript calls, and direct them at parent window
+				String[] jscs = this.idmp.getJavaScriptCalls();
+				for (int c = 0; c < jscs.length; c++)
+					jscs[c] = ("window.opener." + jscs[c]);
+				
+				//	send window closing page, including update script
+				response.setContentType("text/html");
+				response.setCharacterEncoding("UTF-8");
+				this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, jscs));
+			}
+			
+			//	we have a next target, send another editor page
+			else this.sendEditAttributesForm(request, response, nextTarget);
 		}
 		
 		//	some weird request
 		else response.sendError(HttpServletResponse.SC_BAD_REQUEST, ("'" + request.getMethod() + "' not allowed for attribute editing"));
 	}
 	
-//	private Attributed findEditAttributesTarget(HttpServletRequest request) {
-//		String targetIdFull = request.getParameter("id");
-//		if (targetIdFull.indexOf(':') == -1)
-//			return null;
-//		String targetType = targetIdFull.substring(0, targetIdFull.indexOf(':'));
-//		String targetId = targetIdFull.substring(targetIdFull.indexOf(':') + ":".length());
-//		
-//		if ("W".equals(targetType))
-//			return this.idmp.document.getWord(targetId);
-//		else if ("P".equals(targetType))
-//			return this.idmp.document.getPage(Integer.parseInt(targetId));
-//		else if ("R".equals(targetType)) {
-//			String[] targetIdParts = targetId.split("[\\@\\.]");
-//			if (targetIdParts.length != 3)
-//				return null;
-//			ImPage page = this.idmp.document.getPage(Integer.parseInt(targetIdParts[1]));
-//			if (page == null)
-//				return null;
-//			BoundingBox bounds = BoundingBox.parse(targetIdParts[2]);
-//			if (bounds == null)
-//				return null;
-//			ImRegion[] pageRegions = page.getRegions(targetIdParts[0]);
-//			for (int r = 0; r < pageRegions.length; r++) {
-//				if (pageRegions[r].bounds.equals(bounds))
-//					return pageRegions[r];
-//			}
-//		}
-//		else if ("A".equals(targetType)) {
-//			String[] targetIdParts = targetId.split("[\\@\\-]");
-//			if (targetIdParts.length != 3)
-//				return null;
-//			ImWord firstWord = this.idmp.document.getWord(targetIdParts[1]);
-//			if (firstWord == null)
-//				return null;
-//			ImWord lastWord = this.idmp.document.getWord(targetIdParts[2]);
-//			if (lastWord == null)
-//				return null;
-//			ImAnnotation[] annots = this.idmp.document.getAnnotations(firstWord, null);
-//			for (int a = 0; a < annots.length; a++) {
-//				if ((annots[a].getLastWord() == lastWord) && targetIdParts[0].equals(annots[a].getType()))
-//					return annots[a];
-//			}
-//		}
-//		else if ("D".equals(targetType))
-//			return this.idmp.document;
-//		
-//		return null;
-//	}
-//	
-//	private String getEditAttributesActionLabel(Attributed attributed) {
-//		if (attributed instanceof ImWord)
-//			return ("Edit Word Attributes");
-//		else if (attributed instanceof ImPage)
-//			return ("Edit Page Attributes");
-//		else if (attributed instanceof ImRegion)
-//			return ("Edit " + ((ImRegion) attributed).getType() + " Attributes");
-//		else if (attributed instanceof ImAnnotation)
-//			return ("Edit " + ((ImAnnotation) attributed).getType() + " Attributes");
-//		else if (attributed instanceof ImDocument)
-//			return "Edit Document Attributes";
-//		else return null;
-//	}
-	
 	private void sendEditAttributesForm(HttpServletRequest request, HttpServletResponse response, final Attributed target) throws IOException {
 		response.setContentType("text/html");
 		response.setCharacterEncoding("UTF-8");
-		this.parent.sendHtmlPage("editAttributes.html", new AttributeEditorPageBuilder(this, request, response, target, (request.getContextPath() + request.getServletPath() + "/" + id + "/editAttributes")) {});
-//		this.parent.sendHtmlPage("editAttributes.html", new HtmlPageBuilder(this, request, response) {
-//			private Attributed[] targetContext = getEditAttributesContext(target);
-//			protected void include(String type, String tag) throws IOException {
-//				if ("includeTitle".equals(type))
-//					this.write(html.escape(getEditAttributesTitle(target)));
-//				else if ("includeForm".equals(type)) {
-//					this.writeLine("<form id=\"attributeForm\" method=\"POST\" action=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editAttributes\" style=\"display: none;\">");
-//					this.writeLine("<input type=\"hidden\" name=\"id\" value=\"" + this.request.getParameter("id") + "\"/>");
-//					this.writeLine("</form>");
-//				}
-//				else if ("includeAttributeNames".equals(type)) {
-//					if (this.targetContext == null)
-//						return;
-//					TreeSet ans = new TreeSet();
-//					for (int c = 0; c < this.targetContext.length; c++)
-//						ans.addAll(Arrays.asList(this.targetContext[c].getAttributeNames()));
-//					for (Iterator anit = ans.iterator(); anit.hasNext();)
-//						this.writeLine("<option value=\"" + html.escape((String) anit.next()) + "\" />");
-//				}
-//				else if ("includeInitCalls".equals(type)) {
-//					this.writeLine("<script type=\"text/javascript\">");
-//					String[] ans = target.getAttributeNames();
-//					for (int n = 0; n < ans.length; n++) {
-//						Object av = target.getAttribute(ans[n]);
-//						if (av != null)
-//							this.writeLine("setDataAttribute('" + ans[n] + "', '" + GoldenGateImagineWebUtils.escapeForJavaScript(av.toString()) + "');");
-//					}
-//					this.writeLine("</script>");
-//				}
-//				else super.include(type, tag);
-//			}
-//			protected boolean includeJavaScriptDomHelpers() {
-//				return true;
-//			}
-//			protected void writePageHeadExtensions() throws IOException {
-//				
-//				//	open script and create attribute value index
-//				this.writeLine("<script type=\"text/javascript\">");
-//				this.writeLine("var attributeValuesById = new Object();");
-//				
-//				//	collect attribute values and index arrays by names
-//				if (this.targetContext != null) {
-//					
-//					//	index attribute values by name
-//					TreeMap anvs = new TreeMap();
-//					for (int c = 0; c < this.targetContext.length; c++) {
-//						String[] ans = this.targetContext[c].getAttributeNames();
-//						for (int n = 0; n < ans.length; n++) {
-//							Object av = this.targetContext[c].getAttribute(ans[n]);
-//							if (av == null)
-//								continue;
-//							TreeSet avs = ((TreeSet) anvs.get(ans[n]));
-//							if (avs == null) {
-//								avs = new TreeSet();
-//								anvs.put(ans[n], avs);
-//							}
-//							avs.add(av.toString());
-//						}
-//					}
-//					
-//					//	map attribute names to value arrays
-//					for (Iterator anit = anvs.keySet().iterator(); anit.hasNext();) {
-//						String an = ((String) anit.next());
-//						this.write("attributeValuesById['" + an + "'] = [");
-//						TreeSet avs = ((TreeSet) anvs.get(an));
-//						for (Iterator avit = avs.iterator(); avit.hasNext();) {
-//							this.write("'" + GoldenGateImagineWebUtils.escapeForJavaScript((String) avit.next()) + "'");
-//							if (avit.hasNext())
-//								this.write(", ");
-//						}
-//						this.writeLine("];");
-//					}
-//				}
-//				
-//				//	close script
-//				this.writeLine("</script>");
-//			}
-//		});
+		this.parent.sendHtmlPage("editAttributes.html", new AttributeEditorPageBuilder(this, request, response, target, (request.getContextPath() + request.getServletPath() + "/" + id + "/editAttributes")) {
+			private Attributed[] targetContext;
+			private Attributed prevTarget = null;
+			private Attributed nextTarget = null;
+			protected void writePageHeadExtensions() throws IOException {
+				super.writePageHeadExtensions();
+				
+				//	submit attribute form with mode
+				this.writeLine("<script type=\"text/javascript\">");
+				this.writeLine("function doSubmitDataAttributes(mode) {");
+				this.writeLine("  var attrForm = getById('attributeForm');");
+				this.writeLine("  if (mode == 'C') {");
+				this.writeLine("    while (attrForm.firstElementChild)");
+				this.writeLine("      removeElement(attrForm.firstElementChild);");
+				this.writeLine("    attrForm.submit();");
+				this.writeLine("    return;");
+				this.writeLine("  }");
+				this.writeLine("  var nextId = null;");
+				if (this.prevTarget != null) {
+					this.writeLine("  if (mode == 'P')");
+					this.writeLine("    nextId = '" + GoldenGateImagineWebUtils.getAttributedId(this.prevTarget) + "';");
+				}
+				if (this.nextTarget != null) {
+					this.writeLine("  if (mode == 'N')");
+					this.writeLine("    nextId = '" + GoldenGateImagineWebUtils.getAttributedId(this.nextTarget) + "';");
+				}
+				this.writeLine("  if (nextId != null) {");
+				this.writeLine("    var nextIdField = newElement('input', null, null, null);");
+				this.writeLine("    nextIdField.type = 'hidden';");
+				this.writeLine("    nextIdField.name = 'nextId';");
+				this.writeLine("    nextIdField.value = nextId;");
+				this.writeLine("    attrForm.appendChild(nextIdField);");
+				this.writeLine("  }");
+				this.writeLine("  submitDataAttributes();");
+				this.writeLine("}");
+				this.writeLine("</script>");
+			}
+			protected Attributed[] getContext(Attributed target) {
+				this.targetContext = super.getContext(target);
+				if (this.targetContext != null) {
+					if (target instanceof ImWord) {
+						this.prevTarget = ((ImWord) target).getPreviousWord();
+						this.nextTarget = ((ImWord) target).getNextWord();
+					}
+					else if (target instanceof ImAnnotation) {
+						for (int c = 0; c < this.targetContext.length; c++)
+							if (this.targetContext[c] == target) {
+								this.prevTarget = ((c == 0) ? null: this.targetContext[c-1]);
+								this.nextTarget = (((c+1) == this.targetContext.length) ? null: this.targetContext[c+1]);
+								break;
+							}
+					}
+					else if (target instanceof ImRegion) {
+						Arrays.sort(this.targetContext, ImUtils.topDownOrder);
+						for (int c = 0; c < this.targetContext.length; c++)
+							if (this.targetContext[c] == target) {
+								this.prevTarget = ((c == 0) ? null: this.targetContext[c-1]);
+								this.nextTarget = (((c+1) == this.targetContext.length) ? null: this.targetContext[c+1]);
+								break;
+							}
+					}
+				}
+				return this.targetContext;
+			}
+			protected SubmitButton[] getButtons() {
+				SubmitButton[] sbs = {
+					((this.prevTarget == null) ? null : new SubmitButton("Previous", "doSubmitDataAttributes('P');")),
+					new SubmitButton("OK", "doSubmitDataAttributes('O');"),
+					new SubmitButton("Cancel", "doSubmitDataAttributes('C');"),
+					((this.nextTarget == null) ? null : new SubmitButton("Next", "doSubmitDataAttributes('N');")),
+					new SubmitButton("Reset", "window.location.reload();")
+				};
+				return sbs;
+			}
+		});
 	}
-//	
-//	private String getEditAttributesTitle(Attributed attributed) {
-//		if (attributed instanceof ImWord)
-//			return ("Edit Attributes of Word '" + html.escape(((ImWord) attributed).getString()) + "'");
-//		else if (attributed instanceof ImPage)
-//			return ("Edit Attributes of Page " + (attributed.hasAttribute(PAGE_NUMBER_ATTRIBUTE) ? attributed.getAttribute(PAGE_NUMBER_ATTRIBUTE) : (((ImPage) attributed).pageId + 1)));
-//		else if (attributed instanceof ImRegion)
-//			return ("Edit Attributes of '" + ((ImRegion) attributed).getType() + "' Region at " + ((ImRegion) attributed).bounds.toString());
-//		else if (attributed instanceof ImAnnotation) {
-//			ImWord firstWord = ((ImAnnotation) attributed).getFirstWord();
-//			ImWord lastWord = ((ImAnnotation) attributed).getLastWord();
-//			String annotValue;
-//			if (firstWord == lastWord)
-//				annotValue = firstWord.getString();
-//			else if (firstWord.getNextWord() == lastWord)
-//				annotValue = ImUtils.getString(firstWord, lastWord, true);
-//			else annotValue = (firstWord.getString() + " ... " + lastWord.getString());
-//			return ("Edit Attributes of '" + ((ImAnnotation) attributed).getType() + "' Annotation '" + html.escape(annotValue) + "'");
-//		}
-//		else if (attributed instanceof ImDocument)
-//			return "Edit Document Attributes";
-//		else return null;
-//	}
-//	
-//	private Attributed[] getEditAttributesContext(Attributed target) {
-//		if (target instanceof ImWord)
-//			return this.idmp.document.getPage(((ImWord) target).pageId).getWords();
-//		else if (target instanceof ImAnnotation)
-//			return this.idmp.document.getAnnotations(((ImAnnotation) target).getType());
-//		else if (target instanceof ImRegion)
-//			return this.idmp.document.getPage(((ImRegion) target).pageId).getRegions(((ImRegion) target).getType());
-//		else return null;
-//	}
 	
 	private void handleEditWord(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		
 		//	request for word editor page
 		if ("GET".equalsIgnoreCase(request.getMethod())) {
 			
-			//	get target word
-			ImWord word = this.idmp.document.getWord(request.getParameter("wordId"));
-			if (word == null) {
-				response.setContentType("text/html");
-				response.setCharacterEncoding("UTF-8");
-				this.parent.sendPopupHtmlPage(this.parent.getClosePopinWindowPageBuilder(request, response, null));
-				return;
+			//	prepare response (we need to do this before wrapping a page builder around the incoming data)
+			response.setContentType("text/html");
+			response.setCharacterEncoding("UTF-8");
+			ImWord word;
+//			HtmlPageBuilder ewpb;
+			
+			//	do we have an action thread waiting for a word edit?
+			if (this.actionThreadEditingWord != null)
+//				ewpb = this.actionThreadEditingWord.getEditWordPageBuilder(request, response);
+				word = this.actionThreadEditingWord.getEditingWord();
+			
+			//	
+			else {
+				
+				//	get target word
+//				ImWord word = this.idmp.document.getWord(request.getParameter("wordId"));
+				word = this.idmp.document.getWord(request.getParameter("wordId"));
+				if (word == null) {
+					this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, null));
+					return;
+				}
+//				
+//				//	create page builder
+//				ewpb = this.getEditWordFormBuilder(request, response, word);
 			}
 			
-			//	send word editor form page
-			this.sendEditWordForm(request, response, word);
+			//	send form page
+//			this.parent.sendHtmlPage("editWord.html", ewpb);
+			this.parent.sendHtmlPage("editWord.html", this.getEditWordFormBuilder(request, response, word));
 		}
 		
 		//	submission of word editor form
 		else if ("POST".equalsIgnoreCase(request.getMethod())) {
+			String[] cpJscs;
 			
-			//	get target word
-			ImWord word = this.idmp.document.getWord(request.getParameter("wordId"));
-			
-			//	perform word updates
-			if (word != null) {
-				this.idmp.beginAtomicAction("Edit Word '" + word.getString() + "'");
-				String string = request.getParameter(ImWord.STRING_ATTRIBUTE);
-				boolean bold = "true".equals(request.getParameter(ImWord.BOLD_ATTRIBUTE));
-				boolean italics = "true".equals(request.getParameter(ImWord.ITALICS_ATTRIBUTE));
-				if (string != null) {
-					string = string.trim();
-					if (!string.equals(word.getString()))
-						word.setString(string);
-				}
-				if (bold != word.hasAttribute(ImWord.BOLD_ATTRIBUTE))
-					word.setAttribute(ImWord.BOLD_ATTRIBUTE, (bold ? "true" : null));
-				if (italics != word.hasAttribute(ImWord.ITALICS_ATTRIBUTE))
-					word.setAttribute(ImWord.ITALICS_ATTRIBUTE, (italics ? "true" : null));
-				this.idmp.endAtomicAction();
+			//	do we have an action thread waiting for a word edit?
+			if (this.actionThreadEditingWord != null) {
+				
+				//	remember action thread locally, as injecting result clears field
+				ActionThread at = this.actionThreadEditingWord;
+				
+				//	inject word edit
+				at.wordEdited(request);
+				
+				//	get JavaScript calls, and direct them at parent window
+				String fbjsc = at.getFinalOrBlockingJavaScriptCall();
+				String[] jscs = this.idmp.getJavaScriptCalls();
+				cpJscs = new String[jscs.length + 1];
+				for (int c = 0; c < jscs.length; c++)
+					cpJscs[c] = ("window.opener." + jscs[c]);
+				cpJscs[jscs.length] = ("window.opener." + fbjsc);
 			}
 			
-			//	get JavaScript calls, and direct them at parent window
-			String[] jscs = this.idmp.getJavaScriptCalls();
-			for (int c = 0; c < jscs.length; c++)
-				jscs[c] = ("window.opener." + jscs[c]);
+			//	handle UI initiated word edit
+			else {
+				
+				//	get target word if dialog committed
+				ImWord word = ("true".equals(request.getParameter("wordEdited")) ? this.idmp.document.getWord(request.getParameter("wordId")) : null);
+				
+				//	perform word updates
+				if (word != null) {
+					this.idmp.beginAtomicAction("Edit Word '" + word.getString() + "'");
+					String string = request.getParameter(ImWord.STRING_ATTRIBUTE);
+					boolean bold = "true".equals(request.getParameter(ImWord.BOLD_ATTRIBUTE));
+					boolean italics = "true".equals(request.getParameter(ImWord.ITALICS_ATTRIBUTE));
+					if (string != null) {
+						string = string.trim();
+						if (!string.equals(word.getString()))
+							word.setString(string);
+					}
+					if (bold != word.hasAttribute(ImWord.BOLD_ATTRIBUTE))
+						word.setAttribute(ImWord.BOLD_ATTRIBUTE, (bold ? "true" : null));
+					if (italics != word.hasAttribute(ImWord.ITALICS_ATTRIBUTE))
+						word.setAttribute(ImWord.ITALICS_ATTRIBUTE, (italics ? "true" : null));
+					this.idmp.endAtomicAction();
+				}
+				
+				//	get JavaScript calls, and direct them at parent window
+				cpJscs = this.idmp.getJavaScriptCalls();
+				for (int c = 0; c < cpJscs.length; c++)
+					cpJscs[c] = ("window.opener." + cpJscs[c]);
+			}
 			
 			//	send window closing page, including update script
 			response.setContentType("text/html");
 			response.setCharacterEncoding("UTF-8");
-			this.parent.sendPopupHtmlPage(this.parent.getClosePopinWindowPageBuilder(request, response, jscs));
+			this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, cpJscs));
 		}
 		
 		//	some weird request
 		else response.sendError(HttpServletResponse.SC_BAD_REQUEST, ("'" + request.getMethod() + "' not allowed for word editing"));
 	}
 	
-	private void sendEditWordForm(HttpServletRequest request, HttpServletResponse response, final ImWord word) throws IOException {
-		response.setContentType("text/html");
-		response.setCharacterEncoding("UTF-8");
-		this.parent.sendHtmlPage("editWord.html", new HtmlPageBuilder(this, request, response) {
+	private HtmlPageBuilder getEditWordFormBuilder(HttpServletRequest request, HttpServletResponse response, final ImWord word) throws IOException {
+		return new HtmlPageBuilder(this, request, response) {
 			protected void include(String type, String tag) throws IOException {
 				if ("includeTitle".equals(type))
 					this.write(html.escape("Edit Word '" + word.getString() + "'"));
 				else if ("includeWordImage".equals(type))
-					this.write("<img src=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/wordImage/" + word.getLocalID() + ".png\" />");
+					this.write("<img src=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/wordImage/" + word.getLocalID() + ".png\" width=\"" + (word.bounds.right - word.bounds.left) + "\" height=\"" + (word.bounds.bottom - word.bounds.top) + "\" />");
 				else if ("includeForm".equals(type)) {
 					this.writeLine("<form id=\"wordAttributeForm\" method=\"POST\" action=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editWord\" style=\"display: none;\">");
 					this.writeLine("<input type=\"hidden\" name=\"wordId\" value=\"" + word.getLocalID() + "\"/>");
 					this.writeLine("<input type=\"hidden\" id=\"wordString\" name=\"" + ImWord.STRING_ATTRIBUTE + "\" value=\"" + html.escape(word.getString()) + "\"/>");
 					this.writeLine("<input type=\"hidden\" id=\"wordIsBold\" name=\"" + ImWord.BOLD_ATTRIBUTE + "\" value=\"" + (word.hasAttribute(ImWord.BOLD_ATTRIBUTE) ? "true" : "false") + "\"/>");
 					this.writeLine("<input type=\"hidden\" id=\"wordIsItalics\" name=\"" + ImWord.ITALICS_ATTRIBUTE + "\" value=\"" + (word.hasAttribute(ImWord.ITALICS_ATTRIBUTE) ? "true" : "false") + "\"/>");
+					this.writeLine("<input type=\"hidden\" id=\"wordEdited\" name=\"wordEdited\" value=\"false\"/>");
 					this.writeLine("</form>");
 				}
 				else if ("includeInitCalls".equals(type)) {
@@ -1125,12 +1222,57 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 				//	open script and create attribute value index
 				this.writeLine("<script type=\"text/javascript\">");
 				
-				//	TODO somehow provide the symbol table
+				//	open 'symbolTable' from main servlet ...
+				this.writeLine("var symbolTable = null;");
+				this.writeLine("function openSymbolTable() {");
+				this.writeLine("  var iframes = window.opener.document.getElementsByTagName('iframe');");
+				this.writeLine("  var left = 0;");
+				this.writeLine("  var top = 0;");
+				this.writeLine("  for (var i = 0; i < iframes.length; i++)");
+				this.writeLine("    if (iframes[i].src.indexOf('/editWord') != -1) {");
+				this.writeLine("      var pos = getSymbolTablePostion(iframes[i]);");
+				this.writeLine("      left = (pos.left + iframes[i].offsetWidth);");
+				this.writeLine("      top = pos.top;");
+				this.writeLine("      break;");
+				this.writeLine("    }");
+				this.writeLine("  symbolTable = window.open('" + this.request.getContextPath() + this.request.getServletPath() + "/symbolTable', 'symbolTable', ('left=' + left + ',top=' + top + ',resizable=no,volatile=yes,title=no'));");
+				this.writeLine("  window.setTimeout('linkSymbolTable()', 50);");
+				this.writeLine("}");
+				
+				//	... to right of word dialog ...
+				this.writeLine("function getSymbolTablePostion(elem) {");
+				this.writeLine("  var left = 0;");
+				this.writeLine("  var top = 0;");
+				this.writeLine("  while(elem != null) {");
+				this.writeLine("    left += elem.offsetLeft;");
+				this.writeLine("    top += elem.offsetTop;");
+				this.writeLine("    elem = elem.offsetParent;");
+				this.writeLine("  }");
+				this.writeLine("  var pos = new Object();");
+				this.writeLine("  pos.left = left;");
+				this.writeLine("  pos.top = top;");
+				this.writeLine("  return pos;");
+				this.writeLine("}");
+				
+				//	... and replace its useSymbol() function with something useful
+				this.writeLine("function linkSymbolTable() {");
+				this.writeLine("  if (!symbolTable.useSymbol) {");
+				this.writeLine("    window.setTimeout('linkSymbolTable()', 50);");
+				this.writeLine("    return;");
+				this.writeLine("  }");
+				this.writeLine("  symbolTable.useSymbol = function(symbol) {");
+				this.writeLine("    var wsf = getById('wordStringField');");
+				this.writeLine("    wsf.value = (wsf.value + symbol);");
+				this.writeLine("  };");
+				this.writeLine("  symbolTable.onunload = function() {");
+				this.writeLine("    symbolTable = null;");
+				this.writeLine("  };");
+				this.writeLine("}");
 				
 				//	close script
 				this.writeLine("</script>");
 			}
-		});
+		};
 	}
 	
 	private void sendContextMenuActions(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -1148,7 +1290,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			final ImWord secondWord = this.idmp.document.getWord(startWordId);
 			if (secondWord != null) {
 				
-				//	start action thread to execute UNDO action
+				//	start action thread to execute two-click action
 				ActionThread at = new ActionThread() {
 					public void execute() throws Exception {
 						ptca.performAction(secondWord);
@@ -1177,6 +1319,10 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		
 		//	adjust display settings
 		this.idmp.setTextStreamsPainted("true".equals(request.getAttribute("textStreamsPainted")));
+		String tspStr = request.getParameter("ocrOverlayPercent");
+		if (tspStr != null) try {
+			this.idmp.setTextStringPercentage(Integer.parseInt(tspStr));
+		} catch (NumberFormatException nfe) {}
 		TreeSet paintedAnnotTypes = new TreeSet();
 		String patStr = request.getParameter("paintedAnnotTypes");
 		if (patStr != null)
@@ -1382,28 +1528,58 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			//	read color settings
 			this.readColorSettings(request);
 			
-			//	save document
-			IOException saveException = null;
-			try {
-				if (this.idmp.isDirty())
-					this.parent.storeDocument(this.idmp.document, this.userName, ProgressMonitor.dummy);
-				this.idmp.setNotDirty();
-				//	TODO figure out what to do with storage log (treatments updated, etc.)
-			}
-			catch (IOException ioe) {
-				ioe.printStackTrace(System.out);
-				saveException = ioe;
-			}
+			//	start action thread to close document (so we can get confirmation on unsaved changes)
+			ActionThread at = new ActionThread("Saving Document", false) {
+				public void execute() throws Exception {
+					if (idmp.isDirty()) try {
+						String[] storageLog = parent.storeDocument(idmp.document, userName, this.mmActionPmh);
+						idmp.setNotDirty();
+						mainMenuActionResult = new StorageLogActionResult(storageLog, false);
+					}
+					catch (IOException ioe) {
+						ioe.printStackTrace(System.out);
+						mainMenuActionResult = new JavaScriptActionResult("showAlertDialog(" +
+								"'" + GoldenGateImagineWebUtils.escapeForJavaScript("Error saving document '" + idmp.document.getAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, idmp.document.docId) + "':\r\n" + ioe.getMessage()) + "', " +
+								"'Error Saving Document', " +
+								"" + JOptionPane.ERROR_MESSAGE + "" +
+								");");
+						return;
+					}
+				}
+			};
+			at.start();
 			
-			//	send JavaScript call informing user of success or error
+			//	send JavaScript opening progress monitor
 			response.setContentType("text/plain");
 			response.setCharacterEncoding("UTF-8");
-			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
-			if (saveException == null)
-				bw.write("showAlertDialog('" + GoldenGateImagineWebUtils.escapeForJavaScript("Document '" + idmp.document.getAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, idmp.document.docId) + "' saved sucessfully.") + "', 'Document Saved Successfully', " + JOptionPane.PLAIN_MESSAGE + ");");
-			else bw.write("showAlertDialog('" + GoldenGateImagineWebUtils.escapeForJavaScript("Error saving document '" + idmp.document.getAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, idmp.document.docId) + "':\r\n" + saveException.getMessage()) + "', 'Error Saving Document', " + JOptionPane.ERROR_MESSAGE + ");");
-			bw.flush();
-			bw.close();
+			Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
+			BufferedLineWriter blw = new BufferedLineWriter(out);
+			blw.writeLine("openProgressMonitor();");
+			blw.flush();
+			out.flush();
+			blw.close();
+//			
+//			//	save document
+//			IOException saveException = null;
+//			try {
+//				if (this.idmp.isDirty())
+//					this.parent.storeDocument(this.idmp.document, this.userName, ProgressMonitor.dummy);
+//				this.idmp.setNotDirty();
+//			}
+//			catch (IOException ioe) {
+//				ioe.printStackTrace(System.out);
+//				saveException = ioe;
+//			}
+//			
+//			//	send JavaScript call informing user of success or error
+//			response.setContentType("text/plain");
+//			response.setCharacterEncoding("UTF-8");
+//			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
+//			if (saveException == null)
+//				bw.write("showAlertDialog('" + GoldenGateImagineWebUtils.escapeForJavaScript("Document '" + idmp.document.getAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, idmp.document.docId) + "' saved sucessfully.") + "', 'Document Saved Successfully', " + JOptionPane.PLAIN_MESSAGE + ");");
+//			else bw.write("showAlertDialog('" + GoldenGateImagineWebUtils.escapeForJavaScript("Error saving document '" + idmp.document.getAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, idmp.document.docId) + "':\r\n" + saveException.getMessage()) + "', 'Error Saving Document', " + JOptionPane.ERROR_MESSAGE + ");");
+//			bw.flush();
+//			bw.close();
 			return;
 		}
 		
@@ -1414,47 +1590,87 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			this.readColorSettings(request);
 			
 			//	start action thread to close document (so we can get confirmation on unsaved changes)
-			ActionThread at = new ActionThread() {
+			ActionThread at = new ActionThread("Saving Document", false) {
 				public void execute() throws Exception {
+					String[] storageLog = null;
 					if (idmp.isDirty()) {
 						int choice = this.confirm("The document has been modified. Save changes befor closing?", "Save Before Closing?", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, null);
 						if (choice == JOptionPane.YES_OPTION) {
 							try {
-								parent.storeDocument(idmp.document, userName, ProgressMonitor.dummy);
-								//	TODO figure out what to do with storage log (treatments updated, etc.)
+								storageLog = parent.storeDocument(idmp.document, userName, this.mmActionPmh);
+								idmp.setNotDirty();
 							}
 							catch (IOException ioe) {
 								ioe.printStackTrace(System.out);
-								this.alert(("Error saving document '" + idmp.document.getAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, idmp.document.docId) + "':\r\n" + ioe.getMessage()), "Error Saving Document", JOptionPane.ERROR_MESSAGE, null);
+								mainMenuActionResult = new JavaScriptActionResult("showAlertDialog(" +
+										"'" + GoldenGateImagineWebUtils.escapeForJavaScript("Error saving document '" + idmp.document.getAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, idmp.document.docId) + "':\r\n" + ioe.getMessage()) + "', " +
+										"'Error Saving Document', " +
+										"" + JOptionPane.ERROR_MESSAGE + "" +
+										");");
 								return;
 							}
-							idmp.setNotDirty();
 						}
 						else if (choice != JOptionPane.NO_OPTION)
 							return;
 					}
 					parent.docEditorClosing(GoldenGateImagineServletEditor.this);
 					idmp.close();
-					idmp.addJavaScriptCall("closeEditor();");
+					mainMenuActionResult = new StorageLogActionResult(storageLog, true);
 				}
 			};
 			at.start();
 			
-			//	wait for action thread to finish or block
-			String fbjsc = at.getFinalOrBlockingJavaScriptCall();
-			String[] jscs = this.idmp.getJavaScriptCalls();
-			
-			//	send JavaScript calls up to this point
+			//	send JavaScript opening progress monitor
 			response.setContentType("text/plain");
 			response.setCharacterEncoding("UTF-8");
 			Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
 			BufferedLineWriter blw = new BufferedLineWriter(out);
-			for (int c = 0; c < jscs.length; c++)
-				blw.writeLine(jscs[c]);
-			blw.writeLine(fbjsc);
+			blw.writeLine("openProgressMonitor();");
 			blw.flush();
 			out.flush();
 			blw.close();
+//			
+//			//	start action thread to close document (so we can get confirmation on unsaved changes)
+//			ActionThread at = new ActionThread() {
+//				public void execute() throws Exception {
+//					if (idmp.isDirty()) {
+//						int choice = this.confirm("The document has been modified. Save changes befor closing?", "Save Before Closing?", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, null);
+//						if (choice == JOptionPane.YES_OPTION) {
+//							try {
+//								parent.storeDocument(idmp.document, userName, ProgressMonitor.dummy);
+//							}
+//							catch (IOException ioe) {
+//								ioe.printStackTrace(System.out);
+//								this.alert(("Error saving document '" + idmp.document.getAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, idmp.document.docId) + "':\r\n" + ioe.getMessage()), "Error Saving Document", JOptionPane.ERROR_MESSAGE, null);
+//								return;
+//							}
+//							idmp.setNotDirty();
+//						}
+//						else if (choice != JOptionPane.NO_OPTION)
+//							return;
+//					}
+//					parent.docEditorClosing(GoldenGateImagineServletEditor.this);
+//					idmp.close();
+//					idmp.addJavaScriptCall("closeEditor();");
+//				}
+//			};
+//			at.start();
+//			
+//			//	wait for action thread to finish or block
+//			String fbjsc = at.getFinalOrBlockingJavaScriptCall();
+//			String[] jscs = this.idmp.getJavaScriptCalls();
+//			
+//			//	send JavaScript calls up to this point
+//			response.setContentType("text/plain");
+//			response.setCharacterEncoding("UTF-8");
+//			Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
+//			BufferedLineWriter blw = new BufferedLineWriter(out);
+//			for (int c = 0; c < jscs.length; c++)
+//				blw.writeLine(jscs[c]);
+//			blw.writeLine(fbjsc);
+//			blw.flush();
+//			out.flush();
+//			blw.close();
 			return;
 		}
 		
@@ -1474,28 +1690,28 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			};
 			this.docViewActionThread.start();
 			
-			//	send JavaScript calls up to this point
+			//	send JavaScript call opening dialog
 			response.setContentType("text/plain");
 			response.setCharacterEncoding("UTF-8");
 			Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
 			BufferedLineWriter blw = new BufferedLineWriter(out);
-			blw.writeLine("window.open('" + viewBaseUrl + "', 'documentView', 'width=50,height=50,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes');");
+//			blw.writeLine("window.open('" + viewBaseUrl + "', 'documentView', 'width=50,height=50,top=0,left=0,resizable=yes,scrollbar=yes,scrollbars=yes');");
+			blw.writeLine("window.open('" + viewBaseUrl + "', 'documentView', 'left=center,top=center,title=no,resizable=yes');");
 			blw.flush();
 			out.flush();
 			blw.close();
 			return;
 		}
 		
-		//	run plugin based 'Edit' menu actions in ActionThread
+		//	run plugin based 'Edit' menu actions in plain ActionThread
 		if (actionId.startsWith("EDT-")) {
 			
 			//	start action thread to process document
 			ActionThread at = new ActionThread() {
 				public void execute() throws Exception {
-					if (actionImTool != null) {
+					if (actionImTool != null)
 						idmp.applyMarkupTool(actionImTool, null, ProgressMonitor.dummy);
 					}
-				}
 			};
 			at.start();
 			
@@ -1516,9 +1732,30 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			blw.close();
 			return;
 		}
+//		
+//		//	run plugin based 'Tools' menu action in parent asynchronous request handler (feedback requests !!!)
+//		this.parent.runToolsMenuActionImTool(request, response, this, actionId);
 		
-		//	run plugin based 'Tools' menu action in parent asynchronous request handler (feedback requests !!!)
-		this.parent.runToolsMenuActionImTool(request, response, this, actionId);
+		//	run all other plugin based menu actions in progress monitored ActionThread
+		else {
+			
+			//	start action thread to process document
+			ActionThread at = new ActionThread("'" + actionImTool.getLabel() + "' Running", false) {
+				public void execute() throws Exception {
+					if (actionImTool != null)
+						idmp.applyMarkupTool(actionImTool, null, this.mmActionPmh);
+					}
+			};
+			at.start();
+			
+			//	send JavaScript call opening progress monitor
+			response.setContentType("text/plain");
+			response.setCharacterEncoding("UTF-8");
+			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
+			bw.write("openProgressMonitor();");
+			bw.flush();
+			bw.close();
+		}
 	}
 	
 	private void readColorSettings(HttpServletRequest request) {
@@ -1545,31 +1782,145 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		}
 	}
 	
-	private void sendMainMenuActionResultPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
+	private void sendMainMenuActionStatusPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		response.setContentType("text/html");
 		response.setCharacterEncoding("UTF-8");
-		String[] javaScriptCalls = {"window.opener.doFinishMainMenuAction();"};
-		this.parent.sendPopupHtmlPage(this.parent.getClosePopinWindowPageBuilder(request, response, javaScriptCalls));
+		
+		//	atomically get running action thread (might finish while we're in here)
+		final ActionThread at = this.mainMenuActionThread;
+		
+		//	no action thread running (might have terminated)
+		if (at == null) {
+			
+			//	get any pending JavaScript calls, plus update finisher
+			String[] jscs = this.idmp.getJavaScriptCalls();
+			String[] aJscs = new String[jscs.length + 1];
+			for (int c = 0; c < jscs.length; c++)
+				aJscs[c] = ("window.opener." + jscs[c]);
+			aJscs[jscs.length] = ("window.opener.uFinishUpdate();");
+			
+			//	send pop-in closer page
+			this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, aJscs));
+		}
+		
+		//	if action thread running, get its status page
+		else this.parent.sendHtmlPage("mmActionStatus.html", new HtmlPageBuilder(this, request, response) {
+				protected boolean includeJavaScriptDomHelpers() {
+					return true;
+				}
+				protected void include(String type, String tag) throws IOException {
+					if ("includeBody".equals(type)) {
+						
+						//	use this for style development !!!
+						if (this.host.findFile("WebDocumentView.dev.html") != null)
+							this.includeFile("WebDocumentView.dev.html");
+						
+						//	write progress monitoring HTML code
+						at.mmActionPmh.writeHtml(this.asWriter(), (at.mmActionLabel + ", Please Wait ..."));
+					}
+					else super.include(type, tag);
+				}
+				protected void writePageHeadExtensions() throws IOException {
+					at.mmActionPmh.writeJavaScripts(this.asWriter(), (this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/mmActionStatus.js"));
+					this.writeLine("<script type=\"text/javascript\">");
+					this.writeLine("function closeProgressMonitor() {");
+					this.writeLine("  window.setTimeout('doCloseProgressMonitor()', 100);");
+					this.writeLine("}");
+					
+					//	call to result or close (not a JavaScript !!!)
+					this.writeLine("function doCloseProgressMonitor() {");
+					this.writeLine("  window.location.href = '" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/mmActionResult';");
+					this.writeLine("}");
+					this.writeLine("</script>");
+				}
+			});
 	}
 	
-	private void sendMainMenuActionResult(HttpServletRequest request, HttpServletResponse response) throws IOException {
+	private void sendMainMenuActionStatus(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		
-		//	get JavaScript calls (no need for waiting like with ActionThread, as we only get here once IMT has finished)
-		String[] jscs = this.idmp.getJavaScriptCalls();
+		//	atomically get running action thread (might finish while we're in here)
+		final ActionThread at = this.mainMenuActionThread;
 		
-		//	send JavaScript calls
+		//	prepare response
 		response.setContentType("text/plain");
 		response.setCharacterEncoding("UTF-8");
 		Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
 		BufferedLineWriter blw = new BufferedLineWriter(out);
-		for (int c = 0; c < jscs.length; c++)
-			blw.writeLine(jscs[c]);
-		blw.writeLine("uFinishUpdate();");
+		
+		//	no action thread running (might have terminated)
+		if (at == null) {
+			
+			//	get any pending JavaScript calls
+			String[] jscs = this.idmp.getJavaScriptCalls();
+			
+			//	send JavaScript calls, including update finisher, and close progress monitor
+			for (int c = 0; c < jscs.length; c++)
+				blw.writeLine("window.opener." + jscs[c]);
+			blw.writeLine("window.opener.uFinishUpdate();");
+			blw.writeLine("closeProgressMonitor();");
+		}
+		
+		//	if action thread running, get its status page
+		else {
+			
+			//	send HTML progress monitor status page
+			String[] jscs = at.mmActionPmh.getStatusUpdateCalls();
+			for (int c = 0; c < jscs.length; c++)
+				blw.writeLine(jscs[c]);
+			
+			//	add call for feedback, word edit, or generic confirm
+			if (at.hasBlockingJavaScriptCall())
+				blw.writeLine(at.getFinalOrBlockingJavaScriptCall());
+		}
+		
+		//	finish sending response
 		blw.flush();
 		out.flush();
 		blw.close();
 	}
 	
+	private void sendMainMenuActionResultPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		
+		//	prepare response
+		response.setContentType("text/html");
+		response.setCharacterEncoding("UTF-8");
+		
+		//	if we don't have a result, simply close progress monitor
+		if (this.mainMenuActionResult == null)
+			this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, null));
+		
+		//	if we have a result, use it and void it afterward
+		else {
+			this.parent.sendHtmlPage("mmActionResult.html", this.mainMenuActionResult.getResultPageBuilder(request, response));
+			this.mainMenuActionResult = null;
+		}
+	}
+	
+//	private void sendMainMenuActionResultPage(HttpServletRequest request, HttpServletResponse response) throws IOException {
+//		response.setContentType("text/html");
+//		response.setCharacterEncoding("UTF-8");
+//		String[] javaScriptCalls = {"window.opener.doFinishMainMenuAction();"};
+//		this.parent.sendHtmlPage("popup.close.html", this.parent.getClosePopinWindowPageBuilder(request, response, javaScriptCalls));
+//	}
+//	
+//	private void sendMainMenuActionResult(HttpServletRequest request, HttpServletResponse response) throws IOException {
+//		
+//		//	get JavaScript calls (no need for waiting like with ActionThread, as we only get here once IMT has finished)
+//		String[] jscs = this.idmp.getJavaScriptCalls();
+//		
+//		//	send JavaScript calls
+//		response.setContentType("text/plain");
+//		response.setCharacterEncoding("UTF-8");
+//		Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
+//		BufferedLineWriter blw = new BufferedLineWriter(out);
+//		for (int c = 0; c < jscs.length; c++)
+//			blw.writeLine(jscs[c]);
+//		blw.writeLine("uFinishUpdate();");
+//		blw.flush();
+//		out.flush();
+//		blw.close();
+//	}
+//	
 	private void handleExportAction(HttpServletRequest request, HttpServletResponse response) throws IOException {
 		
 		//	get exporter
@@ -1769,6 +2120,10 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		
 		//	adjust display settings
 		this.idmp.setTextStreamsPainted("true".equals(request.getAttribute("textStreamsPainted")));
+		String tspStr = request.getParameter("ocrOverlayPercent");
+		if (tspStr != null) try {
+			this.idmp.setTextStringPercentage(Integer.parseInt(tspStr));
+		} catch (NumberFormatException nfe) {}
 		TreeSet paintedAnnotTypes = new TreeSet();
 		String patStr = request.getParameter("paintedAnnotTypes");
 		if (patStr != null)
@@ -1925,6 +2280,8 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		BufferedLineWriter blw = new BufferedLineWriter(out);
 		blw.writeLine("setDocument({");
 		blw.writeLine("  \"id\": \"" + this.idmp.document.docId + "\",");
+		if (!this.idmp.documentBornDigital)
+			blw.writeLine("  \"isOcr\": true,");
 		blw.writeLine("  \"pages\": [");
 		ImPage[] pages = this.idmp.document.getPages();
 		boolean isFirstPage = true;
@@ -1962,7 +2319,13 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 				else blw.writeLine("      \"prevWordId\": \"" + words[w].getPreviousWord().getLocalID() + "\",");
 				if (words[w].getNextWord() != null)
 					blw.writeLine("      \"nextRelation\": \"" + words[w].getNextRelation() + "\",");
-				blw.writeLine("      \"str\": \"" + words[w].getString() + "\"");
+				if (!this.idmp.documentBornDigital) /* we need this for the OCR overlay */ {
+					if (words[w].hasAttribute(ImWord.BOLD_ATTRIBUTE))
+						blw.writeLine("      \"bold\": true,");
+					if (words[w].hasAttribute(ImWord.ITALICS_ATTRIBUTE))
+						blw.writeLine("      \"italics\": true,");
+				}
+				blw.writeLine("      \"str\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(words[w].getString(), '"') + "\"");
 				blw.writeLine("    }");
 			}
 			blw.writeLine("    ],");
@@ -2026,22 +2389,117 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		}
 	};
 	
+	private static class MmActionProgressMonitorHTML extends ProgressMonitorHTML {
+		private ArrayList enqueuedJavaScriptCalls = new ArrayList(1);
+		MmActionProgressMonitorHTML(boolean supportPauseResume, boolean supportAbort) {
+			super(supportPauseResume, supportAbort);
+		}
+		void enqueueJavaScriptCall(String jsc) {
+			this.enqueuedJavaScriptCalls.add(jsc);
+		}
+		public String[] getStatusUpdateCalls() {
+			String[] sucs = super.getStatusUpdateCalls();
+			if (this.enqueuedJavaScriptCalls.isEmpty())
+				return sucs;
+			String[] aSucs = new String[sucs.length + this.enqueuedJavaScriptCalls.size()];
+			System.arraycopy(sucs, 0, aSucs, 0, sucs.length);
+			for (int c = 0; c < this.enqueuedJavaScriptCalls.size(); c++)
+				aSucs[sucs.length + c] = ((String) this.enqueuedJavaScriptCalls.get(c));
+			this.enqueuedJavaScriptCalls.clear();
+			return aSucs;
+		}
+	}
+	
+	private static abstract class MmActionResult {
+		abstract HtmlPageBuilder getResultPageBuilder(HttpServletRequest request, HttpServletResponse response) throws IOException;
+	}
+	
+	private class StorageLogActionResult extends MmActionResult {
+		private String[] storageLog;
+		private boolean close;
+		StorageLogActionResult(String[] storageLog, boolean close) {
+			this.storageLog = storageLog;
+			this.close = close;
+		}
+		HtmlPageBuilder getResultPageBuilder(HttpServletRequest request, HttpServletResponse response) throws IOException {
+			
+			//	nothing to display, simply close action result or main editor
+			if (this.storageLog == null)
+				return new HtmlPageBuilder(GoldenGateImagineServletEditor.this, request, response) {
+					protected void include(String type, String tag) throws IOException {
+						if ("includeBody".equals(type)) {
+							this.writeLine("<script type=\"text/javascript\">");
+							if (close)
+								this.writeLine("window.opener.closeEditor();");
+							else this.writeLine("window.close();");
+							this.writeLine("</script>");
+						}
+						else super.include(type, tag);
+					}
+				};
+			//	TODO implement this
+			return null;
+		}
+	}
+	
+	private class JavaScriptActionResult extends MmActionResult {
+		private String[] jsCalls;
+		JavaScriptActionResult(String jsCall) {
+			this.jsCalls = new String[1];
+			this.jsCalls[0] = jsCall;
+		}
+		JavaScriptActionResult(String[] jsCalls) {
+			this.jsCalls = jsCalls;
+		}
+		HtmlPageBuilder getResultPageBuilder(HttpServletRequest request, HttpServletResponse response) throws IOException {
+			return new HtmlPageBuilder(GoldenGateImagineServletEditor.this, request, response) {
+				protected void include(String type, String tag) throws IOException {
+					if ("includeBody".equals(type)) {
+						this.writeLine("<script type=\"text/javascript\">");
+						for (int c = 0; c < jsCalls.length; c++)
+							this.writeLine(jsCalls[c]);
+						this.writeLine("</script>");
+					}
+					else super.include(type, tag);
+				}
+			};
+		}
+	}
+	
 	abstract class ActionThread extends Thread {
+		final String mmActionLabel;
+		final MmActionProgressMonitorHTML mmActionPmh;
 		final MultiActionServletRequest docViewRequest;
 		final MultiActionServletResponse docViewResponse;
 		final String docViewPathInfo;
 		
 		ActionThread() {
 			super(id);
+			this.mmActionLabel = null;
+			this.mmActionPmh = null;
+			this.docViewRequest = null;
+			this.docViewResponse = null;
+			this.docViewPathInfo = null;
+		}
+		ActionThread(String actionLabel, boolean actionAbortable) {
+			super(id);
+			this.mmActionLabel = actionLabel;
+			this.mmActionPmh = new MmActionProgressMonitorHTML(false, actionAbortable);
 			this.docViewRequest = null;
 			this.docViewResponse = null;
 			this.docViewPathInfo = null;
 		}
 		ActionThread(HttpServletRequest request, HttpServletResponse response, String docViewPathInfo) {
 			super(id);
+			this.mmActionLabel = null;
+			this.mmActionPmh = null;
 			this.docViewRequest = new MultiActionServletRequest(request);
 			this.docViewResponse = new MultiActionServletResponse(response);
 			this.docViewPathInfo = docViewPathInfo;
+		}
+		
+		boolean isMainMenuAction() {
+			return (this.mmActionLabel != null);
 		}
 		
 		boolean isDocViewAction() {
@@ -2053,11 +2511,19 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		}
 		
 		public void run() {
+			if (this.isMainMenuAction())
+				mainMenuActionThread = this;
 			try {
 				this.execute();
 			}
 			catch (Exception e) {
 				e.printStackTrace(System.out);
+				if (mainMenuActionThread == this)
+					mainMenuActionResult = new JavaScriptActionResult("showAlertDialog(" +
+							"'" + GoldenGateImagineWebUtils.escapeForJavaScript("The operation produced an error:\r\n" + e.getMessage()) + "', " +
+							"'" + GoldenGateImagineWebUtils.escapeForJavaScript("Error " + this.mmActionLabel) + "', " +
+							"" + JOptionPane.ERROR_MESSAGE + "" +
+							");");
 			}
 			finally {
 				/* If we're handling a request from a document view, we just
@@ -2065,7 +2531,13 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 				 * actual action, as the script body is written by the document
 				 * view itself. And we definitely don't call a document update
 				 * on the document view page. */
-				this.setFinalOrBlockingJavaScriptCall(this.isDocViewAction() ? "" : "uFinishUpdate();");
+				/* If we're handling a main menu action, we just have to make
+				 * the waiting thread continue, not provide any actual action,
+				 * as the closing call of the progress monitor will perform the
+				 * pending document updates. */
+				this.setFinalOrBlockingJavaScriptCall((this.isMainMenuAction() || this.isDocViewAction()) ? "" : "uFinishUpdate();");
+				if (mainMenuActionThread == this)
+					mainMenuActionThread = null;
 			}
 		}
 		public abstract void execute() throws Exception;
@@ -2075,13 +2547,19 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			this.finalOrBlockingJavaScriptCall = fbjsc;
 			this.notify();
 		}
+		synchronized boolean hasBlockingJavaScriptCall() {
+			/* there might be a slight delay between run() finishes and
+			 * isAlive() returns to returning false, but this should be good
+			 * enough for starters */
+			return (this.isAlive() && (this.finalOrBlockingJavaScriptCall != null));
+		}
 		synchronized String getFinalOrBlockingJavaScriptCall() {
 			if (this.finalOrBlockingJavaScriptCall == null) try {
 				this.wait();
 			} catch (InterruptedException ie) {}
-			String sjsc = this.finalOrBlockingJavaScriptCall;
+			String fbjsc = this.finalOrBlockingJavaScriptCall;
 			this.finalOrBlockingJavaScriptCall = null;
-			return sjsc;
+			return fbjsc;
 		}
 		
 		void copy(Transferable data) {
@@ -2093,6 +2571,8 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			String alertJsc = ("showAlertDialog('" + GoldenGateImagineWebUtils.escapeForJavaScript(message.toString()) + "', " + ((title == null) ? "null" : ("'" + GoldenGateImagineWebUtils.escapeForJavaScript(title) + "'")) + ", " + messageType + ");");
 			if (this.isDocViewAction())
 				this.docViewResponse.enqueueJavaScriptCall(alertJsc);
+			else if (this.isMainMenuAction())
+				this.mmActionPmh.enqueueJavaScriptCall(alertJsc);
 			else idmp.addJavaScriptCall(alertJsc);
 		}
 		
@@ -2246,8 +2726,6 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 							}
 						}
 					this.writeLine("  var cs = window.opener.document.getElementById('dynamicConfirmScript');");
-//					this.writeLine("  var csp = cs.parentNode;");
-//					this.writeLine("  removeElement(cs);");
 					this.writeLine("  var csp;");
 					this.writeLine("  if (cs == null)");
 					this.writeLine("    csp = window.opener.document.getElementsByTagName('body')[0];");
@@ -2387,6 +2865,102 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 				//	... and inject it into feedback request
 				this.feedbackPanel.setStatusCode(responseData.getProperty(FeedbackFormBuilder.SUBMIT_MODE_PARAMETER, "OK"));
 				this.feedbackPanelRenderer.readResponse(responseData);
+			}
+			
+			//	continue waiting thread
+			synchronized (this) {
+				this.notify();
+			}
+		}
+		
+		private ImWord editingWord;
+		private boolean wordEdited = false;
+		boolean editWord(ImWord word) {
+			
+			//	remember word
+			this.editingWord = word;
+			this.wordEdited = false;
+			
+			//	block until processFeedback() gets the answer
+			synchronized (this) {
+				try {
+					actionThreadEditingWord = this;
+					this.setFinalOrBlockingJavaScriptCall("doEditWord(null);");
+					this.wait();
+					actionThreadEditingWord = null;
+				} catch (InterruptedException ie) {}
+			}
+			
+			//	clean up and return edit result
+			this.editingWord = null;
+			return this.wordEdited;
+			
+		}
+		ImWord getEditingWord() {
+			return this.editingWord;
+		}
+//		HtmlPageBuilder getEditWordPageBuilder(HttpServletRequest request, HttpServletResponse response) throws IOException {
+//			return new HtmlPageBuilder(parent, request, response) {
+//				protected void include(String type, String tag) throws IOException {
+//					if ("includeTitle".equals(type))
+//						this.write(html.escape("Edit Word '" + editingWord.getString() + "'"));
+//					else if ("includeWordImage".equals(type))
+//						this.write("<img src=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/wordImage/" + editingWord.getLocalID() + ".png\" />");
+//					else if ("includeForm".equals(type)) {
+//						this.writeLine("<form id=\"wordAttributeForm\" method=\"POST\" action=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editWord\" style=\"display: none;\">");
+//						this.writeLine("<input type=\"hidden\" id=\"wordString\" name=\"" + ImWord.STRING_ATTRIBUTE + "\" value=\"" + html.escape(editingWord.getString()) + "\"/>");
+//						this.writeLine("<input type=\"hidden\" id=\"wordIsBold\" name=\"" + ImWord.BOLD_ATTRIBUTE + "\" value=\"" + (editingWord.hasAttribute(ImWord.BOLD_ATTRIBUTE) ? "true" : "false") + "\"/>");
+//						this.writeLine("<input type=\"hidden\" id=\"wordIsItalics\" name=\"" + ImWord.ITALICS_ATTRIBUTE + "\" value=\"" + (editingWord.hasAttribute(ImWord.ITALICS_ATTRIBUTE) ? "true" : "false") + "\"/>");
+//						this.writeLine("<input type=\"hidden\" id=\"wordEdited\" name=\"wordEdited\" value=\"false\"/>");
+//						this.writeLine("</form>");
+//					}
+//					else if ("includeInitCalls".equals(type)) {
+//						this.writeLine("<script type=\"text/javascript\">");
+//						this.writeLine("getById('wordStringField').value = getById('wordString').value;");
+//						this.writeLine("getById('wordIsBoldField').checked = ((getById('wordIsBold').value == 'true') ? 'checked' : null);");
+//						this.writeLine("getById('wordIsItalicsField').checked = ((getById('wordIsItalics').value == 'true') ? 'checked' : null);");
+//						this.writeLine("</script>");
+//					}
+//					else super.include(type, tag);
+//				}
+//				protected boolean includeJavaScriptDomHelpers() {
+//					return true;
+//				}
+//				protected void writePageHeadExtensions() throws IOException {
+//					
+//					//	open script and create attribute value index
+//					this.writeLine("<script type=\"text/javascript\">");
+//					
+//					//	TODO_above somehow provide the symbol table
+//					//	TODO_above ==> try a non-modal (or volatile), fixed-position, fixed-size dialog for this ...
+//					//	TODO_above ... somehow aligned with word edit dialog
+//					//	TODO_above open 'symbolTable' from main servlet ...
+//					//	TODO_above ... and replace its useSymbol() function with something useful
+//					
+//					//	close script
+//					this.writeLine("</script>");
+//				}
+//			};
+//		}
+		void wordEdited(HttpServletRequest request) {
+			
+			//	check form submission status
+			this.wordEdited = "true".equals(request.getParameter("wordEdited"));
+			
+			//	perform word updates
+			if (this.wordEdited) {
+				String string = request.getParameter(ImWord.STRING_ATTRIBUTE);
+				boolean bold = "true".equals(request.getParameter(ImWord.BOLD_ATTRIBUTE));
+				boolean italics = "true".equals(request.getParameter(ImWord.ITALICS_ATTRIBUTE));
+				if (string != null) {
+					string = string.trim();
+					if (!string.equals(this.editingWord.getString()))
+						this.editingWord.setString(string);
+				}
+				if (bold != this.editingWord.hasAttribute(ImWord.BOLD_ATTRIBUTE))
+					this.editingWord.setAttribute(ImWord.BOLD_ATTRIBUTE, (bold ? "true" : null));
+				if (italics != this.editingWord.hasAttribute(ImWord.ITALICS_ATTRIBUTE))
+					this.editingWord.setAttribute(ImWord.ITALICS_ATTRIBUTE, (italics ? "true" : null));
 			}
 			
 			//	continue waiting thread
@@ -3004,7 +3578,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 	/* Sub class of actual markup panel, preventing all rendering, but still
 	 * managing display settings, and reflecting document updates in respective
 	 * JavaScript calls that update the projected browser-side model. */
-	static class ImsDocumentMarkupPanel extends ImDocumentMarkupPanel {
+	static class WebImDocumentMarkupPanel extends ImDocumentMarkupPanel {
 		
 		private ImDocumentListener undoRecorder;
 		private LinkedList undoActions = new LinkedList();
@@ -3030,11 +3604,11 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		private int modCount = 0;
 		private int savedModCount = 0;
 		
-		ImsDocumentMarkupPanel(ImDocument document, GoldenGateImagine ggImagine, Settings ggImagineSettings) {
+		WebImDocumentMarkupPanel(ImDocument document, GoldenGateImagine ggImagine, Settings ggImagineSettings) {
 			this(document, 0, document.getPageCount(), ggImagine, ggImagineSettings);
 		}
 		
-		ImsDocumentMarkupPanel(ImDocument document, int fvp, int vpc, GoldenGateImagine ggImagine, Settings ggImagineSettings) {
+		WebImDocumentMarkupPanel(ImDocument document, int fvp, int vpc, GoldenGateImagine ggImagine, Settings ggImagineSettings) {
 			super(document, fvp, vpc);
 			this.ggImagine = ggImagine;
 			this.ggImagineSettings = ggImagineSettings;
@@ -3171,7 +3745,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					return;
 				addUndoAction(new UndoAction("Add '" + region.getType() + "' Region") {
 					void doExecute() {
-						ImsDocumentMarkupPanel.this.document.getPage(region.pageId).removeRegion(region);
+						WebImDocumentMarkupPanel.this.document.getPage(region.pageId).removeRegion(region);
 					}
 				});
 			}
@@ -3181,12 +3755,12 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 				if (region instanceof ImWord)
 					addUndoAction(new UndoAction("Remove Word '" + region.getAttribute(ImWord.STRING_ATTRIBUTE) + "'") {
 						void doExecute() {
-							ImsDocumentMarkupPanel.this.document.getPage(region.pageId).addWord((ImWord) region);
+							WebImDocumentMarkupPanel.this.document.getPage(region.pageId).addWord((ImWord) region);
 						}
 					});
 				else addUndoAction(new UndoAction("Remove '" + region.getType() + "' Region") {
 					void doExecute() {
-						ImsDocumentMarkupPanel.this.document.getPage(region.pageId).addRegion(region);
+						WebImDocumentMarkupPanel.this.document.getPage(region.pageId).addRegion(region);
 					}
 				});
 			}
@@ -3225,7 +3799,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 								continue;
 							if (!annots[a].getType().equals(annotation.getType()))
 								continue;
-							ImsDocumentMarkupPanel.this.document.removeAnnotation(annots[a]);
+							WebImDocumentMarkupPanel.this.document.removeAnnotation(annots[a]);
 							break;
 						}
 					}
@@ -3236,7 +3810,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					return;
 				addUndoAction(new UndoAction("Remove '" + annotation.getType() + "' Annotation") {
 					void doExecute() {
-						ImAnnotation reAnnot = ImsDocumentMarkupPanel.this.document.addAnnotation(annotation.getFirstWord(), annotation.getLastWord(), annotation.getType());
+						ImAnnotation reAnnot = WebImDocumentMarkupPanel.this.document.addAnnotation(annotation.getFirstWord(), annotation.getLastWord(), annotation.getType());
 						if (reAnnot != null)
 							reAnnot.copyAttributes(annotation);
 					}
@@ -3255,13 +3829,13 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 			UndoAction(String label) {
 				this.label = label;
 				this.id = getUndoActionId();
-				this.modCount = ImsDocumentMarkupPanel.this.modCount;
+				this.modCount = WebImDocumentMarkupPanel.this.modCount;
 			}
 			final void execute() {
 				try {
 					inUndoAction = true;
 					this.doExecute();
-					ImsDocumentMarkupPanel.this.modCount = this.modCount;
+					WebImDocumentMarkupPanel.this.modCount = this.modCount;
 				}
 				finally {
 					inUndoAction = false;
@@ -3332,7 +3906,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					return;
 				try {
 					for (int p = 0; p < this.reactionProviders.length; p++)
-						this.reactionProviders[p].typeChanged(object, oldType, ImsDocumentMarkupPanel.this, false);
+						this.reactionProviders[p].typeChanged(object, oldType, WebImDocumentMarkupPanel.this, false);
 				}
 				catch (Throwable t) {
 					System.out.println("Error reacting to object type change: " + t.getMessage());
@@ -3347,7 +3921,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					return;
 				try {
 					for (int p = 0; p < this.reactionProviders.length; p++)
-						this.reactionProviders[p].regionAdded(region, ImsDocumentMarkupPanel.this, false);
+						this.reactionProviders[p].regionAdded(region, WebImDocumentMarkupPanel.this, false);
 				}
 				catch (Throwable t) {
 					System.out.println("Error reacting to region addition: " + t.getMessage());
@@ -3362,7 +3936,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					return;
 				try {
 					for (int p = 0; p < this.reactionProviders.length; p++)
-						this.reactionProviders[p].regionRemoved(region, ImsDocumentMarkupPanel.this, false);
+						this.reactionProviders[p].regionRemoved(region, WebImDocumentMarkupPanel.this, false);
 				}
 				catch (Throwable t) {
 					System.out.println("Error reacting to region removal: " + t.getMessage());
@@ -3377,7 +3951,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					return;
 				try {
 					for (int p = 0; p < this.reactionProviders.length; p++)
-						this.reactionProviders[p].attributeChanged(object, attributeName, oldValue, ImsDocumentMarkupPanel.this, false);
+						this.reactionProviders[p].attributeChanged(object, attributeName, oldValue, WebImDocumentMarkupPanel.this, false);
 				}
 				catch (Throwable t) {
 					System.out.println("Error reacting to object attribute change: " + t.getMessage());
@@ -3392,7 +3966,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					return;
 				try {
 					for (int p = 0; p < this.reactionProviders.length; p++)
-						this.reactionProviders[p].annotationAdded(annotation, ImsDocumentMarkupPanel.this, false);
+						this.reactionProviders[p].annotationAdded(annotation, WebImDocumentMarkupPanel.this, false);
 				}
 				catch (Throwable t) {
 					System.out.println("Error reacting to annotation addition: " + t.getMessage());
@@ -3407,7 +3981,7 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 					return;
 				try {
 					for (int p = 0; p < this.reactionProviders.length; p++)
-						this.reactionProviders[p].annotationRemoved(annotation, ImsDocumentMarkupPanel.this, false);
+						this.reactionProviders[p].annotationRemoved(annotation, WebImDocumentMarkupPanel.this, false);
 				}
 				catch (Throwable t) {
 					System.out.println("Error reacting to annotation removal: " + t.getMessage());
@@ -3438,6 +4012,10 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 						addJavaScriptCall("uSetWordStreamType('" + ((ImWord) object).getLocalID() + "', '" + ((ImWord) object).getTextStreamType() + "');");
 					else if (ImWord.STRING_ATTRIBUTE.equals(attributeName))
 						addJavaScriptCall("uSetWordString('" + ((ImWord) object).getLocalID() + "', '" + escapeForJavaScript(((ImWord) object).getString()) + "');");
+					else if (ImWord.BOLD_ATTRIBUTE.equals(attributeName))
+						addJavaScriptCall("uSetWordBold('" + ((ImWord) object).getLocalID() + "', " + object.hasAttribute(ImWord.BOLD_ATTRIBUTE) + ");");
+					else if (ImWord.ITALICS_ATTRIBUTE.equals(attributeName))
+						addJavaScriptCall("uSetWordItalics('" + ((ImWord) object).getLocalID() + "', " + object.hasAttribute(ImWord.ITALICS_ATTRIBUTE) + ");");
 				}
 				else if (object instanceof ImAnnotation) {
 					if (ImAnnotation.FIRST_WORD_ATTRIBUTE.equals(attributeName))
@@ -3710,10 +4288,19 @@ public class GoldenGateImagineServletEditor implements LiteratureConstants, Html
 		}
 		
 		/* (non-Javadoc)
-		 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#editWord(de.uka.ipd.idaho.im.ImWord)
+		 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#editWord(de.uka.ipd.idaho.im.ImWord, boolean)
 		 */
-		public void editWord(ImWord word) {
-			this.addJavaScriptCall("doEditWord('" + word.getLocalID() + "');");
+		public boolean editWord(ImWord word, boolean waitForResult) {
+			if (waitForResult) {
+				Thread ct = Thread.currentThread();
+				if (ct instanceof ActionThread)
+					return ((ActionThread) ct).editWord(word);
+				else throw new RuntimeException("Please modally edit words from Action Thread !!!");
+			}
+			else {
+				this.addJavaScriptCall("doEditWord('" + word.getLocalID() + "');");
+				return false;
+			}
 		}
 		
 		/* (non-Javadoc)

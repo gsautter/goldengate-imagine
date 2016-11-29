@@ -596,6 +596,19 @@ public class GoldenGateImagineDocumentServlet extends GoldenGateImagineServlet i
 		entryListOut.flush();
 		entryListOut.close();
 		
+		/* TODO for IMS write-through:
+		 * - simply create document data object from entry list ...
+		 * - ... and use IMS client updateDocumentFromData() to send updates to backing IMS
+		 *   - use configured community account to authenticate ...
+		 *   - ... and give <userName>@<communityName> as user to credit
+		 */
+		//	OR
+		//	TODO add IMF write-through as extra function in document list
+		//	OR
+		//	TODO add IMF write-through as option in 'Export' menu ...
+		//	TODO ... showing export log to user
+		//	==> sort of abuse of file export facilities, but nicely workable way
+		
 		//	return empty storage log (nothing to log here)
 		return new String[0];
 	}

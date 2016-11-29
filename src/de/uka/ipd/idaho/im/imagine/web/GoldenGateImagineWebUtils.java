@@ -86,17 +86,33 @@ public class GoldenGateImagineWebUtils {
 	 * @return the escaped string
 	 */
 	public static String escapeForJavaScript(String str) {
+		return escapeForJavaScript(str, '\'');
+	}
+	
+	/**
+	 * Escape a string for JavaScript and JSON use.
+	 * @param str the string to escape
+	 * @param quot the quoter to go around the escaped string
+	 * @return the escaped string
+	 */
+	public static String escapeForJavaScript(String str, char quot) {
 		if (str == null)
 			return null;
 		StringBuffer escaped = new StringBuffer();
 		char ch;
 		for (int c = 0; c < str.length(); c++) {
 			ch = str.charAt(c);
-			if ((ch == '\\') || (ch == '\''))
-				escaped.append('\\');
-			if (ch < 32)
+			if (ch == '\r')
+				escaped.append("\\r");
+			else if (ch == '\n')
+				escaped.append("\\n");
+			else if (ch < 32)
 				escaped.append(' ');
-			else escaped.append(ch);
+			else {
+				if ((ch == quot) || (ch == '\\'))
+					escaped.append('\\');
+				escaped.append(ch);
+			}
 		}
 		return escaped.toString();
 	}
@@ -146,7 +162,8 @@ public class GoldenGateImagineWebUtils {
 			super(host, request, response);
 			this.target = target;
 			this.targetId = targetId;
-			this.targetContext = this.getContext(target);
+			//	we cannot do this here, as constructors of sub classes overwriting the method need to execute first
+			//this.targetContext = this.getContext(target);
 			this.submitUrl = submitUrl;
 		}
 		
@@ -168,6 +185,8 @@ public class GoldenGateImagineWebUtils {
 				this.writeLine("<div class=\"editAttributesFields\"><div class=\"editAttributesFieldRow\">");
 				this.writeLine("<input type=\"text\" id=\"attributeNameField\" placeholder=\"&lt;Enter Attribute Name&gt;\" list=\"attributeNames\" onkeyup=\"return catchReturnKeyInAttributeName(event);\" />");
 				this.writeLine("<datalist id=\"attributeNames\">");
+				if (this.targetContext == null)
+					this.targetContext = this.getContext(target);
 				if (this.targetContext != null) {
 					TreeSet ans = new TreeSet();
 					for (int c = 0; c < this.targetContext.length; c++)
@@ -184,8 +203,10 @@ public class GoldenGateImagineWebUtils {
 				
 				SubmitButton[] buttons = this.getButtons();
 				this.writeLine("<div class=\"editAttributesButtons\">");
-				for (int b = 0; b < buttons.length; b++)
-					this.writeLine("<button class=\"attributeMainButton\"" + ((buttons[b].tooltip == null) ? "" : (" title=\"" + html.escape(buttons[b].tooltip) + "\"")) + " onclick=\"" + buttons[b].jsCall + "\">" + html.escape(buttons[b].label) + "</button>");
+				for (int b = 0; b < buttons.length; b++) {
+					if (buttons[b] != null)
+						this.writeLine("<button class=\"attributeMainButton\"" + ((buttons[b].tooltip == null) ? "" : (" title=\"" + html.escape(buttons[b].tooltip) + "\"")) + " onclick=\"" + buttons[b].jsCall + "\">" + html.escape(buttons[b].label) + "</button>");
+				}
 				this.writeLine("</div>");
 				
 				this.writeLine("</div>");
@@ -393,6 +414,8 @@ public class GoldenGateImagineWebUtils {
 			this.writeLine("var attributeValuesById = new Object();");
 			
 			//	collect attribute values and index arrays by names
+			if (this.targetContext == null)
+				this.targetContext = this.getContext(target);
 			if (this.targetContext != null) {
 				
 				//	index attribute values by name
@@ -435,7 +458,7 @@ public class GoldenGateImagineWebUtils {
 		 * attributes of the context objects provide suggestions and auto-fill
 		 * functionality. This default implementation loops through to the
 		 * <code>getAttributedContext()</code> method, sub classes are welcome
-		 * to overwrite it as needed. 
+		 * to overwrite it as needed.
 		 * @param target the attributed object being edited
 		 * @return an array holding the context objects
 		 */
@@ -460,7 +483,8 @@ public class GoldenGateImagineWebUtils {
 		 * closing its surrounding HTML page in some other way. This default
 		 * implementation returns three buttons: 'OK', 'Cancel', and 'Reset',
 		 * with the latter simply reloading the attribute editor. Sub classes
-		 * may provide a different selection of buttons.
+		 * may provide a different selection of buttons. Any null valued array
+		 * entry is simply ignored.
 		 * @return an array holding the buttons
 		 */
 		protected SubmitButton[] getButtons() {
@@ -511,118 +535,17 @@ public class GoldenGateImagineWebUtils {
 		}
 	};
 	
-//	public static HtmlPageBuilder getAttributeEditorPageBuilder(HtmlPageBuilderHost host, HttpServletRequest request, HttpServletResponse response, final String submitUrl, final Attributed target, final Attributed[] context, final String title) throws IOException {
-//		return new HtmlPageBuilder(host, request, response) {
-////			private Attributed[] targetContext = getAttributedContext(target);
-//			protected void include(String type, String tag) throws IOException {
-//				
-//				//	TODO_ make this a simple includeBody, including the body of editAttributes.html
-//				
-//				//	TODO_ figure out where to (_configurably_) put all the styles, preferably in a central location
-//				
-//				//	TODO_ add submit value variable to form
-//				
-//				if ("includeTitle".equals(type))
-////					this.write(html.escape(getEditAttributesTitle(target)));
-//					this.write(html.escape(title));
-//				else if ("includeForm".equals(type)) {
-////					this.writeLine("<form id=\"attributeForm\" method=\"POST\" action=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + id + "/editAttributes\" style=\"display: none;\">");
-//					this.writeLine("<form id=\"attributeForm\" method=\"POST\" action=\"" + submitUrl +  "\" style=\"display: none;\">");
-//					this.writeLine("<input type=\"hidden\" name=\"id\" value=\"" + this.request.getParameter("id") + "\"/>");
-//					this.writeLine("</form>");
-//				}
-//				else if ("includeAttributeNames".equals(type)) {
-////					if (this.targetContext == null)
-//					if (context == null)
-//						return;
-//					TreeSet ans = new TreeSet();
-////					for (int c = 0; c < this.targetContext.length; c++)
-////						ans.addAll(Arrays.asList(this.targetContext[c].getAttributeNames()));
-//					for (int c = 0; c < context.length; c++)
-//						ans.addAll(Arrays.asList(context[c].getAttributeNames()));
-//					for (Iterator anit = ans.iterator(); anit.hasNext();)
-//						this.writeLine("<option value=\"" + html.escape((String) anit.next()) + "\" />");
-//				}
-//				else if ("includeInitCalls".equals(type)) {
-//					this.writeLine("<script type=\"text/javascript\">");
-//					String[] ans = target.getAttributeNames();
-//					for (int n = 0; n < ans.length; n++) {
-//						Object av = target.getAttribute(ans[n]);
-//						if (av != null)
-//							this.writeLine("setDataAttribute('" + ans[n] + "', '" + GoldenGateImagineEditorServlet.escapeForJavaScript(av.toString()) + "');");
-//					}
-//					this.writeLine("</script>");
-//				}
-//				else super.include(type, tag);
-//			}
-//			protected boolean includeJavaScriptDomHelpers() {
-//				return true;
-//			}
-//			protected void writePageHeadExtensions() throws IOException {
-//				
-//				//	TODO_ move all the functions from editAttributes.html over here
-//				
-//				//	TODO_ add submitAttributeEditorForm() function, filling and submitting the form
-//				
-//				//	open script and create attribute value index
-//				this.writeLine("<script type=\"text/javascript\">");
-//				this.writeLine("var attributeValuesById = new Object();");
-//				
-//				//	collect attribute values and index arrays by names
-////				if (this.targetContext != null) {
-//				if (context != null) {
-//					
-//					//	index attribute values by name
-//					TreeMap anvs = new TreeMap();
-////					for (int c = 0; c < this.targetContext.length; c++) {
-//					for (int c = 0; c < context.length; c++) {
-////						String[] ans = this.targetContext[c].getAttributeNames();
-//						String[] ans = context[c].getAttributeNames();
-//						for (int n = 0; n < ans.length; n++) {
-////							Object av = this.targetContext[c].getAttribute(ans[n]);
-//							Object av = context[c].getAttribute(ans[n]);
-//							if (av == null)
-//								continue;
-//							TreeSet avs = ((TreeSet) anvs.get(ans[n]));
-//							if (avs == null) {
-//								avs = new TreeSet();
-//								anvs.put(ans[n], avs);
-//							}
-//							avs.add(av.toString());
-//						}
-//					}
-//					
-//					//	map attribute names to value arrays
-//					for (Iterator anit = anvs.keySet().iterator(); anit.hasNext();) {
-//						String an = ((String) anit.next());
-//						this.write("attributeValuesById['" + an + "'] = [");
-//						TreeSet avs = ((TreeSet) anvs.get(an));
-//						for (Iterator avit = avs.iterator(); avit.hasNext();) {
-//							this.write("'" + GoldenGateImagineEditorServlet.escapeForJavaScript((String) avit.next()) + "'");
-//							if (avit.hasNext())
-//								this.write(", ");
-//						}
-//						this.writeLine("];");
-//					}
-//				}
-//				
-//				//	close script
-//				this.writeLine("</script>");
-//			}
-//		};
-//	}
-	
 	/**
 	 * Create an HTML page builder that creates a web page with only a series
-	 * JavaScript calls in its body, the last one of which closes the popin
+	 * JavaScript calls in its body, the last one of which closes the pop-in
 	 * window via 'window.close()'. If the argument JavaScript calls are to be
-	 * executed by the main page behind the popin, they have to be prefixed
+	 * executed by the main page behind the pop-in, they have to be prefixed
 	 * with 'window.opener.'.
 	 * @param host the page builder host to use
 	 * @param request the HTTP request to respond to
 	 * @param response the HTTP response to write to
 	 * @param javaScriptCalls an array of JavaScript calls to execute before
-	 *            actually closing the popin window
+	 *            actually closing the pop-in window
 	 * @return an HTMP page builder to create the described page
 	 * @throws IOException
 	 */
@@ -631,12 +554,24 @@ public class GoldenGateImagineWebUtils {
 			protected void include(String type, String tag) throws IOException {
 				if ("includeBody".equals(type)) {
 					this.writeLine("<script type=\"text/javascript\">");
+					
+					//	add argument calls
+					this.writeLine("function doExecuteCalls() {");
 					if (javaScriptCalls != null) {
 						for (int c = 0; c < javaScriptCalls.length; c++)
 							this.writeLine(javaScriptCalls[c]);
 					}
-					//	close status window (we need to wait until pop-in parent has replaced close() function)
-					this.writeLine("window.setTimeout('window.close()', 100);");
+					this.writeLine("}");
+					
+					//	execute argument calls and close status window (we need to wait until pop-in parent has set window.opener and replaced close() function)
+					this.writeLine("function executeCalls() {");
+					this.writeLine("  if (window.opener && (window.opener != null)) {");
+					this.writeLine("    doExecuteCalls();");
+					this.writeLine("    window.close();");
+					this.writeLine("  }");
+					this.writeLine("  else window.setTimeout('executeCalls()', 100);");
+					this.writeLine("}");
+					this.writeLine("window.setTimeout('executeCalls()', 100);");
 					this.writeLine("</script>");
 				}
 				else super.include(type, tag);
@@ -862,6 +797,8 @@ public class GoldenGateImagineWebUtils {
 	 * @return the attributed object with the argument identifier
 	 */
 	public static Attributed getAttributed(ImDocument doc, String attributedId) {
+		if (attributedId == null)
+			return null;
 		if (attributedId.indexOf(':') == -1)
 			return null;
 		String targetType = attributedId.substring(0, attributedId.indexOf(':'));

@@ -58,8 +58,6 @@ import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
 import de.uka.ipd.idaho.gamta.util.constants.LiteratureConstants;
 import de.uka.ipd.idaho.gamta.util.feedback.FeedbackPanel;
 import de.uka.ipd.idaho.gamta.util.feedback.FeedbackPanel.FeedbackService;
-import de.uka.ipd.idaho.gamta.util.feedback.html.AsynchronousRequestHandler;
-import de.uka.ipd.idaho.gamta.util.feedback.html.AsynchronousRequestHandler.AsynchronousRequest;
 import de.uka.ipd.idaho.gamta.util.feedback.html.renderers.BufferedLineWriter;
 import de.uka.ipd.idaho.gamta.util.swing.DialogFactory;
 import de.uka.ipd.idaho.gamta.util.swing.DialogFactory.PromptProvider;
@@ -69,7 +67,6 @@ import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePlugin;
 import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePluginDataProvider;
 import de.uka.ipd.idaho.goldenGate.util.HelpChapterDataProviderBased;
 import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder;
-import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderHost;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
@@ -78,7 +75,7 @@ import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentFileExporter;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
 import de.uka.ipd.idaho.im.imagine.web.GoldenGateImagineServletEditor.ActionThread;
-import de.uka.ipd.idaho.im.imagine.web.GoldenGateImagineServletEditor.ImsDocumentMarkupPanel;
+import de.uka.ipd.idaho.im.imagine.web.GoldenGateImagineServletEditor.WebImDocumentMarkupPanel;
 import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImUtils;
@@ -108,7 +105,7 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 	private ImageMarkupTool[] editMenuImTools = null;
 	private ImageMarkupTool[] toolsMenuImTools = null;
 	private Map imToolsById = Collections.synchronizedMap(new HashMap());
-	private AsynchronousRequestHandler imToolRunner = null;
+//	private AsynchronousRequestHandler imToolRunner = null;
 	
 	private GoldenGatePluginDataProvider helpDataProvider;
 	private HelpChapter helpRoot;
@@ -169,20 +166,9 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			public void getMultiFeedback(FeedbackPanel[] fps) throws UnsupportedOperationException { throw new UnsupportedOperationException(); }
 			public void shutdown() {}
 		});
-		
-		//	create asynchronous request handler for running markup gizmos
-		this.imToolRunner = new ImToolRunner();
-		/* TODO eliminate IM Tool Runner
-		 * - action threads can get feedback as well !!!
-		 * - open status window for action threads that run IM Tools ...
-		 *   ==> produce respective JavaScript call in applyImageMarkupTool() ...
-		 *   ==> ... and respective JavaScript function in sendEditorPage()
-		 * - ... and keep reference to such action thread while running
-		 * - update status every 500ms or so ==> more fluent UI ...
-		 * - ... and open feedback requests, suspending updates
-		 * - submitting feedback request triggers next refresh of status window
-		 *   ==> add respective JavaScript call to feedback page in onSubmit listener of form
-		 */
+//		
+//		//	create asynchronous request handler for running markup gizmos
+//		this.imToolRunner = new ImToolRunner();
 	}
 	
 	/* (non-Javadoc)
@@ -190,10 +176,10 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 	 */
 	protected void reInit() throws ServletException {
 		super.reInit();
-		
-		//	check if any requests running
-		if ((this.imToolRunner != null) && (this.imToolRunner.getRunningRequestCount() != 0))
-			throw new ServletException("Unable to reload GoldenGATE Imagine, there are request running.");
+//		
+//		//	check if any requests running
+//		if ((this.imToolRunner != null) && (this.imToolRunner.getRunningRequestCount() != 0))
+//			throw new ServletException("Unable to reload GoldenGATE Imagine, there are request running.");
 		
 		//	check for (list of) demo document(s)
 		this.demoDocList = null;
@@ -292,6 +278,39 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 		this.helpDataProvider = this.ggImagine.getHelpDataProvider();
 		this.helpRoot = this.buildHelpContentRoot();
 		
+		//	read main menu layout settings
+		ArrayList fileMenuItemNames = new ArrayList();
+		ArrayList exportMenuItemNames = new ArrayList();
+		ArrayList editMenuItemNames = new ArrayList();
+		ArrayList toolsMenuItemNames = new ArrayList();
+		try {
+			ArrayList menuItemNames = null;
+			BufferedReader mlIn;
+			if (this.ggImagine.getConfiguration().isDataAvailable("GgImagine.menus.cnfg"))
+				mlIn = new BufferedReader(new InputStreamReader(this.ggImagine.getConfiguration().getInputStream("GgImagine.menus.cnfg"), "UTF-8"));
+			else mlIn = new BufferedReader(new InputStreamReader(new FileInputStream(new File(this.dataFolder, "GgImagine.menus.cnfg")), "UTF-8"));
+			for (String mll; (mll = mlIn.readLine()) != null;) {
+				mll = mll.trim();
+				if ((mll.length() == 0) || mll.startsWith("//"))
+					continue;
+				if ("FILE-MENU".equals(mll))
+					menuItemNames = fileMenuItemNames;
+				else if ("EXPORT-MENU".equals(mll))
+					menuItemNames = exportMenuItemNames;
+				else if ("EDIT-MENU".equals(mll))
+					menuItemNames = editMenuItemNames;
+				else if ("TOOLS-MENU".equals(mll))
+					menuItemNames = toolsMenuItemNames;
+				else if (menuItemNames != null)
+					menuItemNames.add(mll);
+			}
+			mlIn.close();
+		}
+		catch (IOException ioe) {
+			System.out.println("Error reading menu layout: " + ioe.getMessage());
+			ioe.printStackTrace(System.out);
+		}
+		
 		//	create help for 'File' menu
 		HelpChapter fileHelp = new HelpChapterDataProviderBased("Menu 'File'", this.helpDataProvider, "GgImagine.FileMenu.html");
 		this.helpRoot.addSubChapter(fileHelp);
@@ -299,13 +318,13 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 		
 		//	get 'Export' menu items, and index image document exporters
 		ImageDocumentExporter[] ides = this.ggImagine.getDocumentExporters();
-		ArrayList exportMenuExporters = new ArrayList();
+		HashMap exportItems = new LinkedHashMap();
 		HelpChapter exportHelp = new HelpChapterDataProviderBased("Menu 'Export'", this.helpDataProvider, "GgImagine.ExportMenu.html");
 		this.helpRoot.addSubChapter(exportHelp);
 		this.helpContentById.put(new Integer(exportHelp.hashCode()), exportHelp);
 		for (int e = 0; e < ides.length; e++)
 			if (ides[e] instanceof ImageDocumentFileExporter) {
-				exportMenuExporters.add(ides[e]);
+				exportItems.put(ides[e].getExportMenuLabel(), ides[e]);
 				this.exportersById.put(new Integer(ides[e].hashCode()), ides[e]);
 				
 				//	add exporter specific help chapter if available
@@ -315,13 +334,14 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 					this.helpContentById.put(new Integer(ideHelp.hashCode()), ideHelp);
 				}
 			}
+		ArrayList exportMenuExporters = this.orderMenuItems(exportMenuItemNames, exportItems);
 		this.exportMenuExporters = ((ImageDocumentFileExporter[]) exportMenuExporters.toArray(new ImageDocumentFileExporter[exportMenuExporters.size()]));
 		
 		//	index image markup tool providers
 		ImageMarkupToolProvider[] imtps = this.ggImagine.getImageMarkupToolProviders();
 		
 		//	get 'Edit' menu items, and index image markup tools
-		ArrayList editMenuImTools = new ArrayList();
+		HashMap editItems = new LinkedHashMap();
 		HelpChapter editHelp = new HelpChapterDataProviderBased("Menu 'Edit'", this.helpDataProvider, "GgImagine.EditMenu.html");
 		this.helpRoot.addSubChapter(editHelp);
 		this.helpContentById.put(new Integer(editHelp.hashCode()), editHelp);
@@ -333,7 +353,7 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 				ImageMarkupTool emImt = imtps[p].getImageMarkupTool(emImtNames[n]);
 				if (emImt == null)
 					continue;
-				editMenuImTools.add(emImt);
+				editItems.put(emImt.getLabel(), emImt);
 				this.imToolsById.put(("EDT-" + emImt.hashCode()), emImt);
 				
 				//	add help chapter if available
@@ -343,10 +363,11 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 				this.helpContentById.put(new Integer(imtHelp.hashCode()), imtHelp);
 			}
 		}
+		ArrayList editMenuImTools = this.orderMenuItems(editMenuItemNames, editItems);
 		this.editMenuImTools = ((ImageMarkupTool[]) editMenuImTools.toArray(new ImageMarkupTool[editMenuImTools.size()]));
 		
 		//	get 'Tools' menu items, and index image markup tools
-		ArrayList toolsMenuImTools = new ArrayList();
+		HashMap toolsItems = new LinkedHashMap();
 		HelpChapter toolsHelp = new HelpChapterDataProviderBased("Menu 'Tools'", this.helpDataProvider, "GgImagine.ToolsMenu.html");
 		this.helpRoot.addSubChapter(toolsHelp);
 		this.helpContentById.put(new Integer(toolsHelp.hashCode()), toolsHelp);
@@ -358,7 +379,7 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 				ImageMarkupTool tmImt = imtps[p].getImageMarkupTool(tmImtNames[n]);
 				if (tmImt == null)
 					continue;
-				toolsMenuImTools.add(tmImt);
+				toolsItems.put(tmImt.getLabel(), tmImt);
 				this.imToolsById.put(("TLS-" + tmImt.hashCode()), tmImt);
 				
 				//	add help chapter if available
@@ -368,7 +389,53 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 				this.helpContentById.put(new Integer(imtHelp.hashCode()), imtHelp);
 			}
 		}
+		ArrayList toolsMenuImTools = this.orderMenuItems(toolsMenuItemNames, toolsItems);
 		this.toolsMenuImTools = ((ImageMarkupTool[]) toolsMenuImTools.toArray(new ImageMarkupTool[toolsMenuImTools.size()]));
+	}
+	
+	private ArrayList orderMenuItems(ArrayList itemNames, HashMap items) {
+		ArrayList orderedItems = new ArrayList();
+		Object item;
+		boolean lastWasItem = false;
+		
+		//	add configured items first
+		for (int i = 0; i < itemNames.size(); i++) {
+			String itemName = ((String) itemNames.get(i));
+			if ("---".equals(itemName)) {
+				if (lastWasItem)
+					orderedItems.add(null);
+				lastWasItem = false;
+				continue;
+			}
+			item = items.remove(itemName);
+			if (item != null) {
+				orderedItems.add(item);
+				lastWasItem = true;
+			}
+		}
+		
+		//	add remaining items
+		if (lastWasItem && (items.size() != 0)) {
+			orderedItems.add(null);
+			lastWasItem = false;
+		}
+		for (Iterator init = items.keySet().iterator(); init.hasNext();) {
+			String itemName = ((String) init.next());
+			if ("---".equals(itemName) && init.hasNext()) {
+				if (lastWasItem)
+					orderedItems.add(null);
+				lastWasItem = false;
+				continue;
+			}
+			item = items.get(itemName);
+			if (item != null) {
+				orderedItems.add(item);
+				lastWasItem = true;
+			}
+		}
+		
+		//	finally ...
+		return orderedItems;
 	}
 	
 	private HelpChapter buildHelpContentRoot() {
@@ -445,10 +512,10 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 				return;
 			}
 		}
-		
-		//	loop through requests related to feedback panels
-		if (this.imToolRunner.handleRequest(request, response))
-			return;
+//		
+//		//	loop through requests related to feedback panels
+//		if (this.imToolRunner.handleRequest(request, response))
+//			return;
 		
 		//	get path info
 		String pathInfo = request.getPathInfo();
@@ -467,11 +534,17 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 		//	check document editors
 		if (this.handleEditorRequest(request, response, pathInfo))
 			return;
+//		
+//		//	handle request for menu action status page
+//		if (pathInfo.startsWith("/mmActionStatus/")) {
+//			String actionId = pathInfo.substring("/mmActionStatus/".length());
+//			this.sendMainMenuActionStatusPage(request, actionId, response);
+//			return;
+//		}
 		
-		//	handle request for menu action status page
-		if (pathInfo.startsWith("/mmActionStatus/")) {
-			String actionId = pathInfo.substring("/mmActionStatus/".length());
-			this.sendMainMenuActionStatusPage(request, actionId, response);
+		//	provide symbol table (called from editors)
+		if (pathInfo.startsWith("/symbolTable")) {
+			this.sendSymbolTable(request, response);
 			return;
 		}
 		
@@ -515,10 +588,10 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 				return;
 			}
 		}
-		
-		//	loop through requests related to feedback panels
-		if (this.imToolRunner.handleRequest(request, response))
-			return;
+//		
+//		//	loop through requests related to feedback panels
+//		if (this.imToolRunner.handleRequest(request, response))
+//			return;
 		
 		//	check document editors
 		if (this.handleEditorRequest(request, response, request.getPathInfo()))
@@ -646,12 +719,14 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			return;
 		}
 		
+		//	TODO also get plug-in, IMT, and menu option filter
+		
 		//	check last page ID
 		if (lastPageId == -1)
 			lastPageId = (doc.getPageCount() - 1);
 		
 		//	create and register editor
-		ImsDocumentMarkupPanel idmp = new ImsDocumentMarkupPanel(doc, firstPageId, (lastPageId - firstPageId + 1), this.ggImagine, this.getSettingsFor(userName));
+		WebImDocumentMarkupPanel idmp = new WebImDocumentMarkupPanel(doc, firstPageId, (lastPageId - firstPageId + 1), this.ggImagine, this.getSettingsFor(userName));
 		GoldenGateImagineServletEditor idme = new GoldenGateImagineServletEditor(this, idmp, (pageIDsStr == null), userName);
 		this.documentEditorsById.put(idme.id, idme);
 		
@@ -727,15 +802,25 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 		blw.writeLine("      \"exportUrl\": \"" + request.getContextPath() + request.getServletPath() + "/" + idme.id + "/export?exportId=rawXml\",");
 		blw.writeLine("      \"id\": \"EXP-rawXml\"");
 		blw.writeLine("    }");
-		for (int e = 0; e < this.exportMenuExporters.length; e++) {
+		if (this.exportMenuExporters.length != 0) {
 			blw.writeLine("    ,");
 			blw.writeLine("    {");
-			blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.exportMenuExporters[e].getExportMenuLabel()) + "\",");
-			if (this.exportMenuExporters[e].getExportMenuTooltip() != null)
-				blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.exportMenuExporters[e].getExportMenuTooltip()) + "\",");
-			blw.writeLine("      \"exportUrl\": \"" + request.getContextPath() + request.getServletPath() + "/" + idme.id + "/export?exportId=" + this.exportMenuExporters[e].hashCode() + "\",");
-			blw.writeLine("      \"id\": \"EXP-" + this.exportMenuExporters[e].hashCode() + "\"");
+			blw.writeLine("      \"id\": \"SEPARATOR\"");
 			blw.writeLine("    }");
+			for (int e = 0; e < this.exportMenuExporters.length; e++) {
+				blw.writeLine("    ,");
+				blw.writeLine("    {");
+				if (this.exportMenuExporters[e] == null)
+					blw.writeLine("      \"id\": \"SEPARATOR\"");
+				else {
+					blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.exportMenuExporters[e].getExportMenuLabel()) + "\",");
+					if (this.exportMenuExporters[e].getExportMenuTooltip() != null)
+						blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.exportMenuExporters[e].getExportMenuTooltip()) + "\",");
+					blw.writeLine("      \"exportUrl\": \"" + request.getContextPath() + request.getServletPath() + "/" + idme.id + "/export?exportId=" + this.exportMenuExporters[e].hashCode() + "\",");
+					blw.writeLine("      \"id\": \"EXP-" + this.exportMenuExporters[e].hashCode() + "\"");
+				}
+				blw.writeLine("    }");
+			}
 		}
 		blw.writeLine("  ]");
 		blw.writeLine("});");
@@ -748,10 +833,14 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			if (i != 0)
 				blw.writeLine(",");
 			blw.writeLine("    {");
-			blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.editMenuImTools[i].getLabel()) + "\",");
-			if (this.editMenuImTools[i].getTooltip() != null)
-				blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.editMenuImTools[i].getTooltip()) + "\",");
-			blw.writeLine("      \"id\": \"EDT-" + this.editMenuImTools[i].hashCode() + "\"");
+			if (this.editMenuImTools[i] == null)
+				blw.writeLine("      \"id\": \"SEPARATOR\"");
+			else {
+				blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.editMenuImTools[i].getLabel()) + "\",");
+				if (this.editMenuImTools[i].getTooltip() != null)
+					blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.editMenuImTools[i].getTooltip()) + "\",");
+				blw.writeLine("      \"id\": \"EDT-" + this.editMenuImTools[i].hashCode() + "\"");
+			}
 			blw.writeLine("    }");
 		}
 		blw.writeLine("  ]");
@@ -774,10 +863,14 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			if (i != 0)
 				blw.writeLine(",");
 			blw.writeLine("    {");
-			blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.toolsMenuImTools[i].getLabel()) + "\",");
-			if (this.toolsMenuImTools[i].getTooltip() != null)
-				blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.toolsMenuImTools[i].getTooltip()) + "\",");
-			blw.writeLine("      \"id\": \"TLS-" + this.toolsMenuImTools[i].hashCode() + "\"");
+			if (this.toolsMenuImTools[i] == null)
+				blw.writeLine("      \"id\": \"SEPARATOR\"");
+			else {
+				blw.writeLine("      \"label\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.toolsMenuImTools[i].getLabel()) + "\",");
+				if (this.toolsMenuImTools[i].getTooltip() != null)
+					blw.writeLine("      \"tooltip\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(this.toolsMenuImTools[i].getTooltip()) + "\",");
+				blw.writeLine("      \"id\": \"TLS-" + this.toolsMenuImTools[i].hashCode() + "\"");
+			}
 			blw.writeLine("    }");
 		}
 		blw.writeLine("  ]");
@@ -809,12 +902,12 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 		out.flush();
 		blw.close();
 	}
-	
-	private void sendMainMenuActionStatusPage(HttpServletRequest request, String actionId, HttpServletResponse response) throws IOException {
-		response.setContentType("text/html");
-		response.setCharacterEncoding("UTF-8");
-		this.imToolRunner.sendStatusDisplayFrame(request, actionId, response);
-	}
+//	
+//	private void sendMainMenuActionStatusPage(HttpServletRequest request, String actionId, HttpServletResponse response) throws IOException {
+//		response.setContentType("text/html");
+//		response.setCharacterEncoding("UTF-8");
+//		this.imToolRunner.sendStatusDisplayFrame(request, actionId, response);
+//	}
 	
 	private Settings getSettingsFor(String userName) throws IOException {
 		
@@ -881,6 +974,24 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 			return false;
 		set.setSetting(colorKey, colorHex);
 		return true;
+	}
+	
+	private void sendSymbolTable(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		File stFile = this.findFile("symbolTable.html");
+		if (stFile == null)
+			response.sendError(HttpServletResponse.SC_NOT_FOUND);
+		else {
+			response.setContentType("text/html");
+			response.setCharacterEncoding("UTF-8");
+			BufferedReader stIn = new BufferedReader(new InputStreamReader(new FileInputStream(stFile), "UTF-8"));
+			BufferedWriter stOut = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
+			char[] buffer = new char[1024];
+			for (int r; (r = stIn.read(buffer, 0, buffer.length)) != -1;)
+				stOut.write(buffer, 0, r);
+			stOut.flush();
+			stOut.close();
+			stIn.close();
+		}
 	}
 	
 	private void sendHelpTree(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -981,124 +1092,122 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 		return ((ImageMarkupTool) this.imToolsById.get(actionImToolId));
 	}
 	
-	void runToolsMenuActionImTool(HttpServletRequest request, HttpServletResponse response, GoldenGateImagineServletEditor idme, String actionImToolId) throws IOException {
-		
-		//	run plugin based action in asynchronous request handler (feedback requests !!!)
-		ImageMarkupTool actionImTool = ((ImageMarkupTool) this.imToolsById.get(actionImToolId));
-		if (actionImTool == null) {
-			response.sendError(HttpServletResponse.SC_BAD_REQUEST, ("Invalid action ID '" + actionImToolId + "'"));
-			return;
-		}
-		
-		//	create and start asynchronous request
-		ImToolRun imtRun = new ImToolRun(actionImTool, idme);
-		this.imToolRunner.enqueueRequest(imtRun, idme.id);
-		
-		//	send JavaScript call opening progress monitor
-		response.setContentType("text/plain");
-		response.setCharacterEncoding("UTF-8");
-		BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
-		bw.write("window.open('" + request.getContextPath() + request.getServletPath() + "/mmActionStatus/" + imtRun.id + "', '" + actionImTool.getLabel() + " Running ...', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes')");
-		bw.flush();
-		bw.close();
-	}
-	
-	String getRunningMainMenuActionImToolId(GoldenGateImagineServletEditor idme) {
-		String[] imToolRunIDs = this.imToolRunner.getRequestIDs(idme.id);
-		return ((imToolRunIDs.length == 0) ? null : imToolRunIDs[0]);
-	}
-	
-	private class ImToolRunner extends AsynchronousRequestHandler {
-		ImToolRunner() {
-			super(false);
-		}
-		//	TODO overwrite all the status update code to use JSON rather than out old HTML stop-gap stuff
-		public AsynchronousRequest buildAsynchronousRequest(HttpServletRequest request) throws IOException {
-			return null;
-		}
-		protected boolean retainAsynchronousRequest(AsynchronousRequest ar, int finishedArCount) {
-			if (!ar.isFinishedStatusSent())
-				return (System.currentTimeMillis() < (ar.getLastAccessTime() + (1000 * 60 * 5)));
-			else return (System.currentTimeMillis() < (ar.getLastAccessTime() + (1000 * 60)));
-		}
-		protected void sendHtmlPage(HtmlPageBuilder hpb) throws IOException {
-			GoldenGateImagineEditorServlet.this.sendHtmlPage(hpb);
-		}
-		protected void sendPopupHtmlPage(HtmlPageBuilder hpb) throws IOException {
-			GoldenGateImagineEditorServlet.this.sendPopupHtmlPage(hpb);
-		}
-		protected HtmlPageBuilderHost getPageBuilderHost() {
-			return GoldenGateImagineEditorServlet.this;
-		}
-		protected void sendStatusDisplayIFramePage(HtmlPageBuilder hpb) throws IOException {
-			GoldenGateImagineEditorServlet.this.sendHtmlPage("imtStatus.html", hpb);
-		}
-		protected void sendFeedbackFormPage(HtmlPageBuilder hpb) throws IOException {
-			GoldenGateImagineEditorServlet.this.sendHtmlPage("imtFeedback.html", hpb);
-		}
-	}
-	
-	private class ImToolRun extends AsynchronousRequest implements ProgressMonitor {
-		private ImageMarkupTool imt;
-		private GoldenGateImagineServletEditor idme;
-		ImToolRun(ImageMarkupTool imt, GoldenGateImagineServletEditor idme) {
-			super(imt.getLabel());
-			this.imt = imt;
-			this.idme = idme;
-		}
-		//	TODO overwrite all the status update code to use JSON rather than out old HTML stop-gap stuff
-		protected void process() throws Exception {
-			this.idme.idmp.applyMarkupTool(this.imt, null, this);
-		}
-		
-		private String step;
-		private ArrayList info = new ArrayList();
-		public void setStep(String step) {
-			this.step = step;
-			this.setStatus();
-		}
-		public void setInfo(String info) {
-			this.info.add(info);
-			while (this.info.size() > 3)
-				this.info.remove(0);
-			this.setStatus();
-		}
-		private void setStatus() {
-			StringBuffer status = new StringBuffer("<HTML>");
-			if (this.step != null)
-				status.append("<p class=\"imtStepLabel\">" + html.escape(this.step) + "</p>");
-			for (int i = 0; i < this.info.size(); i++)
-				status.append("<p class=\"imtInfoLabel\">" + html.escape((String) this.info.get(i)) + "</p>");
-			status.append("</HTML>");
-			this.setStatus(status.toString());
-		}
-		
-		private int baseProgress = 0;
-		private int maxProgress = 0;
-		private int progress = 0;
-		public void setBaseProgress(int baseProgress) {
-			this.baseProgress = baseProgress;
-			this.setProgress();
-		}
-		public void setMaxProgress(int maxProgress) {
-			this.maxProgress = maxProgress;
-			this.setProgress();
-		}
-		public void setProgress(int progress) {
-			this.progress = progress;
-			this.setProgress();
-		}
-		private void setProgress() {
-			this.setPercentFinished(this.baseProgress + (((this.maxProgress - this.baseProgress) * this.progress) / 100));
-		}
-		public String getResultLink(HttpServletRequest request) {
-			return (request.getContextPath() + request.getServletPath() + "/" + this.idme.id + "/mmActionResult");
-		}
-		public boolean doImmediateResultForward() {
-			return true;
-		}
-	}
-	
+//	void runToolsMenuActionImTool(HttpServletRequest request, HttpServletResponse response, GoldenGateImagineServletEditor idme, String actionImToolId) throws IOException {
+//		
+//		//	run plugin based action in asynchronous request handler (feedback requests !!!)
+//		ImageMarkupTool actionImTool = ((ImageMarkupTool) this.imToolsById.get(actionImToolId));
+//		if (actionImTool == null) {
+//			response.sendError(HttpServletResponse.SC_BAD_REQUEST, ("Invalid action ID '" + actionImToolId + "'"));
+//			return;
+//		}
+//		
+//		//	create and start asynchronous request
+//		ImToolRun imtRun = new ImToolRun(actionImTool, idme);
+//		this.imToolRunner.enqueueRequest(imtRun, idme.id);
+//		
+//		//	send JavaScript call opening progress monitor
+//		response.setContentType("text/plain");
+//		response.setCharacterEncoding("UTF-8");
+//		BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
+//		bw.write("window.open('" + request.getContextPath() + request.getServletPath() + "/mmActionStatus/" + imtRun.id + "', '" + actionImTool.getLabel() + " Running ...', 'width=50,height=50,top=100,left=100,resizable=yes,scrollbar=yes,scrollbars=yes')");
+//		bw.flush();
+//		bw.close();
+//	}
+//	
+//	String getRunningMainMenuActionImToolId(GoldenGateImagineServletEditor idme) {
+//		String[] imToolRunIDs = this.imToolRunner.getRequestIDs(idme.id);
+//		return ((imToolRunIDs.length == 0) ? null : imToolRunIDs[0]);
+//	}
+//	
+//	private class ImToolRunner extends AsynchronousRequestHandler {
+//		ImToolRunner() {
+//			super(false);
+//		}
+//		public AsynchronousRequest buildAsynchronousRequest(HttpServletRequest request) throws IOException {
+//			return null;
+//		}
+//		protected boolean retainAsynchronousRequest(AsynchronousRequest ar, int finishedArCount) {
+//			if (!ar.isFinishedStatusSent())
+//				return (System.currentTimeMillis() < (ar.getLastAccessTime() + (1000 * 60 * 5)));
+//			else return (System.currentTimeMillis() < (ar.getLastAccessTime() + (1000 * 60)));
+//		}
+//		protected void sendHtmlPage(HtmlPageBuilder hpb) throws IOException {
+//			GoldenGateImagineEditorServlet.this.sendHtmlPage(hpb);
+//		}
+//		protected void sendPopupHtmlPage(HtmlPageBuilder hpb) throws IOException {
+//			GoldenGateImagineEditorServlet.this.sendPopupHtmlPage(hpb);
+//		}
+//		protected HtmlPageBuilderHost getPageBuilderHost() {
+//			return GoldenGateImagineEditorServlet.this;
+//		}
+//		protected void sendStatusDisplayIFramePage(HtmlPageBuilder hpb) throws IOException {
+//			GoldenGateImagineEditorServlet.this.sendHtmlPage("imtStatus.html", hpb);
+//		}
+//		protected void sendFeedbackFormPage(HtmlPageBuilder hpb) throws IOException {
+//			GoldenGateImagineEditorServlet.this.sendHtmlPage("imtFeedback.html", hpb);
+//		}
+//	}
+//	
+//	private class ImToolRun extends AsynchronousRequest implements ProgressMonitor {
+//		private ImageMarkupTool imt;
+//		private GoldenGateImagineServletEditor idme;
+//		ImToolRun(ImageMarkupTool imt, GoldenGateImagineServletEditor idme) {
+//			super(imt.getLabel());
+//			this.imt = imt;
+//			this.idme = idme;
+//		}
+//		protected void process() throws Exception {
+//			this.idme.idmp.applyMarkupTool(this.imt, null, this);
+//		}
+//		
+//		private String step;
+//		private ArrayList info = new ArrayList();
+//		public void setStep(String step) {
+//			this.step = step;
+//			this.setStatus();
+//		}
+//		public void setInfo(String info) {
+//			this.info.add(info);
+//			while (this.info.size() > 3)
+//				this.info.remove(0);
+//			this.setStatus();
+//		}
+//		private void setStatus() {
+//			StringBuffer status = new StringBuffer("<HTML>");
+//			if (this.step != null)
+//				status.append("<p class=\"imtStepLabel\">" + html.escape(this.step) + "</p>");
+//			for (int i = 0; i < this.info.size(); i++)
+//				status.append("<p class=\"imtInfoLabel\">" + html.escape((String) this.info.get(i)) + "</p>");
+//			status.append("</HTML>");
+//			this.setStatus(status.toString());
+//		}
+//		
+//		private int baseProgress = 0;
+//		private int maxProgress = 0;
+//		private int progress = 0;
+//		public void setBaseProgress(int baseProgress) {
+//			this.baseProgress = baseProgress;
+//			this.setProgress();
+//		}
+//		public void setMaxProgress(int maxProgress) {
+//			this.maxProgress = maxProgress;
+//			this.setProgress();
+//		}
+//		public void setProgress(int progress) {
+//			this.progress = progress;
+//			this.setProgress();
+//		}
+//		private void setProgress() {
+//			this.setPercentFinished(this.baseProgress + (((this.maxProgress - this.baseProgress) * this.progress) / 100));
+//		}
+//		public String getResultLink(HttpServletRequest request) {
+//			return (request.getContextPath() + request.getServletPath() + "/" + this.idme.id + "/mmActionResult");
+//		}
+//		public boolean doImmediateResultForward() {
+//			return true;
+//		}
+//	}
+//	
 	/**
 	 * Load a document with a given ID. This default implementation relies on a
 	 * <code>GoldenGateImagineDocumentServlet</code> to do this. Sub classes
@@ -1110,12 +1219,6 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 	 * @throws IOException
 	 */
 	protected ImDocument loadDocument(HttpServletRequest request, String docId) throws IOException {
-//		try {
-//			FileInputStream fis = new FileInputStream(new File("E:/Testdaten/PdfExtract/" + "IJSEM/19.full.pdf.raw.imf"));
-//			ImDocument doc = ImfIO.loadDocument(fis);
-//			fis.close();
-//			return doc;
-//		} catch (Exception e) {}
 		
 		//	if not in demo mode, load document from central facility
 		if (this.demoDocList == null) {
@@ -1132,6 +1235,45 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 				throw new IOException("Document '" + docId + "' not found");
 			else return ImDocumentIO.loadDocument(demoDocFile);
 		}
+		
+		/* TODO facilitate filtering plug-ins for each specific document:
+		 * - facilitates restricting menus in Demo mode ...
+		 * - ... and thus simplifies finding the right menu entries in hands-on tutorials
+		 * - facilitates restricting menus in Community/Wiki version ...
+		 * - ... and thus creates nice slim UI for treatment editing ...
+		 * - ... while also enabling fine-grained permission management:
+		 *   - offering dialog-based gizmos only, but no generic functionality, prevents messing up data
+		 *   - who needs to parse a bibliography in a treatment? or edit document metadata?
+		 * - facilitates restricting individual users in Application mode ...
+		 * - ... and thus enables fine-grained permission management:
+		 *   - can hide Plazi server export unless some test is passed, for instance
+		 * 
+		 * ==> add protected (and thus overwritable) getUiFunctionFilter(HttpServletRequest request, String docId) method ...
+		 *     ... providing custom UiFunctionFilter object
+		 *     - allowPlugin(GoldenGateImaginePlugin), filtering on class name (observe super classes !!!)
+		 *     - allowImageMarkupTool(ImageMarkupTool), filtering on IMT names
+		 *     - allowSelectionAction(SelectionAction), filtering on SA names
+		 *   - the filter depending on
+		 *     - the (demo) document ID by default
+		 *     - and also the user session in Community and Application modes
+		 * ==> extend demo document list to facilitate specifying filter with demo document IDs
+		 * ==> allow everything by default, though, to simplify all-out demos
+		 * ==> move demo document list to XML to simplify filter specification ...
+		 * ==> ... or allow both, deciding based on file extension of demoDocList parameter
+		 * ==> in XML demo (Tutorial) mode, also allow to include _possibly_ interesting further features ...
+		 * ==> ... flagged as 'advanced', and showing on respective context menu click ...
+		 *   ==> under the hood, add menu item calling function setting UiFunctionFilter to advanced mode
+		 *   ==> integrates seamlessly with current implementation
+		 * ==> ... to allow eager users to fix somewhat off-topic problems they might spot and want to try fixing
+		 * ==> in XML demo (tutorial) mode, also allow specifying tests:
+		 *   - evaluate and report assignment success
+		 *   - also helps with user qualification in Application and Community/Wiki modes
+		 *   - execute and show on custom, off-menu button ...
+		 *   - ... calling web document viewer under the hood
+		 *   - use XML wrapper and ProcessTron for checks
+		 *   ==> OR BETTER put 'Check Document' item in 'File' menu ...
+		 *   ==> ... or 'Tools' menu, depending on mode
+		 */
 	}
 	
 	/**
