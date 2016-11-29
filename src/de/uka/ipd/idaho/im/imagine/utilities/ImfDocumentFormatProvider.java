@@ -42,7 +42,7 @@ import de.uka.ipd.idaho.goldenGate.plugins.ResourceSplashScreen;
 import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.gamta.ImDocumentRoot;
-import de.uka.ipd.idaho.im.util.ImfIO;
+import de.uka.ipd.idaho.im.util.ImDocumentIO;
 
 /**
  * This document format provider allows loading IMF documents into GoldenGATE
@@ -189,7 +189,7 @@ public class ImfDocumentFormatProvider extends AbstractDocumentFormatProvider {
 						} catch (InterruptedException ie) {}
 						
 						//	load IMF document
-						ImDocument imDoc = ImfIO.loadDocument(source, loadScreen, -1);
+						ImDocument imDoc = ImDocumentIO.loadDocument(source, loadScreen, -1);
 						imDoc.setAttribute(ImDocument.TOKENIZER_ATTRIBUTE, ((parent == null) ? Gamta.INNER_PUNCTUATION_TOKENIZER : parent.getTokenizer()));
 						
 						//	assemble config flags
