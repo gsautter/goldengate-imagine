@@ -173,9 +173,14 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		//	get and index applicable plugins (only now, as instance proper is fully initialized)
 		GoldenGatePlugin[] ggps = this.goldenGate.getPlugins();
 		for (int p = 0; p < ggps.length; p++) {
-			if (ggps[p] instanceof GoldenGateImaginePlugin) {
+			if (ggps[p] instanceof GoldenGateImaginePlugin) try {
 				((GoldenGateImaginePlugin) ggps[p]).setImagineParent(this);
 				((GoldenGateImaginePlugin) ggps[p]).initImagine();
+			}
+			catch (Throwable t) {
+				System.out.println(t.getClass().getName() + " (" + t.getMessage() + ") while initializing " + ggps[p].getClass().getName());
+				t.printStackTrace(System.out);
+				continue;
 			}
 			if (ggps[p] instanceof ImageEditToolProvider)
 				this.registerImageEditToolProvider((ImageEditToolProvider) ggps[p]);
@@ -264,7 +269,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		public ImSupplement addSupplement(ImSupplement ims) {
 			
 			//	store known type supplements on disc if there are too many or too large
-			if ((ims instanceof ImSupplement.Figure) || (ims instanceof ImSupplement.Scan) || (ims instanceof ImSupplement.Source)) try {
+			if ((ims instanceof ImSupplement.Figure) || (ims instanceof ImSupplement.Graphics) || (ims instanceof ImSupplement.Scan) || (ims instanceof ImSupplement.Source)) try {
 				
 				//	threshold already exceeded, disc cache right away
 				if (this.inMemorySupplementBytes > maxInMemoryImageSupplementBytes)
@@ -284,7 +289,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 						//	disc cache all existing image supplements
 						ImSupplement[] imss = this.getSupplements();
 						for (int s = 0; s < imss.length; s++) {
-							if ((imss[s] instanceof ImSupplement.Figure) || (imss[s] instanceof ImSupplement.Scan))
+							if ((imss[s] instanceof ImSupplement.Figure) || (imss[s] instanceof ImSupplement.Graphics) || (imss[s] instanceof ImSupplement.Scan))
 								super.addSupplement(this.createDiscSupplement(imss[s], null));
 						}
 						
@@ -337,13 +342,19 @@ public class GoldenGateImagine implements GoldenGateConstants {
 			
 			//	replace supplement with disc based one
 			if (ims instanceof ImSupplement.Figure)
-				return new ImSupplement.Figure(this, ims.getMimeType(), ((ImSupplement.Figure) ims).getPageId(), ((ImSupplement.Figure) ims).getDpi(), ((ImSupplement.Figure) ims).getBounds()) {
+				return new ImSupplement.Figure(this, ims.getMimeType(), ((ImSupplement.Figure) ims).getPageId(), ((ImSupplement.Figure) ims).getRenderOrderNumber(), ((ImSupplement.Figure) ims).getDpi(), ((ImSupplement.Figure) ims).getBounds()) {
+					public InputStream getInputStream() throws IOException {
+						return new BufferedInputStream(new FileInputStream(sFile));
+					}
+				};
+			else if (ims instanceof ImSupplement.Graphics)
+				return new ImSupplement.Graphics(this, ((ImSupplement.Graphics) ims).getPageId(), ((ImSupplement.Graphics) ims).getRenderOrderNumber(), ((ImSupplement.Graphics) ims).getBounds()) {
 					public InputStream getInputStream() throws IOException {
 						return new BufferedInputStream(new FileInputStream(sFile));
 					}
 				};
 			else if (ims instanceof ImSupplement.Scan)
-				return new ImSupplement.Scan(this, ims.getMimeType(), ((ImSupplement.Scan) ims).getPageId(), ((ImSupplement.Scan) ims).getDpi()) {
+				return new ImSupplement.Scan(this, ims.getMimeType(), ((ImSupplement.Scan) ims).getPageId(), ((ImSupplement.Scan) ims).getRenderOrderNumber(), ((ImSupplement.Scan) ims).getDpi()) {
 					public InputStream getInputStream() throws IOException {
 						return new BufferedInputStream(new FileInputStream(sFile));
 					}

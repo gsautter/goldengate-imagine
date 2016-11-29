@@ -155,6 +155,9 @@ import de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ReactionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.pdf.PdfFontDecoder;
+import de.uka.ipd.idaho.im.pdf.PdfFontDecoder.CustomFontDecoderCharset;
+import de.uka.ipd.idaho.im.pdf.PdfFontDecoder.FontDecoderCharset;
 import de.uka.ipd.idaho.im.util.ImDocumentData.ImDocumentEntry;
 import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
@@ -190,6 +193,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	private JFileChooser fileChooser = new JFileChooser();
 	private File docCacheRoot;
 	private PdfExtractor pdfExtractor;
+	private FontDecoderCharset fontCharSet = PdfFontDecoder.UNICODE;
 	
 	private ViewControl viewControl = new ViewControl();
 	private JTabbedPane docTabs = new JTabbedPane();
@@ -250,6 +254,20 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		}
 		catch (IOException ioe) {
 			System.out.println("Error reading menu layout: " + ioe.getMessage());
+			ioe.printStackTrace(System.out);
+		}
+		
+		//	read font decoder charset for born-digital PDFs
+		//	TODO facilitate managing charsets via some dedicated plug-in
+		try {
+			BufferedReader fcIn;
+			if (this.ggImagine.getConfiguration().isDataAvailable("GgImagine.pdfDecoderCharset.cnfg"))
+				fcIn = new BufferedReader(new InputStreamReader(this.ggImagine.getConfiguration().getInputStream("GgImagine.pdfDecoderCharset.cnfg"), "UTF-8"));
+			else fcIn = new BufferedReader(new InputStreamReader(new FileInputStream(new File("./GgImagine.pdfDecoderCharset.cnfg")), "UTF-8"));
+			this.fontCharSet = CustomFontDecoderCharset.readCharSet("", fcIn);
+		}
+		catch (IOException ioe) {
+			System.out.println("Error reading font decoder charset: " + ioe.getMessage());
 			ioe.printStackTrace(System.out);
 		}
 		
@@ -430,7 +448,9 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				fileChooser.addChoosableFileFilter(imfFileFilter);
 				fileChooser.addChoosableFileFilter(imdFileFilter);
 				fileChooser.addChoosableFileFilter(genericPdfFileFilter);
-				fileChooser.addChoosableFileFilter(textPdfFileFilter);
+				fileChooser.addChoosableFileFilter(textPdfFileFilterDecode);
+				fileChooser.addChoosableFileFilter(textPdfFileFilterRender);
+				fileChooser.addChoosableFileFilter(textPdfFileFilterQuick);
 				fileChooser.addChoosableFileFilter(imagePdfFileFilter);
 				fileChooser.addChoosableFileFilter(imageAndMetaPdfFileFilter);
 				fileChooser.addChoosableFileFilter(imageAndOcrPdfFileFilter);
@@ -644,7 +664,9 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			
 			this.formatChooser.addItem(imfFileFilter);
 			this.formatChooser.addItem(genericPdfFileFilter);
-			this.formatChooser.addItem(textPdfFileFilter);
+			this.formatChooser.addItem(textPdfFileFilterDecode);
+			this.formatChooser.addItem(textPdfFileFilterRender);
+			this.formatChooser.addItem(textPdfFileFilterQuick);
 			this.formatChooser.addItem(imagePdfFileFilter);
 			this.formatChooser.addItem(imageAndMetaPdfFileFilter);
 			this.formatChooser.addItem(imageAndOcrPdfFileFilter);
@@ -1745,8 +1767,12 @@ Add "Advanced" menu to GG Imagine
 							if (docSource != null)
 								pdfConverterCommand += (" -s \"" + docSource.getAbsolutePath() + "\"");
 							
-							if (fileFilter == textPdfFileFilter)
-								pdfConverterCommand += " -t D";
+							if (fileFilter == textPdfFileFilterDecode)
+								pdfConverterCommand += " -t D -f D -cs C -cp ./GgImagine.pdfDecoderCharset.cnfg";
+							else if (fileFilter == textPdfFileFilterRender)
+								pdfConverterCommand += " -t D -f R";
+							else if (fileFilter == textPdfFileFilterQuick)
+								pdfConverterCommand += " -t D -f Q";
 							else if (fileFilter == imagePdfFileFilter)
 								pdfConverterCommand += " -t S";
 							else if (fileFilter == imageAndMetaPdfFileFilter)
@@ -1813,8 +1839,12 @@ Add "Advanced" menu to GG Imagine
 								baos.write(buffer, 0, read);
 							in.close();
 							
-							if (fileFilter == textPdfFileFilter)
-								doc = pdfExtractor.loadTextPdf(baos.toByteArray(), loadScreen);
+							if (fileFilter == textPdfFileFilterDecode)
+								doc = pdfExtractor.loadTextPdf(baos.toByteArray(), fontCharSet, loadScreen);
+							else if (fileFilter == textPdfFileFilterRender)
+								doc = pdfExtractor.loadTextPdf(baos.toByteArray(), PdfFontDecoder.RENDER_ONLY, loadScreen);
+							else if (fileFilter == textPdfFileFilterQuick)
+								doc = pdfExtractor.loadTextPdf(baos.toByteArray(), PdfFontDecoder.NO_DECODING, loadScreen);
 							else if (fileFilter == imagePdfFileFilter)
 								doc = pdfExtractor.loadImagePdf(baos.toByteArray(), loadScreen);
 							else if (fileFilter == imageAndMetaPdfFileFilter)
@@ -3082,12 +3112,34 @@ Add "Advanced" menu to GG Imagine
 			return this.getDescription();
 		}
 	};
-	private static final FileFilter textPdfFileFilter = new FileFilter() {
+	private static final FileFilter textPdfFileFilterDecode = new FileFilter() {
 		public boolean accept(File file) {
 			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
 		}
 		public String getDescription() {
-			return "PDF Documents (born-digital)";
+			return "PDF Documents (born-digital, fully decode embedded fonts)";
+		}
+		public String toString() {
+			return this.getDescription();
+		}
+	};
+	private static final FileFilter textPdfFileFilterRender = new FileFilter() {
+		public boolean accept(File file) {
+			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+		}
+		public String getDescription() {
+			return "PDF Documents (born-digital, render embedded fonts, but do not decode glyphs)";
+		}
+		public String toString() {
+			return this.getDescription();
+		}
+	};
+	private static final FileFilter textPdfFileFilterQuick = new FileFilter() {
+		public boolean accept(File file) {
+			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+		}
+		public String getDescription() {
+			return "PDF Documents (born-digital, use Unicode mapping only for embedded font)";
 		}
 		public String toString() {
 			return this.getDescription();
