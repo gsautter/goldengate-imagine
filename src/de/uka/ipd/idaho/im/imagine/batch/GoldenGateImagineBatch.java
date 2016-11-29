@@ -44,6 +44,8 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import de.uka.ipd.idaho.easyIO.settings.Settings;
 import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
@@ -123,6 +125,8 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 				dataOutPath = args[a].substring((OUT_PARAMETER + "=").length());
 			else if (args[a].startsWith(OUT_TYPE_PARAMETER + "="))
 				dataOutType = args[a].substring((OUT_TYPE_PARAMETER + "=").length());
+			else if (args[a].equals(LOG_PARAMETER + "=DOC"))
+				logFileName = "DOC";
 			else if (args[a].equals(LOG_PARAMETER + "=IDE") || args[a].equals(LOG_PARAMETER + "=NO"))
 				logFileName = null;
 			else if (args[a].startsWith(LOG_PARAMETER + "="))
@@ -147,7 +151,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			System.out.println("OT:\tthe way of storing the produced IMF files (defaults to 'F' for 'file'):");
 			System.out.println("\t- set to 'F' or omit to indicate (zipped) single file storage");
 			System.out.println("\t- set to 'D' to indicate indicate (non-zipped) folder storage");
-			System.out.println("LOG:\tthe name for the log files to write respective information to (file\r\n\tnames are suffixed with '.out.log' and '.err.log', set to 'IDE' or 'NO'\r\n\tto log directly to the console)");
+			System.out.println("LOG:\tthe name for the log files to write respective information to (file\r\n\tnames are suffixed with '.out.log' and '.err.log', set to 'IDE' or 'NO'\r\n\tto log directly to the console, or to DOC to create one log file per\r\n\tdocument, located next to the IMF)");
 			System.out.println("HELP:\tprint this help text");
 			System.out.println("");
 			System.out.println("The file 'GgImagineBatch.cnfg' specifies what to do to PDF documents after\r\ndecoding:");
@@ -240,9 +244,9 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		
 		//	create log files if required
 		File logFolder = null;
-		File logFileOut = null;
-		File logFileErr = null;
-		if (logFileName != null) try {
+		if ((logFileName != null) && !"DOC".equals(logFileName)) try {
+			File logFileOut = null;
+			File logFileErr = null;
 			
 			//	truncate log file extension
 			if (logFileName.endsWith(".log"))
@@ -364,6 +368,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		PdfExtractor pdfExtractor = goldenGateImagine.getPdfExtractor();
 		
 		//	process files
+		PerDocLogger perDocLogger = null;
 		for (int d = 0; d < dataInFiles.length; d++) try {
 			
 			//	determine where to store document
@@ -379,6 +384,16 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 				continue;
 			}
 			else systemOut.println("Processing document '" + dataInFiles[d].getAbsolutePath() + "'");
+			
+			//	create document specific log files if requested
+			if ("DOC".equals(logFileName)) try {
+				logFolder = dataOutFile.getAbsoluteFile().getParentFile();
+				perDocLogger = new PerDocLogger(logFolder, dataInFiles[d].getName());
+			}
+			catch (Exception e) {
+				systemOut.println("Could not create log files in folder '" + logFolder.getAbsolutePath() + "':" + e.getMessage());
+				e.printStackTrace(systemOut);
+			}
 			
 			//	load PDF bytes
 			InputStream in = new BufferedInputStream(new FileInputStream(dataInFiles[d]));
@@ -470,12 +485,97 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			if (cacheRootPath != null)
 				cleanCacheFolder(new File(cacheRootPath));
 			
+			//	close log files if logging per document
+			if (perDocLogger != null)
+				perDocLogger.close();
+			perDocLogger = null;
+			
 			//	garbage collect whatever is left
 			System.gc();
 		}
 		
 		//	shut down whatever threads are left
 		System.exit(0);
+	}
+	
+	private static class PerDocLogger {
+		private File logFolder;
+		private String docName;
+		
+		private File logFileOut;
+		private PrintStream logOut;
+		private PrintStream sysOut;
+		
+		private File logFileErr;
+		private PrintStream logErr;
+		private PrintStream sysErr;
+		
+		PerDocLogger(File logFolder, String docName) throws Exception {
+			this.logFolder = logFolder;
+			this.docName = docName;
+			
+			//	create log files
+			this.logFolder.mkdirs();
+			this.logFileOut = new File(this.logFolder, (this.docName + ".out.log"));
+			this.logFileErr = new File(this.logFolder, (this.docName + ".err.log"));
+			
+			//	redirect System.out
+			this.logFileOut.createNewFile();
+			this.sysOut = System.out;
+			this.logOut = new PrintStream(new BufferedOutputStream(new FileOutputStream(this.logFileOut)), true, "UTF-8");
+			System.setOut(this.logOut);
+			
+			//	redirect System.err
+			this.logFileErr.createNewFile();
+			this.sysErr = System.err;
+			this.logErr = new PrintStream(new BufferedOutputStream(new FileOutputStream(this.logFileErr)), true, "UTF-8");
+			System.setErr(this.logErr);
+
+		}
+		
+		void close() {
+			
+			//	restore System.out
+			System.setOut(this.sysOut);
+			this.logOut.flush();
+			this.logOut.close();
+			
+			//	restore System.err
+			System.setErr(this.sysErr);
+			this.logErr.flush();
+			this.logErr.close();
+			
+			//	zip up log files
+			try {
+				File zipFile = new File(this.logFolder, (this.docName + ".logs.zip"));
+				ZipOutputStream zipOut = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(zipFile)));
+				this.zipUp(this.logFileOut, zipOut);
+				this.zipUp(this.logFileErr, zipOut);
+				zipOut.flush();
+				zipOut.close();
+			}
+			catch (Exception e) {
+				System.out.println("Could not zip up log files in '" + this.logFolder.getAbsolutePath() + "':" + e.getMessage());
+				e.printStackTrace(System.out);
+			}
+		}
+		
+		void zipUp(File logFile, ZipOutputStream zipOut) throws Exception {
+			
+			//	zip up log file (unless it's empty)
+			if (logFile.length() != 0) {
+				InputStream logIn = new BufferedInputStream(new FileInputStream(logFile));
+				zipOut.putNextEntry(new ZipEntry(logFile.getName()));
+				byte[] buffer = new byte[1024];
+				for (int r; (r = logIn.read(buffer, 0, buffer.length)) != -1;)
+					zipOut.write(buffer, 0, r);
+				zipOut.closeEntry();
+				logIn.close();
+			}
+			
+			//	clean up plain log file
+			logFile.delete();
+		}
 	}
 	
 	private static void cleanCacheFolder(File folder) {
