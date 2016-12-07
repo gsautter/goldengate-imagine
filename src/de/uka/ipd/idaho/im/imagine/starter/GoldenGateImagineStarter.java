@@ -148,9 +148,19 @@ public class GoldenGateImagineStarter implements GoldenGateImagineConstants {
 		cleanUpFiles(basePath, ".new");
 		cleanUpFiles(basePath, ".log");
 		
-		//	start GoldenGATE itself
+		//	create or clean up temp folder
+		File tempFolder = new File("./Temp");
+		tempFolder.mkdirs();
+		cleanUpFiles(tempFolder, "");
+		
+		//	start GoldenGATE proper
 		sd.setTitle(STATUS_DIALOG_MAIN_TITLE + " - Starting Main Program");
-		String command = "java -jar -Xms" + startMemory + "m -Xmx" + maxMemory + "m GgImagine.jar " + RUN_PARAMETER + (online ? (" " + ONLINE_PARAMETER) : "") + argAssembler.toString();
+		String command = "java" +
+				" -jar" +
+				" -Xms" + startMemory + "m" +
+				" -Xmx" + maxMemory + "m" +
+				" -Djava.io.tmpdir=./Temp" +
+				" GgImagine.jar " + RUN_PARAMETER + (online ? (" " + ONLINE_PARAMETER) : "") + argAssembler.toString();
 		System.out.println("GoldenGateImagineStarter: command is '" + command + "'");
 		final Process ggiProcess = Runtime.getRuntime().exec(command, null, basePath);
 		

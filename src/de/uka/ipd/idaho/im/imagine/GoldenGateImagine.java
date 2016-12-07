@@ -41,6 +41,7 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -122,7 +123,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	private GoldenGateConfiguration configuration;
 	private GoldenGATE goldenGate;
 	
-	private PageImageStore pageImageStore;
+	private GgiPageImageStore pageImageStore;
 	private PdfExtractor pdfExtractor;
 	
 	private GoldenGateImagine(GoldenGateConfiguration configuration, GoldenGATE gg, File path) {
@@ -243,6 +244,21 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		public int getPriority() {
 			return 0; // we're a general page image store, yield to more specific ones
 		}
+		void cleanup(final String docId) {
+			 try {
+				File[] docPageImages = this.pageImageFolder.listFiles(new FileFilter() {
+					public boolean accept(File file) {
+						return (file.isFile() && file.getName().startsWith(docId + "."));
+					}
+				});
+				for (int s = 0; s < docPageImages.length; s++)
+					docPageImages[s].delete();
+			}
+			catch (Exception e) {
+				System.out.println("Error cleaning up import page image cache for document '" + docId + "': " + e.getMessage());
+				e.printStackTrace(System.out);
+			}
+		}
 	}
 	
 	private Map docSupplementFoldersById = Collections.synchronizedMap(new HashMap());
@@ -286,7 +302,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 					//	threshold just exceeded
 					if (this.inMemorySupplementBytes > maxInMemoryImageSupplementBytes) {
 						
-						//	disc cache all existing image supplements
+						//	disc cache all existing supplements
 						ImSupplement[] imss = this.getSupplements();
 						for (int s = 0; s < imss.length; s++) {
 							if ((imss[s] instanceof ImSupplement.Figure) || (imss[s] instanceof ImSupplement.Graphics) || (imss[s] instanceof ImSupplement.Scan))
@@ -706,14 +722,17 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	
 	/**
 	 * Notify all registered document listeners that an Image Markup document
-	 * has been saved to persistent storage in an application built around this
-	 * GoldenGATE Imagine core. This method should be called by client code
-	 * right after the document is disposed.
+	 * has been closed in an application built around this GoldenGATE Imagine
+	 * core. This method should be called by client code right after the
+	 * document is disposed.
 	 * @param docId the ID of the document that was closed
 	 */
 	public void notifyDocumentClosed(String docId) {
 		for (int l = 0; l < this.documentListeners.size(); l++)
 			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentClosed(docId);
+		
+		//	clean up page image cache
+		this.pageImageStore.cleanup(docId);
 		
 		//	clean up supplement cache folder
 		File docSupplementFolder = ((File) this.docSupplementFoldersById.get(docId));

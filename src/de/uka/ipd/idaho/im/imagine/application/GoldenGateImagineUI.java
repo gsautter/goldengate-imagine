@@ -82,12 +82,14 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
 
@@ -1680,6 +1682,7 @@ Add "Advanced" menu to GG Imagine
 					try {
 						loadScreen.setStep("Loading IMF Archive");
 						ImDocument doc;
+						File docDataCache = null;
 						
 						 // 50 MB should OK to hold in memory
 						if (inLength < (1024 * 1024 * 50))
@@ -1687,15 +1690,21 @@ Add "Advanced" menu to GG Imagine
 						
 						//	use disk based cache if IMF is larger
 						else {
-							File docDataCache = new File(docCacheRoot, docName);
+							docDataCache = new File(docCacheRoot, docName);
 							docDataCache.mkdirs();
 							doc = ImDocumentIO.loadDocument(in, docDataCache, loadScreen, inLength);
 						}
 						
-						//	open document in UI
+						//	add document name and (if any) source URL attributes
 						doc.setAttribute(DOCUMENT_NAME_ATTRIBUTE, docName);
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
+						
+						//	register cache folder for cleanup when document closed
+						if (docDataCache != null)
+							registerDocDataCache(doc.docId, docDataCache);
+						
+						//	open document in UI
 						ggImagine.notifyDocumentOpened(doc);
 						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, fileFilter, null));
 						in.close();
@@ -1723,14 +1732,20 @@ Add "Advanced" menu to GG Imagine
 			Thread loadThread = new Thread("LoaderThread") {
 				public void run() {
 					try {
+						
+						//	get entry folder and load document
 						File docFolder = new File(docSource.getAbsolutePath() + "ir");
 						if (!docFolder.exists())
 							throw new FileNotFoundException("Data directory not found for " + docSource.getName());
 						loadScreen.setStep("Loading IMF Directory");
 						ImDocument doc = ImDocumentIO.loadDocument(docFolder, loadScreen);
+						
+						//	add document name and (if any) source URL attributes
 						doc.setAttribute(DOCUMENT_NAME_ATTRIBUTE, docName);
 						if ((docSourceUrl != null) && !doc.hasAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE))
 							doc.setAttribute(DOCUMENT_SOURCE_LINK_ATTRIBUTE, docSourceUrl);
+						
+						//	open document in UI
 						ggImagine.notifyDocumentOpened(doc);
 						addDocument(new ImDocumentEditorTab(GoldenGateImagineUI.this, doc, docName, docSource, fileFilter, null));
 					}
@@ -1923,6 +1938,11 @@ Add "Advanced" menu to GG Imagine
 		loadScreen.setVisible(true);
 	}
 	
+	private Map docDataCachePathsById = Collections.synchronizedMap(new HashMap());
+	void registerDocDataCache(String docId, File docDataCache) {
+		this.docDataCachePathsById.put(docId, docDataCache.getAbsolutePath());
+	}
+	
 	void addDocument(ImDocumentEditorTab idet) {
 		this.docTabs.addTab(idet.docName, idet);
 		this.docTabs.setSelectedComponent(idet);
@@ -1954,12 +1974,18 @@ Add "Advanced" menu to GG Imagine
 		idet.close();
 		
 		//	clean up any cached files
-		File docDataCache = new File(this.docCacheRoot, idet.docName);
-		if (docDataCache.exists()) {
-			File[] docDataFiles = docDataCache.listFiles();
-			for (int f = 0; f < docDataFiles.length; f++)
-				docDataFiles[f].delete();
-			docDataCache.delete();
+		String docDataCachePath = ((String) this.docDataCachePathsById.get(idet.idmp.document.docId));
+		if (docDataCachePath != null) {
+//			File docDataCache = new File(this.docCacheRoot, idet.docName);
+			File docDataCache = new File(docDataCachePath);
+			if (docDataCache.exists()) {
+				File[] docDataFiles = docDataCache.listFiles();
+				if (docDataFiles != null) {
+					for (int f = 0; f < docDataFiles.length; f++)
+						docDataFiles[f].delete();
+				}
+				docDataCache.delete();
+			}
 		}
 		
 		//	finally ...
@@ -2040,7 +2066,7 @@ Add "Advanced" menu to GG Imagine
 		FileFilter docFormat = imfFileFilter;
 		ImageDocumentIoProvider docIo;
 		
-		ImDocumentMarkupPanel idmp;
+		final ImDocumentMarkupPanel idmp;
 		JScrollPane idmpBox;
 		Rectangle idmpViewSize;
 		
