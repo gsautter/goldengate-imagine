@@ -290,6 +290,10 @@ public class GoldenGateImagineUploadServlet extends GoldenGateImagineServlet imp
 		
 		private ImSupplement createDiscSupplement(ImSupplement ims, InputStream sis) throws IOException {
 			
+			//	make sure not to call disk caching recursively
+			if (ims.getClass().getName().startsWith(GoldenGateImagineUploadServlet.class.getName()))
+				return ims;
+			
 			//	get input stream if not already done
 			if (sis == null)
 				sis = ims.getInputStream();

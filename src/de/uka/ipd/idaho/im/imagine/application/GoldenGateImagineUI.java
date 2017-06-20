@@ -62,6 +62,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.font.TextLayout;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -95,7 +97,9 @@ import java.util.TreeMap;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -106,6 +110,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
@@ -195,7 +200,8 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	private JFileChooser fileChooser = new JFileChooser();
 	private File docCacheRoot;
 	private PdfExtractor pdfExtractor;
-	private FontDecoderCharset fontCharSet = PdfFontDecoder.UNICODE;
+	private FontDecoderCharset fontDecoderCharset = PdfFontDecoder.UNICODE;
+	private int scanDecoderFlags = (PdfExtractor.USE_EMBEDDED_OCR | PdfExtractor.META_PAGES | PdfExtractor.ENHANCE_SCANS); // TODO make this configurable
 	
 	private ViewControl viewControl = new ViewControl();
 	private JTabbedPane docTabs = new JTabbedPane();
@@ -266,7 +272,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			if (this.ggImagine.getConfiguration().isDataAvailable("GgImagine.pdfDecoderCharset.cnfg"))
 				fcIn = new BufferedReader(new InputStreamReader(this.ggImagine.getConfiguration().getInputStream("GgImagine.pdfDecoderCharset.cnfg"), "UTF-8"));
 			else fcIn = new BufferedReader(new InputStreamReader(new FileInputStream(new File("./GgImagine.pdfDecoderCharset.cnfg")), "UTF-8"));
-			this.fontCharSet = CustomFontDecoderCharset.readCharSet("", fcIn);
+			this.fontDecoderCharset = CustomFontDecoderCharset.readCharSet("", fcIn);
 		}
 		catch (IOException ioe) {
 			System.out.println("Error reading font decoder charset: " + ioe.getMessage());
@@ -444,32 +450,42 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		//	add built-in loading options
 		mi = new JMenuItem("Open Document");
 		mi.addActionListener(new ActionListener() {
-			private FileFilter loadFileFilter = null;
+			private FileFilter loadFileFilter = imfFileFilter;
+			private FontDecoderCharset fontCharset = fontDecoderCharset;
+			private int scanFlags = scanDecoderFlags;
 			public void actionPerformed(ActionEvent ae) {
 				clearFileFilters(fileChooser);
 				fileChooser.addChoosableFileFilter(imfFileFilter);
 				fileChooser.addChoosableFileFilter(imdFileFilter);
 				fileChooser.addChoosableFileFilter(genericPdfFileFilter);
-				fileChooser.addChoosableFileFilter(textPdfFileFilterDecode);
-				fileChooser.addChoosableFileFilter(textPdfFileFilterRender);
-				fileChooser.addChoosableFileFilter(textPdfFileFilterQuick);
+				fileChooser.addChoosableFileFilter(textPdfFileFilter);
 				fileChooser.addChoosableFileFilter(imagePdfFileFilter);
-				fileChooser.addChoosableFileFilter(imageAndMetaPdfFileFilter);
-				fileChooser.addChoosableFileFilter(imageAndOcrPdfFileFilter);
-				fileChooser.setFileFilter(imfFileFilter);
-				if (this.loadFileFilter != null)
-					fileChooser.setFileFilter(this.loadFileFilter);
-				if (fileChooser.showOpenDialog(GoldenGateImagineUI.this) != JFileChooser.APPROVE_OPTION)
+				fileChooser.setFileFilter((this.loadFileFilter == null) ? imfFileFilter : this.loadFileFilter);
+				
+				PdfLoadOptionPanel lop = new PdfLoadOptionPanel(this.fontCharset, this.scanFlags, true);
+				lop.fileFilterSelected(fileChooser.getFileFilter());
+				fileChooser.setAccessory(lop);
+				fileChooser.addPropertyChangeListener(JFileChooser.FILE_FILTER_CHANGED_PROPERTY, lop);
+				
+				int choice = fileChooser.showOpenDialog(GoldenGateImagineUI.this);
+				
+				fileChooser.removePropertyChangeListener(JFileChooser.FILE_FILTER_CHANGED_PROPERTY, lop);
+				fileChooser.setAccessory(null);
+				
+				if (choice != JFileChooser.APPROVE_OPTION)
 					return;
+				
 				File file = fileChooser.getSelectedFile();
 				this.loadFileFilter = fileChooser.getFileFilter();
+				this.fontCharset = lop.getFontCharset();
+				this.scanFlags = lop.getScanFlags();
 				try {
 					if (this.loadFileFilter == imdFileFilter) {
-						loadDocument(file.getName(), file, null, this.loadFileFilter, null, -1);
+						loadDocument(file.getName(), file, null, this.loadFileFilter, this.fontCharset, this.scanFlags, null, -1);
 					}
 					else {
 						InputStream in = new BufferedInputStream(new FileInputStream(file));
-						loadDocument(file.getName(), file, null, this.loadFileFilter, in, ((int) file.length()));
+						loadDocument(file.getName(), file, null, this.loadFileFilter, this.fontCharset, this.scanFlags, in, ((int) file.length()));
 						in.close();
 					}
 				}
@@ -484,10 +500,14 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		mi = new JMenuItem("Load Document from URL");
 		mi.addActionListener(new ActionListener() {
 			private FileFilter loadFormat = genericPdfFileFilter;
+			private FontDecoderCharset fontCharset = fontDecoderCharset;
+			private int scanFlags = scanDecoderFlags;
 			public void actionPerformed(ActionEvent ae) {
-				UrlLoadDialog uld = new UrlLoadDialog(null, this.loadFormat);
+				UrlLoadDialog uld = new UrlLoadDialog(null, this.loadFormat, this.fontCharset, this.scanFlags);
 				uld.setVisible(true);
 				this.loadFormat = uld.getFormat();
+				this.fontCharset = uld.getFontCharset();
+				this.scanFlags = uld.getScanFlags();
 			}
 		});
 		items.put(mi.getText(), mi);
@@ -608,7 +628,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 							matchFileFilter = genericPdfFileFilter;
 						else continue;
 						InputStream in = new BufferedInputStream(new FileInputStream(droppedFile));
-						loadDocument(droppedFile.getName(), droppedFile, null, matchFileFilter, in, ((int) droppedFile.length()));
+						loadDocument(droppedFile.getName(), droppedFile, null, matchFileFilter, fontDecoderCharset, scanDecoderFlags, in, ((int) droppedFile.length()));
 						in.close();
 					}
 					catch (SecurityException se) {
@@ -637,7 +657,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 					matchFileFilter = imfFileFilter;
 				else if (droppedUrlString.toLowerCase().matches("http\\:\\/\\/(.+\\/)+.+\\.pdf"))
 					matchFileFilter = genericPdfFileFilter;
-				UrlLoadDialog uld = new UrlLoadDialog(droppedUrlString, matchFileFilter);
+				UrlLoadDialog uld = new UrlLoadDialog(droppedUrlString, matchFileFilter, fontDecoderCharset, scanDecoderFlags);
 				uld.setVisible(true);
 				return;
 			}
@@ -651,8 +671,9 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		private JTextField urlInput = new JTextField("http://");
 		private JComboBox formatChooser = new JComboBox();
 		private JSpinner timeoutChooser = new JSpinner(new SpinnerNumberModel(15, 5, 300, 5));
+		private PdfLoadOptionPanel loadOptionPanel;
 		
-		UrlLoadDialog(String urlString, FileFilter format) {
+		UrlLoadDialog(String urlString, FileFilter format, FontDecoderCharset fontCharset, int scanFlags) {
 			super("Open Document from URL", true);
 			
 			if (urlString != null)
@@ -666,12 +687,8 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			
 			this.formatChooser.addItem(imfFileFilter);
 			this.formatChooser.addItem(genericPdfFileFilter);
-			this.formatChooser.addItem(textPdfFileFilterDecode);
-			this.formatChooser.addItem(textPdfFileFilterRender);
-			this.formatChooser.addItem(textPdfFileFilterQuick);
+			this.formatChooser.addItem(textPdfFileFilter);
 			this.formatChooser.addItem(imagePdfFileFilter);
-			this.formatChooser.addItem(imageAndMetaPdfFileFilter);
-			this.formatChooser.addItem(imageAndOcrPdfFileFilter);
 			this.formatChooser.setSelectedItem((format == null) ? genericPdfFileFilter : format);
 			this.formatChooser.setBorder(BorderFactory.createLoweredBevelBorder());
 			this.formatChooser.setEditable(false);
@@ -710,6 +727,15 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			timeoutPanel.add(new JLabel("Timeout (seconds) "), BorderLayout.WEST);
 			timeoutPanel.add(this.timeoutChooser, BorderLayout.CENTER);
 			
+			//	initialize load option panel
+			this.loadOptionPanel = new PdfLoadOptionPanel(fontCharset, scanFlags, false);
+			this.loadOptionPanel.fileFilterSelected(this.getFormat());
+			this.formatChooser.addItemListener(new ItemListener() {
+				public void itemStateChanged(ItemEvent ie) {
+					loadOptionPanel.fileFilterSelected(getFormat());
+				}
+			});
+			
 			//	initialize buttons
 			JButton commitButton = new JButton("Open Document");
 			commitButton.setBorder(BorderFactory.createRaisedBevelBorder());
@@ -735,12 +761,13 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			buttonPanel.add(cancelButton);
 			
 			//	put the whole stuff together
-			this.add(selectorPanel, BorderLayout.CENTER);
+			this.add(selectorPanel, BorderLayout.NORTH);
+			this.add(this.loadOptionPanel, BorderLayout.CENTER);
 			this.add(buttonPanel, BorderLayout.SOUTH);
 			
 			//	configure dialog proper
 			this.setResizable(true);
-			this.setSize(new Dimension(400, 120));
+			this.setSize(new Dimension(450, 220));
 			this.setLocationRelativeTo(GoldenGateImagineUI.this);
 			
 			//	if we have a URL and a file format, we can start loading right after dialog comes up (load from EDT, though)
@@ -894,12 +921,176 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			if (docName.indexOf("//") != -1)
 				docName = docName.substring(docName.indexOf("//") + "//".length());
 			docName = docName.replaceAll("[\\/\\:]+", "_");
-			loadDocument(docName, null, urlString, this.getFormat(), new ByteArrayInputStream(urlData[0]), urlData[0].length);
+			loadDocument(docName, null, urlString, this.getFormat(), this.loadOptionPanel.getFontCharset(), this.loadOptionPanel.getScanFlags(), new ByteArrayInputStream(urlData[0]), urlData[0].length);
 		}
 		
 		FileFilter getFormat() {
 			return ((FileFilter) this.formatChooser.getSelectedItem());
 		}
+		
+		int getScanFlags() {
+			return this.loadOptionPanel.getScanFlags();
+		}
+		
+		PdfFontDecoder.FontDecoderCharset getFontCharset() {
+			return this.loadOptionPanel.getFontCharset();
+		}
+	}
+	
+	private class PdfLoadOptionPanel extends JPanel implements PropertyChangeListener {
+		private JPanel fontOptionPanel;
+		private JComboBox fontCharsetSelector;
+		
+		private JPanel scanOptionPanel;
+		private JCheckBox useEmbeddedOcr;
+		private JCheckBox enhanceScans;
+		private JCheckBox metaPages;
+		
+		private JPanel pageFormatPanel;
+		private JRadioButton autoPages;
+		private JRadioButton singlePages;
+		private JRadioButton doublePages;
+		PdfLoadOptionPanel(FontDecoderCharset fontCharset, int scanFlags, boolean forFileChooser) {
+			super((forFileChooser ? new BorderLayout() : new GridLayout(1, 0)), true);
+			
+			//	initialize charset selector
+			FontCharsetTray[] fcts = getFontDecoderOptions();
+			FontCharsetTray sfct = null;
+			for (int t = 0; t < fcts.length; t++)
+				if (fcts[t].charset == fontCharset) {
+					sfct = fcts[t];
+					break;
+				}
+			this.fontCharsetSelector = new JComboBox(fcts);
+			this.fontCharsetSelector.setEditable(false);
+			if (sfct != null)
+				this.fontCharsetSelector.setSelectedItem(sfct);
+			
+			//	assemble option panel for born-digital PDFs
+			this.fontOptionPanel = new JPanel(new BorderLayout(), true);
+			this.fontOptionPanel.add(new JLabel("<HTML><B>Charset to Consider for<BR/>Embedded Font Decoding</B></HTML>", (forFileChooser ? JLabel.CENTER : JLabel.LEFT)), BorderLayout.CENTER);
+			this.fontOptionPanel.add(this.fontCharsetSelector, BorderLayout.SOUTH);
+			
+			//	initialize options for scanned PDFs
+			this.useEmbeddedOcr = new JCheckBox("Use Embedded OCR", ((scanFlags & PdfExtractor.USE_EMBEDDED_OCR) != 0));
+			this.enhanceScans = new JCheckBox("Enhance Scans", ((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0));
+			this.metaPages = new JCheckBox("Expect Meta Pages", ((scanFlags & PdfExtractor.META_PAGES) != 0));
+			
+			//	assemble option panel for scanned PDFs
+			this.scanOptionPanel = new JPanel(new GridLayout(0, 1), true);
+			this.scanOptionPanel.add(new JLabel("<HTML><B>Options for Scanned PDFs</B></HTML>", (forFileChooser ? JLabel.CENTER : JLabel.LEFT)));
+			this.scanOptionPanel.add(this.useEmbeddedOcr);
+			this.scanOptionPanel.add(this.enhanceScans);
+			this.scanOptionPanel.add(this.metaPages);
+			
+			//	initialize page format options
+			boolean singlePages = ((scanFlags & PdfExtractor.SINGLE_PAGE_SCANS) != 0);
+			boolean doublePages = ((scanFlags & PdfExtractor.DOUBLE_PAGE_SCANS) != 0);
+			this.autoPages = new JRadioButton("Auto-detect", (singlePages == doublePages));
+			this.singlePages = new JRadioButton("Single Pages", (singlePages && !doublePages));
+			this.doublePages = new JRadioButton("Double Pages", (!singlePages && doublePages));
+			ButtonGroup pageButtons = new ButtonGroup();
+			pageButtons.add(this.autoPages);
+			pageButtons.add(this.singlePages);
+			pageButtons.add(this.doublePages);
+			
+			//	assemble option panel for scanned PDFs
+			this.pageFormatPanel = new JPanel(new GridLayout(0, 1), true);
+			this.pageFormatPanel.add(new JLabel("<HTML><B>Scanned Page Format</B></HTML>", (forFileChooser ? JLabel.CENTER : JLabel.LEFT)));
+			this.pageFormatPanel.add(this.autoPages);
+			this.pageFormatPanel.add(this.singlePages);
+			this.pageFormatPanel.add(this.doublePages);
+			
+			//	assemble the whole thing
+			if (forFileChooser) {
+				this.setBorder(BorderFactory.createMatteBorder(0, 5, 0, 0, this.getBackground()));
+				JPanel contentPanel = new JPanel(new BorderLayout(), true);
+				contentPanel.add(this.fontOptionPanel, BorderLayout.NORTH);
+				contentPanel.add(this.scanOptionPanel, BorderLayout.CENTER);
+				contentPanel.add(this.pageFormatPanel, BorderLayout.SOUTH);
+				this.add(contentPanel, BorderLayout.SOUTH);
+			}
+			else {
+				JPanel fontOptionPanel = new JPanel(new BorderLayout(), true);
+				fontOptionPanel.add(this.fontOptionPanel, BorderLayout.NORTH);
+				this.add(fontOptionPanel);
+				JPanel scanOptionPanel = new JPanel(new BorderLayout(), true);
+				scanOptionPanel.add(this.scanOptionPanel, BorderLayout.NORTH);
+				this.add(scanOptionPanel);
+				JPanel pageFormatPanel = new JPanel(new BorderLayout(), true);
+				pageFormatPanel.add(this.pageFormatPanel, BorderLayout.NORTH);
+				this.add(pageFormatPanel);
+			}
+		}
+		
+		public void propertyChange(PropertyChangeEvent pce) {
+			Object newValue = pce.getNewValue();
+			if (newValue instanceof FileFilter)
+				this.fileFilterSelected((FileFilter) newValue);
+		}
+		
+		void fileFilterSelected(FileFilter fileFilter) {
+			boolean bornDigitalPDFs = ((fileFilter == textPdfFileFilter) || (fileFilter == genericPdfFileFilter));
+			this.fontCharsetSelector.setEnabled(bornDigitalPDFs);
+			this.fontOptionPanel.setEnabled(bornDigitalPDFs);
+			boolean scannedPDFs = ((fileFilter == imagePdfFileFilter) || (fileFilter == genericPdfFileFilter));
+			this.useEmbeddedOcr.setEnabled(scannedPDFs);
+			this.enhanceScans.setEnabled(scannedPDFs);
+			this.metaPages.setEnabled(scannedPDFs);
+			this.scanOptionPanel.setEnabled(scannedPDFs);
+			this.autoPages.setEnabled(scannedPDFs);
+			this.singlePages.setEnabled(scannedPDFs);
+			this.doublePages.setEnabled(scannedPDFs);
+			this.pageFormatPanel.setEnabled(scannedPDFs);
+		}
+		
+		FontDecoderCharset getFontCharset() {
+			return ((FontCharsetTray) this.fontCharsetSelector.getSelectedItem()).charset;
+		}
+		
+		int getScanFlags() {
+			int flags = 0;
+			if (this.useEmbeddedOcr.isSelected())
+				flags |= PdfExtractor.USE_EMBEDDED_OCR;
+			if (this.enhanceScans.isSelected())
+				flags |= PdfExtractor.ENHANCE_SCANS;
+			if (this.metaPages.isSelected())
+				flags |= PdfExtractor.META_PAGES;
+			if (this.singlePages.isSelected())
+				flags |= PdfExtractor.SINGLE_PAGE_SCANS;
+			else if (this.doublePages.isSelected())
+				flags |= PdfExtractor.DOUBLE_PAGE_SCANS;
+			return flags;
+		}
+	}
+	
+	private static class FontCharsetTray {
+		final String name;
+		final FontDecoderCharset charset;
+		FontCharsetTray(String name, FontDecoderCharset charset) {
+			this.name = name;
+			this.charset = charset;
+		}
+		public String toString() {
+			return this.name;
+		}
+		public boolean equals(Object obj) {
+			if (obj instanceof FontCharsetTray)
+				return ((FontCharsetTray) obj).name.equals(this.name);
+			else return false;
+		}
+	}
+	
+	private FontCharsetTray[] getFontDecoderOptions() {
+		ArrayList fcts = new ArrayList();
+		fcts.add(new FontCharsetTray("<Do Not Decode>", PdfFontDecoder.NO_DECODING));
+		fcts.add(new FontCharsetTray("<Render Glyphs Only>", PdfFontDecoder.RENDER_ONLY));
+		fcts.add(new FontCharsetTray("Default", this.fontDecoderCharset));
+		fcts.add(new FontCharsetTray("Basic Latin", PdfFontDecoder.LATIN_BASIC));
+		fcts.add(new FontCharsetTray("Extended Latin", PdfFontDecoder.LATIN));
+		fcts.add(new FontCharsetTray("Full Latin", PdfFontDecoder.LATIN_FULL));
+		fcts.add(new FontCharsetTray("Full Unicode", PdfFontDecoder.UNICODE));
+		return ((FontCharsetTray[]) fcts.toArray(new FontCharsetTray[fcts.size()]));
 	}
 	
 	private void addExportMenu(ArrayList itemNames) {
@@ -924,6 +1115,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		};
 		JMenuItem mi;
 		
+		//	TODO use file chooser accessory for XML export, not 4 different menu items
 		mi = new JMenuItem("As XML (without element IDs)");
 		mi.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent ae) {
@@ -1668,7 +1860,7 @@ Add "Advanced" menu to GG Imagine
 		this.undoMenu.setEnabled(undoActions.size() != 0);
 	}
 	
-	void loadDocument(final String docName, final File docSource, final String docSourceUrl, final FileFilter fileFilter, final InputStream in, final int inLength) throws IOException {
+	void loadDocument(final String docName, final File docSource, final String docSourceUrl, final FileFilter fileFilter, final FontDecoderCharset fontCharset, final int scanFlags, final InputStream in, final int inLength) throws IOException {
 		if (docSource != null)
 			this.config.setSetting("lastDocFolder", docSource.getParentFile().getAbsolutePath());
 		
@@ -1782,18 +1974,28 @@ Add "Advanced" menu to GG Imagine
 							if (docSource != null)
 								pdfConverterCommand += (" -s \"" + docSource.getAbsolutePath() + "\"");
 							
-							if (fileFilter == textPdfFileFilterDecode)
-								pdfConverterCommand += " -t D -f D -cs C -cp ./GgImagine.pdfDecoderCharset.cnfg";
-							else if (fileFilter == textPdfFileFilterRender)
-								pdfConverterCommand += " -t D -f R";
-							else if (fileFilter == textPdfFileFilterQuick)
-								pdfConverterCommand += " -t D -f Q";
-							else if (fileFilter == imagePdfFileFilter)
-								pdfConverterCommand += " -t S";
-							else if (fileFilter == imageAndMetaPdfFileFilter)
-								pdfConverterCommand += " -t M";
-							else if (fileFilter == imageAndOcrPdfFileFilter)
-								pdfConverterCommand += " -t O";
+							if (fileFilter == textPdfFileFilter) {
+								pdfConverterCommand += " -t D";
+								if (fontCharset == fontDecoderCharset)
+									pdfConverterCommand += " -f D -cs C -cp ./GgImagine.pdfDecoderCharset.cnfg";
+								else if (fontCharset == PdfFontDecoder.LATIN_FULL)
+									pdfConverterCommand += " -f F";
+								else if (fontCharset == PdfFontDecoder.LATIN)
+									pdfConverterCommand += " -f L";
+								else if (fontCharset == PdfFontDecoder.LATIN_BASIC)
+									pdfConverterCommand += " -f B";
+								else if (fontCharset == PdfFontDecoder.RENDER_ONLY)
+									pdfConverterCommand += " -f R";
+								else if (fontCharset == PdfFontDecoder.NO_DECODING)
+									pdfConverterCommand += " -f Q";
+							}
+							else if (fileFilter == imagePdfFileFilter) {
+								if ((scanFlags & PdfExtractor.META_PAGES) != 0)
+									pdfConverterCommand += " -t M";
+								else if ((scanFlags & PdfExtractor.USE_EMBEDDED_OCR) != 0)
+									pdfConverterCommand += " -t O";
+								else pdfConverterCommand += " -t S";
+							}
 							
 							System.out.println("PDF converter command is " + pdfConverterCommand);
 							Process pdfConverter = Runtime.getRuntime().exec(pdfConverterCommand, new String[0], new File("."));
@@ -1854,18 +2056,10 @@ Add "Advanced" menu to GG Imagine
 								baos.write(buffer, 0, read);
 							in.close();
 							
-							if (fileFilter == textPdfFileFilterDecode)
-								doc = pdfExtractor.loadTextPdf(baos.toByteArray(), fontCharSet, loadScreen);
-							else if (fileFilter == textPdfFileFilterRender)
-								doc = pdfExtractor.loadTextPdf(baos.toByteArray(), PdfFontDecoder.RENDER_ONLY, loadScreen);
-							else if (fileFilter == textPdfFileFilterQuick)
-								doc = pdfExtractor.loadTextPdf(baos.toByteArray(), PdfFontDecoder.NO_DECODING, loadScreen);
+							if (fileFilter == textPdfFileFilter)
+								doc = pdfExtractor.loadTextPdf(baos.toByteArray(), fontCharset, loadScreen);
 							else if (fileFilter == imagePdfFileFilter)
-								doc = pdfExtractor.loadImagePdf(baos.toByteArray(), loadScreen);
-							else if (fileFilter == imageAndMetaPdfFileFilter)
-								doc = pdfExtractor.loadImagePdf(baos.toByteArray(), true, loadScreen);
-							else if (fileFilter == imageAndOcrPdfFileFilter)
-								doc = pdfExtractor.loadImagePdf(baos.toByteArray(), true, true, loadScreen);
+								doc = pdfExtractor.loadImagePdf(baos.toByteArray(), scanFlags, loadScreen);
 							else doc = pdfExtractor.loadGenericPdf(baos.toByteArray(), loadScreen);
 						}
 						
@@ -2701,12 +2895,14 @@ Add "Advanced" menu to GG Imagine
 		void selectVisiblePages() {
 			
 			//	create selector tiles and compute size
-			PageSelectorTile[] psts = new PageSelectorTile[idmp.document.getPageCount()];
+//			PageSelectorTile[] psts = new PageSelectorTile[idmp.document.getPageCount()];
+			ImPage[] pages = this.idmp.document.getPages();
+			PageSelectorTile[] psts = new PageSelectorTile[pages.length];
 			int ptWidth = 0;
 			int ptHeight = 0;
-			for (int p = 0; p < psts.length; p++) {
-				PageThumbnail pt = this.idmp.getPageThumbnail(p);
-				psts[p] = new PageSelectorTile(pt, this.idmp.isPageVisible(p));
+			for (int p = 0; p < pages.length; p++) {
+				PageThumbnail pt = this.idmp.getPageThumbnail(pages[p].pageId);
+				psts[p] = new PageSelectorTile(pt, pages[p].pageId, this.idmp.isPageVisible(pages[p].pageId));
 				ptWidth = Math.max(ptWidth, pt.getPreferredSize().width);
 				ptHeight = Math.max(ptHeight, pt.getPreferredSize().height);
 			}
@@ -2787,16 +2983,18 @@ Add "Advanced" menu to GG Imagine
 			//	select visible pages
 			int[] visiblePageIDs = new int[psts.length];
 			for (int p = 0; p < psts.length; p++)
-				visiblePageIDs[p] = (psts[p].pageVisible ? p : -1);
+				visiblePageIDs[p] = (psts[p].pageVisible ? psts[p].pageId : -1);
 			this.idmp.setVisiblePages(visiblePageIDs);
 		}
 		
 		private class PageSelectorTile extends JPanel {
-			private PageThumbnail pt;
+			private final PageThumbnail pt;
+			int pageId;
 			boolean pageVisible;
-			PageSelectorTile(PageThumbnail pt, boolean pageVisible) {
+			PageSelectorTile(PageThumbnail pt, int pageId, boolean pageVisible) {
 				super(new BorderLayout(), true);
 				this.pt = pt;
+				this.pageId = pageId;
 				this.pageVisible = pageVisible;
 				this.setBorder();
 				this.setToolTipText(this.pt.getTooltipText());
@@ -3138,39 +3336,50 @@ Add "Advanced" menu to GG Imagine
 			return this.getDescription();
 		}
 	};
-	private static final FileFilter textPdfFileFilterDecode = new FileFilter() {
+	private static final FileFilter textPdfFileFilter = new FileFilter() {
 		public boolean accept(File file) {
 			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
 		}
 		public String getDescription() {
-			return "PDF Documents (born-digital, fully decode embedded fonts)";
+			return "PDF Documents (born-digital)";
 		}
 		public String toString() {
 			return this.getDescription();
 		}
 	};
-	private static final FileFilter textPdfFileFilterRender = new FileFilter() {
-		public boolean accept(File file) {
-			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
-		}
-		public String getDescription() {
-			return "PDF Documents (born-digital, render embedded fonts, but do not decode glyphs)";
-		}
-		public String toString() {
-			return this.getDescription();
-		}
-	};
-	private static final FileFilter textPdfFileFilterQuick = new FileFilter() {
-		public boolean accept(File file) {
-			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
-		}
-		public String getDescription() {
-			return "PDF Documents (born-digital, use Unicode mapping only for embedded font)";
-		}
-		public String toString() {
-			return this.getDescription();
-		}
-	};
+//	private static final FileFilter textPdfFileFilterDecode = new FileFilter() {
+//		public boolean accept(File file) {
+//			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+//		}
+//		public String getDescription() {
+//			return "PDF Documents (born-digital, fully decode embedded fonts)";
+//		}
+//		public String toString() {
+//			return this.getDescription();
+//		}
+//	};
+//	private static final FileFilter textPdfFileFilterRender = new FileFilter() {
+//		public boolean accept(File file) {
+//			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+//		}
+//		public String getDescription() {
+//			return "PDF Documents (born-digital, render embedded fonts, but do not decode glyphs)";
+//		}
+//		public String toString() {
+//			return this.getDescription();
+//		}
+//	};
+//	private static final FileFilter textPdfFileFilterQuick = new FileFilter() {
+//		public boolean accept(File file) {
+//			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+//		}
+//		public String getDescription() {
+//			return "PDF Documents (born-digital, use Unicode mapping only for embedded font)";
+//		}
+//		public String toString() {
+//			return this.getDescription();
+//		}
+//	};
 	private static final FileFilter imagePdfFileFilter = new FileFilter() {
 		public boolean accept(File file) {
 			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
@@ -3182,28 +3391,39 @@ Add "Advanced" menu to GG Imagine
 			return this.getDescription();
 		}
 	};
-	private static final FileFilter imageAndMetaPdfFileFilter = new FileFilter() {
-		public boolean accept(File file) {
-			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
-		}
-		public String getDescription() {
-			return "PDF Documents (scanned, with meta pages)";
-		}
-		public String toString() {
-			return this.getDescription();
-		}
-	};
-	private static final FileFilter imageAndOcrPdfFileFilter = new FileFilter() {
-		public boolean accept(File file) {
-			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
-		}
-		public String getDescription() {
-			return "PDF Documents (scanned, with embedded OCR)";
-		}
-		public String toString() {
-			return this.getDescription();
-		}
-	};
+//	private static final FileFilter imagePdfFileFilter = new FileFilter() {
+//		public boolean accept(File file) {
+//			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+//		}
+//		public String getDescription() {
+//			return "PDF Documents (scanned)";
+//		}
+//		public String toString() {
+//			return this.getDescription();
+//		}
+//	};
+//	private static final FileFilter imageAndMetaPdfFileFilter = new FileFilter() {
+//		public boolean accept(File file) {
+//			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+//		}
+//		public String getDescription() {
+//			return "PDF Documents (scanned, with meta pages)";
+//		}
+//		public String toString() {
+//			return this.getDescription();
+//		}
+//	};
+//	private static final FileFilter imageAndOcrPdfFileFilter = new FileFilter() {
+//		public boolean accept(File file) {
+//			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".pdf"));
+//		}
+//		public String getDescription() {
+//			return "PDF Documents (scanned, with embedded OCR)";
+//		}
+//		public String toString() {
+//			return this.getDescription();
+//		}
+//	};
 	private static final FileFilter xmlFileFilter = new FileFilter() {
 		public boolean accept(File file) {
 			return (file.isDirectory() || file.getName().toLowerCase().endsWith(".xml"));

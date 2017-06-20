@@ -252,7 +252,7 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 		BASE_PATH = new File(basePath);
 		
 		//	keep user posted
-		StatusDialog sd = new StatusDialog(Toolkit.getDefaultToolkit().getImage(new File(new File(BASE_PATH, DATA_FOLDER_NAME), ICON_FILE_NAME).toString()), "GoldenGATE Editor Initializing");
+		StatusDialog sd = new StatusDialog(Toolkit.getDefaultToolkit().getImage(new File(new File(BASE_PATH, DATA_FOLDER_NAME), ICON_FILE_NAME).toString()), "GoldenGATE Imagine Initializing");
 		sd.popUp();
 		
 		//	load parameters
