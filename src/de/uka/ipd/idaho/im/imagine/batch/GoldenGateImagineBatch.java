@@ -29,6 +29,7 @@ package de.uka.ipd.idaho.im.imagine.batch;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -36,9 +37,13 @@ import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
+import java.io.Reader;
+import java.io.StringReader;
+import java.net.URL;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -48,6 +53,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import de.uka.ipd.idaho.easyIO.settings.Settings;
+import de.uka.ipd.idaho.gamta.util.ParallelJobRunner;
 import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
 import de.uka.ipd.idaho.gamta.util.imaging.DocumentStyle;
 import de.uka.ipd.idaho.goldenGate.GoldenGateConfiguration;
@@ -59,6 +65,9 @@ import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagineConstants;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentFileExporter;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.pdf.PdfFontDecoder;
+import de.uka.ipd.idaho.im.pdf.PdfFontDecoder.CustomFontDecoderCharset;
+import de.uka.ipd.idaho.im.pdf.PdfFontDecoder.FontDecoderCharset;
 import de.uka.ipd.idaho.im.util.ImDocumentData.ImDocumentEntry;
 import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
@@ -74,12 +83,18 @@ import de.uka.ipd.idaho.stringUtils.StringVector;
  * @author sautter
  */
 public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
+	private static final String CONFIG_PATH_PARAMETER = "CONF";
 	private static final String CACHE_PATH_PARAMETER = "CACHE";
 	private static final String DATA_PARAMETER = "DATA";
 	private static final String DATA_TYPE_PARAMETER = "DT";
+	private static final String FONT_MODE_PARAMETER = "FM";
+	private static final String FONT_CHARSET_PARAMETER = "CS";
+	private static final String FONT_CHARSET_PATH_PARAMETER = "CP";
 	private static final String OUT_PARAMETER = "OUT";
 	private static final String OUT_TYPE_PARAMETER = "OT";
 	private static final String HELP_PARAMETER = "HELP";
+	private static final String SINGLE_THREAD_PARAMETER = "ST";
+	private static final String VERBOSE_CONSOLE_PARAMETER = "VC";
 	
 	private static File BASE_PATH = null;
 	
@@ -95,11 +110,17 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		//	adjust basic parameters
 		String basePath = "./";
 		String logFileName = ("GgImagineBatch." + LOG_TIMESTAMP_FORMATTER.format(new Date()) + ".log");
+		String ggiConfigPath = "GgImagineBatch.cnfg";
+		String fontMode = null;
+		String fontCharSet = null;
+		String fontCharSetPath = null;
 		String cacheRootPath = null;
 		String dataBaseName = null;
 		String dataType = "G";
 		String dataOutPath = null;
 		String dataOutType = "F";
+		boolean useSingleThread = false;
+		boolean verboseConsoleOutput = false;
 		boolean printHelpImplicit = true;
 		boolean printHelpExplicit = false;
 		
@@ -109,6 +130,8 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 				continue;
 			if (args[a].startsWith(BASE_PATH_PARAMETER + "="))
 				basePath = args[a].substring((BASE_PATH_PARAMETER + "=").length());
+			else if (args[a].startsWith(CONFIG_PATH_PARAMETER + "="))
+				ggiConfigPath = args[a].substring((CONFIG_PATH_PARAMETER + "=").length());
 			else if (args[a].startsWith(CACHE_PATH_PARAMETER + "="))
 				cacheRootPath = args[a].substring((CACHE_PATH_PARAMETER + "=").length());
 			else if (args[a].startsWith(DATA_PARAMETER + "=")) {
@@ -119,8 +142,18 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 				printHelpExplicit = true;
 				break;
 			}
+			else if (args[a].equals(SINGLE_THREAD_PARAMETER))
+				useSingleThread = true;
+			else if (args[a].equals(VERBOSE_CONSOLE_PARAMETER))
+				verboseConsoleOutput = true;
 			else if (args[a].startsWith(DATA_TYPE_PARAMETER + "="))
 				dataType = args[a].substring((DATA_TYPE_PARAMETER + "=").length());
+			else if (args[a].startsWith(FONT_MODE_PARAMETER + "="))
+				fontMode = args[a].substring((FONT_MODE_PARAMETER + "=").length());
+			else if (args[a].startsWith(FONT_CHARSET_PARAMETER + "="))
+				fontCharSet = args[a].substring((FONT_CHARSET_PARAMETER + "=").length());
+			else if (args[a].startsWith(FONT_CHARSET_PATH_PARAMETER + "="))
+				fontCharSetPath = args[a].substring((FONT_CHARSET_PATH_PARAMETER + "=").length());
 			else if (args[a].startsWith(OUT_PARAMETER + "="))
 				dataOutPath = args[a].substring((OUT_PARAMETER + "=").length());
 			else if (args[a].startsWith(OUT_TYPE_PARAMETER + "="))
@@ -138,6 +171,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			System.out.println("GoldenGATE Imagine Batch can take the following parameters:");
 			System.out.println("");
 			System.out.println("PATH:\tthe folder to run GoldenGATE Imagine Batch in (defaults to the\r\n\tinstallation folder)");
+			System.out.println("CONF:\tthe (path and) name of the configuration file to run GoldenGATE\r\n\tImagine Batch with (defaults to 'GgImagineBatch.cnfg' in the folder\r\n\tGoldenGATE Imagine Batch is running in)");
 			System.out.println("CACHE:\tthe root folder for all data caching folders (defaults to the path\r\n\tfolder, useful for directing caching to a RAM disc, etc.)");
 			System.out.println("DATA:\tthe PDF files to process:");
 			System.out.println("\t- set to PDF file path and name to process that file");
@@ -147,16 +181,39 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			System.out.println("\t- set to 'D' or 'BD' to indicate born-digital PDF files");
 			System.out.println("\t- set to 'S' to indicate scanned PDF files");
 			System.out.println("\t- set to 'G' or omit to indicate generic PDF files (expects both\r\n\t  born-digital and scanned, determining type on a per-file basis)");
+			System.out.println("FM:\tthe way of handling embedded fonts (relevant only for 'DT=D' and \r\n\t'DT=G'):");
+			System.out.println("\t- set to D to completely decode embedded fonts");
+			System.out.println("\t- set to V to decode un-mapped characters from embedded fonts, i.e.,\r\n\t  ones without a Unicode mapping, and verify existing Unicode mappings");
+			System.out.println("\t- set to U to decode un-mapped characters from embedded fonts, i.e.,\r\n\t  ones without a Unicode mapping (the default)");
+			System.out.println("\t- set to R to only render embedded fonts, but do not decode glyphs");
+			System.out.println("\t- set to Q for quick mode, using Unicode mapping only");
+			System.out.println("CS:\tthe char set for decoding embedded fonts (relevant only for 'FM=D' and\r\n\t'FM=U'):");
+			System.out.println("\t- set to U to use all of Unicode");
+			System.out.println("\t- set to S to use Latin characters and scientific symbols only (the\r\n\t  default)");
+			System.out.println("\t- set to M to use Latin characters and mathematical symbols only");
+			System.out.println("\t- set to F to use Full Latin and derived characters only");
+			System.out.println("\t- set to L to use Extended Latin characters only");
+			System.out.println("\t- set to B to use Basic Latin characters only");
+			System.out.println("\t- set to C for custom, using 'CP' parameter to specify path (file or\r\n\t  URL) to load from, or name of a named charset to load from a provider");
+			System.out.println("CP:\tthe file or URL to load the charset for embedded font decoding from\r\n\t(relevant only for 'CS=C', and required then; implies 'CS=C' if 'CS'\r\n\tparameter omitted); can also be the name of a named charset to resolve\r\n\tvia some provider (prefix with '@' to indicate such a name)");
 			System.out.println("OUT:\tthe folder to store the produced IMF files in (defaults to the folder\r\n\teach individual source PDF file was loaded from)");
 			System.out.println("OT:\tthe way of storing the produced IMF files (defaults to 'F' for 'file'):");
 			System.out.println("\t- set to 'F' or omit to indicate (zipped) single file storage");
 			System.out.println("\t- set to 'D' to indicate indicate (non-zipped) folder storage");
 			System.out.println("LOG:\tthe name for the log files to write respective information to (file\r\n\tnames are suffixed with '.out.log' and '.err.log', set to 'IDE' or 'NO'\r\n\tto log directly to the console, or to DOC to create one log file per\r\n\tdocument, located next to the IMF)");
+			System.out.println("ST:\tno value, just add this token to the command to make the batch run on a\r\n\tsingle core (e.g. if resources required for other simultaneous tasks)");
+			System.out.println("VC:\tno value, just add this token to the command to make the batch produce\r\n\tverbose console output");
 			System.out.println("HELP:\tprint this help text");
 			System.out.println("");
-			System.out.println("The file 'GgImagineBatch.cnfg' specifies what to do to PDF documents after\r\ndecoding:");
+			System.out.println("The file configuration file ('GgImagineBatch.cnfg' by default) specifies how\r\nto process PDF documents after decoding, and can also provide environmental and\r\nPDF decoding parameters:");
 			System.out.println("- imageMarkupTools: a space separated list of the Image Markup Tools to run");
-			System.out.println("- configName: the name of the GoldenGATE Imagine configuration to load the\r\n  Image Markup Tools from");
+			System.out.println("- documentExporters: a space separated list of the Document Exporters to run\r\n  after processing is finished (defaults to all available)");
+			System.out.println("- configName: the name of the GoldenGATE Imagine configuration to load the\r\n  Image Markup Tools and Document Exporters from");
+			System.out.println("- cacheRootFolder: configurable default for 'CACHE' parameter");
+			System.out.println("- fonts.decoding.mode: configurable default for 'FM' parameter");
+			System.out.println("- fonts.decoding.charset: configurable default for 'CS' parameter");
+			System.out.println("- fonts.decoding.charsetPath: configurable default for 'FP' parameter");
+			
 			System.exit(0);
 		}
 		
@@ -173,6 +230,14 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			});
 		}
 		else if (dataInBase.getName().toLowerCase().endsWith(".pdf")) {
+			dataInFiles = new File[1];
+			dataInFiles[0] = dataInBase;
+		}
+		else if (dataInBase.getName().toLowerCase().endsWith(".imf")) {
+			dataInFiles = new File[1];
+			dataInFiles[0] = dataInBase;
+		}
+		else if (dataInBase.getName().toLowerCase().endsWith(".imd")) {
 			dataInFiles = new File[1];
 			dataInFiles[0] = dataInBase;
 		}
@@ -197,6 +262,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		if ((dataInFiles == null) || (dataInFiles.length == 0)) {
 			System.out.println("No data specified to work with, use 'DATA' parameter:");
 			System.out.println("- set to PDF file name: process that file");
+			System.out.println("- set to IMF file name: process that file");
 			System.out.println("- set to folder name: process all PDF files in that folder");
 			System.out.println("- set to TXT file: process all PDF files listed in there");
 			System.exit(0);
@@ -234,11 +300,56 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		}
 		
 		//	preserve original System.out and write major steps there
-		final PrintStream systemOut = new PrintStream(System.out) {
+		final PrintStream systemOut = new PrintStream(System.out, true) {
 			public void println(String str) {
 				super.println(str);
 				if (System.out != this.out)
 					System.out.println(str);
+			}
+			public void println() {
+				super.println();
+				if (System.out != this.out)
+					System.out.println();
+			}
+			public void println(boolean x) {
+				super.println(x);
+				if (System.out != this.out)
+					System.out.println(x);
+			}
+			public void println(char x) {
+				super.println(x);
+				if (System.out != this.out)
+					System.out.println(x);
+			}
+			public void println(int x) {
+				super.println(x);
+				if (System.out != this.out)
+					System.out.println(x);
+			}
+			public void println(long x) {
+				super.println(x);
+				if (System.out != this.out)
+					System.out.println(x);
+			}
+			public void println(float x) {
+				super.println(x);
+				if (System.out != this.out)
+					System.out.println(x);
+			}
+			public void println(double x) {
+				super.println(x);
+				if (System.out != this.out)
+					System.out.println(x);
+			}
+			public void println(char[] x) {
+				super.println(x);
+				if (System.out != this.out)
+					System.out.println(x);
+			}
+			public void println(Object x) {
+				super.println(x);
+				if (System.out != this.out)
+					System.out.println(x);
 			}
 		};
 		
@@ -291,7 +402,11 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		}
 		
 		//	load GoldenGATE Imagine specific settings
-		final Settings ggiSettings = Settings.loadSettings(new File(BASE_PATH, "GgImagineBatch.cnfg"));
+		File ggiSettingsFile;
+		if (ggiConfigPath.startsWith("/") || (ggiConfigPath.indexOf(":\\") == 1) || (ggiConfigPath.indexOf(":/") == -1))
+			ggiSettingsFile = new File(ggiConfigPath);
+		else ggiSettingsFile = new File(BASE_PATH, ggiConfigPath);
+		Settings ggiSettings = Settings.loadSettings(ggiSettingsFile);
 		
 		//	get list of image markup tools to run
 		String imtNameString = ggiSettings.getSetting("imageMarkupTools");
@@ -308,7 +423,7 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		//	use configuration specified in settings (default to 'Default.imagine' for now)
 		String ggiConfigName = ggiSettings.getSetting("configName");
 		
-		//	open GoldenGATE Imagine window
+		//	create GoldenGATE Imagine core
 		GoldenGateConfiguration ggiConfig = null;
 		
 		//	local master configuration selected
@@ -316,20 +431,41 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 			ggiConfig = new FileConfiguration("Local Master Configuration", BASE_PATH, true, true, null);
 		
 		//	other local configuration selected
-		else if (ggiConfigName.startsWith("http://"))
+		else if (ggiConfigName.startsWith("http://") || ggiConfigName.startsWith("https://"))
 			ggiConfig = new UrlConfiguration(ggiConfigName);
 		
 		//	remote configuration selected
 		else ggiConfig = new FileConfiguration(ggiConfigName, new File(new File(BASE_PATH, CONFIG_FOLDER_NAME), ggiConfigName), false, true, null);
 		
+		//	check for config file specified cache root
+		if (cacheRootPath == null)
+			cacheRootPath = ggiSettings.getSetting("cacheRootFolder");
+		
+		//	folder for temporarily storing documents during batch processing
+		File tempDocRootFolder = null;
+		
 		//	if cache path set, add settings for page image and supplement cache
 		if (cacheRootPath != null) {
+			
+			//	make sure cache path denotes folder
 			if (!cacheRootPath.endsWith("/"))
 				cacheRootPath += "/";
+			
+			//	add PDF decoder cache settings
 			Settings set = ggiConfig.getSettings();
 			set.setSetting("cacheRootFolder", cacheRootPath);
 			set.setSetting("pageImageFolder", (cacheRootPath + "PageImages"));
 			set.setSetting("supplementFolder", (cacheRootPath + "Supplements"));
+			
+			//	set up temporary document storage for batch crash recovery
+			String tempDocRootFolderName = (cacheRootPath + "TempDocs");
+			if (tempDocRootFolderName.startsWith("/") || (tempDocRootFolderName.indexOf(':') != -1))
+				tempDocRootFolder = new File(tempDocRootFolderName);
+			else if (tempDocRootFolderName.startsWith("./"))
+				tempDocRootFolder = new File(BASE_PATH, tempDocRootFolderName.substring("./".length()));
+			else tempDocRootFolder = new File(BASE_PATH, tempDocRootFolderName);
+			if (!tempDocRootFolder.exists())
+				tempDocRootFolder.mkdirs();
 		}
 		
 		//	instantiate GoldenGATE Imagine
@@ -352,12 +488,13 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		ImageDocumentFileExporter[] idfes = getFileExporters(ggiConfig.getPlugins(), exporterNames);
 		
 		//	create progress monitor forking steps to console
+		final PrintStream pmInfoSystemOut = (verboseConsoleOutput ? systemOut : System.out);
 		ProgressMonitor pm = new ProgressMonitor() {
 			public void setStep(String step) {
 				systemOut.println(step);
 			}
 			public void setInfo(String info) {
-				System.out.println(info);
+				pmInfoSystemOut.println(info);
 			}
 			public void setBaseProgress(int baseProgress) {}
 			public void setMaxProgress(int maxProgress) {}
@@ -367,131 +504,353 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		//	get PDF converter
 		PdfExtractor pdfExtractor = goldenGateImagine.getPdfExtractor();
 		
+		//	load and check char set file if specified
+		FontDecoderCharset fontDecoderCharSet = null;
+		if ("D".equalsIgnoreCase(dataType) || "BD".equalsIgnoreCase(dataType) || "T".equalsIgnoreCase(dataType)) {
+			
+			//	default font decoding mode and charset via settings
+			if (fontCharSetPath == null)
+				fontCharSetPath = ggiSettings.getSetting("fonts.decoding.charsetPath");
+			if (fontCharSet == null) {
+				if (fontCharSetPath != null)
+					fontCharSet = "C"; // use custom charset if we have one
+				else fontCharSet = ggiSettings.getSetting("fonts.decoding.charset", "S");
+			}
+			if (fontMode == null)
+				fontMode = ggiSettings.getSetting("fonts.decoding.mode", "U");
+			
+			//	instantiate font decoder charset
+			if ("Q".equals(fontMode))
+				fontDecoderCharSet = PdfFontDecoder.NO_DECODING;
+			else if ("R".equals(fontMode))
+				fontDecoderCharSet = PdfFontDecoder.RENDER_ONLY;
+			else if ("U".equals(fontMode) || "V".equals(fontMode) || "D".equals(fontMode)) {
+				if ("U".equals(fontCharSet))
+					fontDecoderCharSet = PdfFontDecoder.UNICODE;
+				else if ("S".equals(fontCharSet))
+					fontDecoderCharSet = FontDecoderCharset.union(PdfFontDecoder.LATIN_FULL, PdfFontDecoder.SYMBOLS);
+				else if ("M".equals(fontCharSet))
+					fontDecoderCharSet = FontDecoderCharset.union(PdfFontDecoder.LATIN_FULL, PdfFontDecoder.MATH);
+				else if ("F".equals(fontCharSet))
+					fontDecoderCharSet = PdfFontDecoder.LATIN_FULL;
+				else if ("L".equals(fontCharSet))
+					fontDecoderCharSet = PdfFontDecoder.LATIN;
+				else if ("B".equals(fontCharSet))
+					fontDecoderCharSet = PdfFontDecoder.LATIN_BASIC;
+				else if ("C".equals(fontCharSet)) {
+					String charSetName;
+					Reader charSetReader;
+					if (fontCharSetPath.startsWith("http://") || fontCharSetPath.startsWith("https://")) {
+						charSetName = fontCharSetPath.substring(fontCharSetPath.lastIndexOf('/') + "/".length());
+						charSetReader = new BufferedReader(new InputStreamReader((new URL(fontCharSetPath)).openStream(), "UTF-8"));
+					}
+					else if (fontCharSetPath.startsWith("@")) {
+						charSetName = fontCharSetPath.substring("@".length()).trim();
+						charSetReader = new StringReader(fontCharSetPath); // will be resolved in readCharSet() below
+					}
+					else {
+						File charSetFile = new File(fontCharSetPath);
+						if (charSetFile.exists()) {
+							charSetName = charSetFile.getName();
+							charSetReader = new BufferedReader(new InputStreamReader(new FileInputStream(charSetFile), "UTF-8"));
+						}
+						else {
+							System.out.println("Invalid font decoding charset file '" + fontCharSetPath + "'");
+							return;
+						}
+					}
+					fontDecoderCharSet = CustomFontDecoderCharset.readCharSet(charSetName, charSetReader);
+					charSetReader.close();
+				}
+				else fontDecoderCharSet = PdfFontDecoder.UNICODE;
+				if ("U".equals(fontMode)) // add "unmapped-only" behavior if requested
+					fontDecoderCharSet = FontDecoderCharset.union(fontDecoderCharSet, PdfFontDecoder.DECODE_UNMAPPED); 
+				else if ("V".equals(fontMode)) // add "only-verify-mapped" behavior if requested
+					fontDecoderCharSet = FontDecoderCharset.union(fontDecoderCharSet, PdfFontDecoder.VERIFY_MAPPED); 
+			}
+			else fontDecoderCharSet = PdfFontDecoder.LATIN_FULL;
+		}
+		
+		//	switch off multi-threading if requested
+		if (useSingleThread)
+			ParallelJobRunner.setLinear(true);
+		
 		//	process files
 		PerDocLogger perDocLogger = null;
-		for (int d = 0; d < dataInFiles.length; d++) try {
+		for (int d = 0; d < dataInFiles.length; d++) {
 			
-			//	determine where to store document
-			String dataOutName = (dataInFiles[d].getName() + ("D".equals(dataOutType) ? ".imd" : ".imf"));
-			File dataOutFile;
-			if (dataOutPath == null)
-				dataOutFile = new File(dataInFiles[d].getAbsoluteFile().getParentFile(), dataOutName);
-			else dataOutFile = new File(dataOutPath, dataOutName);
-			
-			//	we've processed this one before
-			if (dataOutFile.exists()) {
-				systemOut.println("Document '" + dataInFiles[d].getAbsolutePath() + "' processed before, skipping");
-				continue;
-			}
-			else systemOut.println("Processing document '" + dataInFiles[d].getAbsolutePath() + "'");
-			
-			//	create document specific log files if requested
-			if ("DOC".equals(logFileName)) try {
-				logFolder = dataOutFile.getAbsoluteFile().getParentFile();
-				perDocLogger = new PerDocLogger(logFolder, dataInFiles[d].getName());
-			}
-			catch (Exception e) {
-				systemOut.println("Could not create log files in folder '" + logFolder.getAbsolutePath() + "':" + e.getMessage());
-				e.printStackTrace(systemOut);
+			//	prepare intermediate caching of document during processing (need to do it up here so we have the folder accessible to cleanup)
+			File tempDocFolder = null;
+			if (tempDocRootFolder != null) {
+				tempDocFolder = new File(tempDocRootFolder, dataInFiles[d].getName());
+				if (!tempDocFolder.exists())
+					tempDocFolder.mkdirs();
 			}
 			
-			//	load PDF bytes
-			InputStream in = new BufferedInputStream(new FileInputStream(dataInFiles[d]));
-			ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			byte[] buffer = new byte[1024];
-			int read;
-			while ((read = in.read(buffer, 0, buffer.length)) != -1)
-				baos.write(buffer, 0, read);
-			in.close();
-			systemOut.println(" - loaded PDF of " + baos.size() + " bytes");
+			//	trace processing success
+			boolean docFullyProcessed = true;
 			
-			//	convert PDF
-			ImDocument doc;
-			if ("D".equalsIgnoreCase(dataType) || "BD".equalsIgnoreCase(dataType) || "T".equalsIgnoreCase(dataType))
-				doc = pdfExtractor.loadTextPdf(baos.toByteArray(), pm);
-			else if ("S".equalsIgnoreCase(dataType))
-				doc = pdfExtractor.loadImagePdf(baos.toByteArray(), true, pm);
-			else doc = pdfExtractor.loadGenericPdf(baos.toByteArray(), pm);
-			systemOut.println(" - PDF converted, document ID is '" + doc.docId + "'");
-			
-			//	add document name
-			doc.setAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, dataInFiles[d].getName());
-			
-			//	test if document style detected
-			if (DocumentStyle.getStyleFor(doc) == null) {
-				systemOut.println(" - unable to assign document style");
-				continue;
-			}
-			else systemOut.println(" - assigned document style '" + ((String) doc.getAttribute(DocumentStyle.DOCUMENT_STYLE_NAME_ATTRIBUTE)) + "'");
-			
-			//	process document
-			for (int t = 0; t < imts.length; t++) {
-				systemOut.println("Running Image Markup Tool '" + imts[t].getLabel() + "'");
-				imts[t].process(doc, null, null, pm);
-			}
-			
-			//	store document to directory ...
-			if ("D".equals(dataOutType)) {
-				dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
-				File dataOutFolder = new File(dataOutFile.getAbsolutePath() + "ir");
-				if (!dataOutFolder.exists())
-					dataOutFolder.mkdirs();
-				systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
-				ImDocumentEntry[] entries = ImDocumentIO.storeDocument(doc, dataOutFile, pm);
-				systemOut.println("Document entries stored");
-				BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(dataOutFile), "UTF-8"));
-				for (int e = 0; e < entries.length; e++) {
-					out.write(entries[e].toTabString());
-					out.newLine();
+			//	convert PDF and batch process document
+			try {
+				
+				//	determine where to store document
+				String dataOutName;
+				File dataOutFile;
+				
+				//	request for converting and processing PDF
+				if (dataInFiles[d].getName().toLowerCase().endsWith(".pdf")) {
+					dataOutName = (dataInFiles[d].getName() + ("D".equals(dataOutType) ? ".imd" : ".imf"));
+					if (dataOutPath == null)
+						dataOutFile = new File(dataInFiles[d].getAbsoluteFile().getParentFile(), dataOutName);
+					else dataOutFile = new File(dataOutPath, dataOutName);
+					
+					//	we've processed this one before
+					if (dataOutFile.exists()) {
+						systemOut.println("Document '" + dataInFiles[d].getAbsolutePath() + "' processed before, skipping");
+						continue;
+					}
 				}
-				out.flush();
-				out.close();
-				systemOut.println("Document stored");
+				
+				//	request for processing IMF
+				else if (dataInFiles[d].getName().toLowerCase().endsWith(".imf")) {
+					dataOutName = (dataInFiles[d].getName().substring(0, (dataInFiles[d].getName().length() - ".imf".length())) + ("D".equals(dataOutType) ? ".imd" : ".imf"));
+					if (dataOutPath == null)
+						dataOutFile = new File(dataInFiles[d].getAbsoluteFile().getParentFile(), dataOutName);
+					else dataOutFile = new File(dataOutPath, dataOutName);
+				}
+				
+				//	request for processing IMD
+				else if (dataInFiles[d].getName().toLowerCase().endsWith(".imd")) {
+					dataOutName = (dataInFiles[d].getName().substring(0, (dataInFiles[d].getName().length() - ".imd".length())) + ("D".equals(dataOutType) ? ".imd" : ".imf"));
+					if (dataOutPath == null)
+						dataOutFile = new File(dataInFiles[d].getAbsoluteFile().getParentFile(), dataOutName);
+					else dataOutFile = new File(dataOutPath, dataOutName);
+				}
+				
+				//	some other file format (that cannot occur with the above logic, but the compiler don't know)
+				else {
+					systemOut.println("Unknown input format in document '" + dataInFiles[d].getAbsolutePath() + "', skipping");
+					continue;
+				}
+				
+				//	we're processing this one
+				systemOut.println("Processing document '" + dataInFiles[d].getAbsolutePath() + "'");
+				
+				//	create document specific log files if requested
+				if ("DOC".equals(logFileName)) try {
+					logFolder = dataOutFile.getAbsoluteFile().getParentFile();
+					perDocLogger = new PerDocLogger(logFolder, dataInFiles[d].getName());
+				}
+				catch (Exception e) {
+					systemOut.println("Could not create log files in folder '" + logFolder.getAbsolutePath() + "':" + e.getMessage());
+					e.printStackTrace(systemOut);
+				}
+				
+				//	convert input PDF, load IMF
+				ImDocument doc = null;
+				
+				//	check if we have an earlier version cached (batch might have failed at some point)
+				if ((tempDocFolder != null) && (new File(tempDocFolder, "entries.txt")).exists()) try {
+					doc = ImDocumentIO.loadDocument(tempDocFolder);
+					systemOut.println(" - document restored from previous batch run");
+				}
+				
+				//	don't let a cache lookup get in the way
+				catch (Throwable t) {
+					systemOut.println("Error loading document '" + dataInFiles[d].getAbsolutePath() + "' from cache: " + t.getMessage());
+					t.printStackTrace(systemOut);
+				}
+				
+				//	cache miss or error, convert input PDF or load input IMF or IMD
+				if (doc == null) {
+					
+					//	convert PDF
+					if (dataInFiles[d].getName().toLowerCase().endsWith(".pdf")) {
+						
+						//	load PDF bytes
+						InputStream in = new BufferedInputStream(new FileInputStream(dataInFiles[d]));
+						ByteArrayOutputStream baos = new ByteArrayOutputStream();
+						byte[] buffer = new byte[1024];
+						int read;
+						while ((read = in.read(buffer, 0, buffer.length)) != -1)
+							baos.write(buffer, 0, read);
+						in.close();
+						systemOut.println(" - loaded PDF of " + baos.size() + " bytes");
+						
+						//	convert PDF
+						if ("D".equalsIgnoreCase(dataType) || "BD".equalsIgnoreCase(dataType) || "T".equalsIgnoreCase(dataType))
+							doc = pdfExtractor.loadTextPdf(baos.toByteArray(), fontDecoderCharSet, pm);
+						else if ("S".equalsIgnoreCase(dataType))
+							doc = pdfExtractor.loadImagePdf(baos.toByteArray(), true, pm);
+						else doc = pdfExtractor.loadGenericPdf(baos.toByteArray(), pm);
+						systemOut.println(" - PDF converted, document ID is '" + doc.docId + "'");
+						
+						//	add document name
+						doc.setAttribute(ImDocument.DOCUMENT_NAME_ATTRIBUTE, dataInFiles[d].getName());
+						
+						//	cache PDF conversion result
+						if (tempDocFolder != null) try {
+							systemOut.println("Storing conversion result to temporary folder");
+							ImDocumentIO.storeDocument(doc, tempDocFolder, pm);
+							systemOut.println("Document stored to temporary folder");
+						}
+						
+						//	don't let a caching operation get in the way
+						catch (Throwable t) {
+							systemOut.println("Error caching document '" + dataInFiles[d].getAbsolutePath() + "': " + t.getMessage());
+							t.printStackTrace(systemOut);
+						}
+					}
+					
+					//	load IMF
+					else if (dataInFiles[d].getName().toLowerCase().endsWith(".imf"))
+						doc = ImDocumentIO.loadDocument(dataInFiles[d]);
+					
+					//	load IMD
+					else if (dataInFiles[d].getName().toLowerCase().endsWith(".imd"))
+						doc = ImDocumentIO.loadDocument(new File(dataInFiles[d].getParentFile(), (dataInFiles[d].getName() + "ir")));
+					
+					//	some other (yet to implement) format
+					else {
+						systemOut.println(" - unknown document format");
+						continue;
+					}
+				}
+				
+				//	test if document style detected
+				if (DocumentStyle.getStyleFor(doc) == null) {
+					systemOut.println(" - unable to assign document style");
+					continue;
+				}
+				else systemOut.println(" - assigned document style '" + ((String) doc.getAttribute(DocumentStyle.DOCUMENT_STYLE_NAME_ATTRIBUTE)) + "'");
+				
+				//	notify listeners
+				goldenGateImagine.notifyDocumentOpened(doc, dataInFiles[d], pm);
+				
+				//	keep track of which IMTs have already run
+				StringBuffer runImtNames = new StringBuffer((String) doc.getAttribute("_runImtNames", "|"));
+				int runImts = 0;
+				
+				//	process document
+				for (int imt = 0; imt < imts.length; imt++) {
+					
+					//	skip over previously-run IMTs
+					if (runImtNames.indexOf("|" + imtNames[imt] + "|") != -1) {
+						systemOut.println("Skipping previously-run Image Markup Tool '" + imts[imt].getLabel() + "'");
+						continue;
+					}
+					
+					//	cache batch processing result (unless we have just started over)
+					if (runImts != 0) try {
+						goldenGateImagine.notifyDocumentSaving(doc, tempDocFolder, pm);
+						ImDocumentIO.storeDocument(doc, tempDocFolder, pm);
+						goldenGateImagine.notifyDocumentSaved(doc, tempDocFolder, pm);
+						systemOut.println("Document stored to temporary folder");
+					}
+					
+					//	don't let a caching operation get in the way
+					catch (Throwable t) {
+						systemOut.println("Error caching document '" + dataInFiles[d].getAbsolutePath() + "': " + t.getMessage());
+						t.printStackTrace(systemOut);
+					}
+					
+					//	run IMT
+					systemOut.println("Running Image Markup Tool '" + imts[imt].getLabel() + "'");
+					imts[imt].process(doc, null, null, pm);
+					
+					//	update tracking data
+					runImtNames.append(imtNames[imt] + "|");
+					runImts++;
+					doc.setAttribute("_runImtNames", runImtNames.toString());
+				}
+				
+				//	remove batch tracking attribute (we do not want this in the final output)
+				doc.removeAttribute("_runImtNames");
+				
+				//	store document to directory ...
+				if ("D".equals(dataOutType)) {
+					dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
+					File dataOutFolder = new File(dataOutFile.getAbsolutePath() + "ir");
+					if (!dataOutFolder.exists())
+						dataOutFolder.mkdirs();
+					systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
+					goldenGateImagine.notifyDocumentSaving(doc, dataOutFolder, pm);
+					ImDocumentEntry[] entries = ImDocumentIO.storeDocument(doc, dataOutFolder, pm);
+					systemOut.println("Document entries stored");
+					if (dataOutFile.exists()) {
+						String exDataOutFileName = dataOutFile.getAbsolutePath();
+						dataOutFile.renameTo(new File(exDataOutFileName + "." + System.currentTimeMillis() + ".old"));
+						dataOutFile = new File(exDataOutFileName);
+					}
+					BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(dataOutFile), "UTF-8"));
+					for (int e = 0; e < entries.length; e++) {
+						out.write(entries[e].toTabString());
+						out.newLine();
+					}
+					out.flush();
+					out.close();
+					systemOut.println("Document stored");
+					goldenGateImagine.notifyDocumentSaved(doc, dataOutFolder, pm);
+				}
+				
+				//	... or file
+				else {
+					if (dataOutFile.exists()) {
+						String exDataOutFileName = dataOutFile.getAbsolutePath();
+						dataOutFile.renameTo(new File(exDataOutFileName + "." + System.currentTimeMillis() + ".old"));
+						dataOutFile = new File(exDataOutFileName);
+					}
+					dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
+					OutputStream out = new BufferedOutputStream(new FileOutputStream(dataOutFile));
+					systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
+					goldenGateImagine.notifyDocumentSaving(doc, dataOutFile, pm);
+					ImDocumentIO.storeDocument(doc, out, pm);
+					out.flush();
+					out.close();
+					systemOut.println("Document stored");
+					goldenGateImagine.notifyDocumentSaved(doc, dataOutFile, pm);
+				}
+				
+				//	export additional data formats
+				for (int e = 0; e < idfes.length; e++) try {
+					idfes[e].exportDocument(doc, dataOutFile, pm);
+				}
+				
+				//	don't let any additional export error disturb main process
+				catch (Throwable t) {
+					systemOut.println("Error exporting document '" + dataInFiles[d].getAbsolutePath() + "' via '" + idfes[e].getExportMenuLabel() + "': " + t.getMessage());
+					t.printStackTrace(systemOut);
+				}
+				
+				//	notify listeners that we're done (only after exports, as they might target cached content)
+				goldenGateImagine.notifyDocumentClosed(doc.docId);
 			}
 			
-			//	... or file
-			else {
-				dataOutFile.getAbsoluteFile().getParentFile().mkdirs();
-				OutputStream out = new BufferedOutputStream(new FileOutputStream(dataOutFile));
-				systemOut.println("Storing document to '" + dataOutFile.getAbsolutePath() + "'");
-				ImDocumentIO.storeDocument(doc, out, pm);
-				out.flush();
-				out.close();
-				systemOut.println("Document stored");
-			}
-			
-			//	export additional data formats
-			for (int e = 0; e < idfes.length; e++) try {
-				idfes[e].exportDocument(doc, dataOutFile, pm);
-			}
-			
-			//	don't let any additional export error disturb main process
+			//	catch and log whatever might go wrong
 			catch (Throwable t) {
-				systemOut.println("Error exporting document '" + dataInFiles[d].getAbsolutePath() + "' via '" + idfes[e].getExportMenuLabel() + "': " + t.getMessage());
+				systemOut.println("Error processing document '" + dataInFiles[d].getAbsolutePath() + "': " + t.getMessage());
 				t.printStackTrace(systemOut);
+				docFullyProcessed = false;
 			}
-		}
-		
-		//	catch and log whatever might go wrong
-		catch (Throwable t) {
-			systemOut.println("Error processing document '" + dataInFiles[d].getAbsolutePath() + "': " + t.getMessage());
-			t.printStackTrace(systemOut);
-		}
-		
-		//	clean up, error or not
-		finally {
 			
-			//	if cache root set, clean up cache (fast but small RAM discs will run out of space quickly otherwise)
-			if (cacheRootPath != null)
-				cleanCacheFolder(new File(cacheRootPath));
-			
-			//	close log files if logging per document
-			if (perDocLogger != null)
-				perDocLogger.close();
-			perDocLogger = null;
-			
-			//	garbage collect whatever is left
-			System.gc();
+			//	clean up, error or not
+			finally {
+				
+				//	if cache root set, clean up cache (fast but small RAM discs will run out of space quickly otherwise)
+				if (cacheRootPath != null) {
+					cleanCacheFolder(new File(cacheRootPath), 0);
+					if (docFullyProcessed)
+						cleanCacheFolder(tempDocFolder, 2);
+				}
+				
+				//	close log files if logging per document
+				if (perDocLogger != null)
+					perDocLogger.close();
+				perDocLogger = null;
+				
+				//	garbage collect whatever is left
+				System.gc();
+			}
 		}
 		
 		//	shut down whatever threads are left
@@ -578,11 +937,16 @@ public class GoldenGateImagineBatch implements GoldenGateImagineConstants {
 		}
 	}
 	
-	private static void cleanCacheFolder(File folder) {
+	private static void cleanCacheFolder(File folder, int depth) {
 		File[] folderContent = folder.listFiles();
 		for (int c = 0; c < folderContent.length; c++) try {
-			if (folderContent[c].isDirectory())
-				cleanCacheFolder(folderContent[c]);
+			if (folderContent[c].isDirectory()) {
+				if ((depth == 0) && "TempDocs".equals(folderContent[c].getName()))
+					continue; // do not touch intermediate results of batch, they are cleaned up separately
+				cleanCacheFolder(folderContent[c], (depth+1));
+				if (depth != 0)
+					folderContent[c].delete();
+			}
 			else folderContent[c].delete();
 		}
 		catch (Throwable t) {

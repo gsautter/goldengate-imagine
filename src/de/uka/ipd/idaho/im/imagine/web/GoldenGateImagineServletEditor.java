@@ -124,6 +124,7 @@ import de.uka.ipd.idaho.im.ImDocument.ImDocumentListener;
 import de.uka.ipd.idaho.im.ImObject;
 import de.uka.ipd.idaho.im.ImPage;
 import de.uka.ipd.idaho.im.ImRegion;
+import de.uka.ipd.idaho.im.ImSupplement;
 import de.uka.ipd.idaho.im.ImWord;
 import de.uka.ipd.idaho.im.gamta.ImDocumentRoot;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
@@ -137,6 +138,7 @@ import de.uka.ipd.idaho.im.imagine.web.plugins.WebDocumentViewer;
 import de.uka.ipd.idaho.im.imagine.web.plugins.WebDocumentViewer.WebDocumentView;
 import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.AtomicActionListener;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.SelectionAction;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.TwoClickSelectionAction;
@@ -1435,6 +1437,8 @@ window.setTimeout('executeCalls()', 100);
 			blw.writeLine(indent + "  \"id\": \"SEPARATOR\"");
 		else {
 			blw.writeLine(indent + "  \"id\": " + mi.hashCode() + "");
+			if (mi.isOpaque() && (mi.getBackground() != null))
+				blw.writeLine(indent + "  \"background\": \"" + FeedbackPanel.getRGB(mi.getBackground()) + "\"");
 			this.actionMap.put(new Integer(mi.hashCode()), mi);
 		}
 		blw.writeLine(indent + "}");
@@ -1939,6 +1943,7 @@ window.setTimeout('executeCalls()', 100);
 			response.setHeader("Content-Disposition", ("attachment; filename=" + this.idmp.document.getAttribute(DOCUMENT_NAME_ATTRIBUTE, this.idmp.document.docId) + ("rawXml".equals(exportId) ? ".raw" : "") + ".xml"));
 			
 			//	export document
+			//	TODO set annotation nesting order
 			BufferedWriter xmlOut = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), "UTF-8"));
 			ImDocumentRoot xmlDoc = new ImDocumentRoot(this.idmp.document, ("rawXml".equals(exportId) ? (ImDocumentRoot.NORMALIZATION_LEVEL_RAW | ImDocumentRoot.SHOW_TOKENS_AS_WORD_ANNOTATIONS) : ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS));
 			AnnotationUtils.writeXML(xmlDoc, xmlOut, false);
@@ -3578,7 +3583,7 @@ window.setTimeout('executeCalls()', 100);
 	/* Sub class of actual markup panel, preventing all rendering, but still
 	 * managing display settings, and reflecting document updates in respective
 	 * JavaScript calls that update the projected browser-side model. */
-	static class WebImDocumentMarkupPanel extends ImDocumentMarkupPanel {
+	static class WebImDocumentMarkupPanel extends ImDocumentMarkupPanel implements AtomicActionListener {
 		
 		private ImDocumentListener undoRecorder;
 		private LinkedList undoActions = new LinkedList();
@@ -3635,6 +3640,9 @@ window.setTimeout('executeCalls()', 100);
 				if (tsc != null)
 					this.setTextStreamTypeColor(textStreamTypes[t], tsc);
 			}
+			
+			//	keep tabs on atomic actions
+			this.addAtomicActionListener(this);
 			
 			//	prepare recording UNDO actions
 			this.undoRecorder = new UndoRecorder();
@@ -3768,7 +3776,7 @@ window.setTimeout('executeCalls()', 100);
 				if (inUndoAction)
 					return;
 				if (oldValue == null)
-					addUndoAction(new UndoAction("Add " + attributeName + " Attribute to " + object.getType()) {
+					addUndoAction(new UndoAction("Add '" + attributeName + "' Attribute to " + object.getType()) {
 						void doExecute() {
 							object.setAttribute(attributeName, oldValue); // we need to set here instead of removing, as some objects have built-in special attributes (ImWord !!!)
 						}
@@ -3782,6 +3790,29 @@ window.setTimeout('executeCalls()', 100);
 				else addUndoAction(new UndoAction("Change '" + attributeName + "' Attribute of " + object.getType() + " to '" + object.getAttribute(attributeName).toString() + "'") {
 					void doExecute() {
 						object.setAttribute(attributeName, oldValue);
+					}
+				});
+			}
+			public void supplementChanged(final String supplementId, final ImSupplement oldValue) {
+				if (inUndoAction)
+					return;
+				if (oldValue == null) {
+					final ImSupplement newValue = document.getSupplement(supplementId);
+					addUndoAction(new UndoAction("Add '" + supplementId + "' Supplement") {
+						void doExecute() {
+							document.removeSupplement(newValue);
+						}
+					});
+				}
+				else if (document.getSupplement(supplementId) == null)
+					addUndoAction(new UndoAction("Remove '" + supplementId + "' Supplement") {
+						void doExecute() {
+							document.addSupplement(oldValue);
+						}
+					});
+				else addUndoAction(new UndoAction("Change '" + supplementId + "' Supplemen") {
+					void doExecute() {
+						document.addSupplement(oldValue);
 					}
 				});
 			}
@@ -3832,14 +3863,8 @@ window.setTimeout('executeCalls()', 100);
 				this.modCount = WebImDocumentMarkupPanel.this.modCount;
 			}
 			final void execute() {
-				try {
-					inUndoAction = true;
-					this.doExecute();
-					WebImDocumentMarkupPanel.this.modCount = this.modCount;
-				}
-				finally {
-					inUndoAction = false;
-				}
+				this.doExecute();
+				WebImDocumentMarkupPanel.this.modCount = this.modCount;
 			}
 			abstract void doExecute();
 		}
@@ -3887,6 +3912,8 @@ window.setTimeout('executeCalls()', 100);
 		 * @param undoId the ID to stop after
 		 */
 		void undo(int undoId) {
+			this.inUndoAction = true;
+			this.beginAtomicAction("UNDO");
 			while (this.undoActions.size() != 0) {
 				UndoAction ua = ((UndoAction) this.undoActions.removeFirst());
 				this.undoMenuBuilderJavaScriptCalls.remove(this.undoMenuBuilderJavaScriptCalls.size()-1);
@@ -3894,6 +3921,8 @@ window.setTimeout('executeCalls()', 100);
 				if (ua.id == undoId)
 					break;
 			}
+			this.endAtomicAction();
+			this.inUndoAction = false;
 		}
 		
 		private class ReactionTrigger implements ImDocumentListener {
@@ -3961,6 +3990,9 @@ window.setTimeout('executeCalls()', 100);
 					inReactionObjects.remove(object);
 				}
 			}
+			public void supplementChanged(String supplementId, ImSupplement oldValue) {
+				//	no reaction triggering for supplement modifications
+			}
 			public void annotationAdded(final ImAnnotation annotation) {
 				if (inUndoAction || imToolActive || !inReactionObjects.add(annotation))
 					return;
@@ -4024,6 +4056,9 @@ window.setTimeout('executeCalls()', 100);
 						addJavaScriptCall("uSetAnnotLastWord('" + ((ImAnnotation) object).getType() + "', '" + ((ImAnnotation) object).getFirstWord().getLocalID() + "', '" + ((ImWord) oldValue).getLocalID() + "', '" + ((ImAnnotation) object).getLastWord().getLocalID() + "');");
 				}
 				//	no other attributes used in HTML page (outside attribute editor dialog)
+			}
+			public void supplementChanged(String supplementId, ImSupplement oldValue) {
+				//	nothing to relay about supplement modifications
 			}
 			public void regionAdded(final ImRegion region) {
 				StringBuffer jsonRegion = new StringBuffer("{");
@@ -4172,21 +4207,33 @@ window.setTimeout('executeCalls()', 100);
 			return ((SelectionAction[]) actions.toArray(new SelectionAction[actions.size()]));
 		}
 		
-		/* (non-Javadoc)
-		 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#beginAtomicAction(java.lang.String)
-		 */
-		public void beginAtomicAction(String label) {
+		public void atomicActionStarted(long id, String label, ImageMarkupTool imt, ImAnnotation annot, ProgressMonitor pm) {
+			if ("UNDO".equals(label))
+				return;
 			startMultipartUndoAction(label);
 			//	TODO_not_(we're collecting everything) start collecting JavaScript calls to make changes visible in web page
 		}
-		
-		/* (non-Javadoc)
-		 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#endAtomicAction()
-		 */
-		public void endAtomicAction() {
+		public void atomicActionFinishing(long id, ProgressMonitor pm) { /* no follow-up actions here */ }
+		public void atomicActionFinished(long id, ProgressMonitor pm) {
 			finishMultipartUndoAction();
 			//	TODO_not_(we're collecting everything)  finish collecting JavaScript calls to make changes visible in web page
 		}
+//		
+//		/* (non-Javadoc)
+//		 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#beginAtomicAction(java.lang.String)
+//		 */
+//		public void beginAtomicAction(String label) {
+//			startMultipartUndoAction(label);
+//			//	TODO_not_(we're collecting everything) start collecting JavaScript calls to make changes visible in web page
+//		}
+//		
+//		/* (non-Javadoc)
+//		 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#endAtomicAction()
+//		 */
+//		public void endAtomicAction() {
+//			finishMultipartUndoAction();
+//			//	TODO_not_(we're collecting everything)  finish collecting JavaScript calls to make changes visible in web page
+//		}
 		
 		/* (non-Javadoc)
 		 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#paint(java.awt.Graphics)
@@ -4219,7 +4266,7 @@ window.setTimeout('executeCalls()', 100);
 			this.imToolActive = true;
 			
 			//	initialize atomic UNDO
-			this.beginAtomicAction("Apply " + imt.getLabel());
+			this.startAtomicAction(("Apply " + imt.getLabel()), imt, annot, pm);
 			
 			//	listen for newly added annotation and region types
 			ImDocumentListener idl = null;
@@ -4242,6 +4289,7 @@ window.setTimeout('executeCalls()', 100);
 						}
 					}
 					public void attributeChanged(ImObject object, String attributeName, Object oldValue) {}
+					public void supplementChanged(String supplementId, ImSupplement oldValue) {}
 					public void regionAdded(ImRegion region) {
 						regionCss.add(region.getType());
 					}
@@ -4280,7 +4328,7 @@ window.setTimeout('executeCalls()', 100);
 					this.document.removeDocumentListener(idl);
 				
 				//	finish atomic UNDO
-				this.endAtomicAction();
+				this.finishAtomicAction(pm);
 				
 				//	unlock reaction triggers
 				this.imToolActive = false;

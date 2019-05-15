@@ -100,8 +100,10 @@ public class GoldenGateImagineConfigurationManager extends AbstractConfiguration
 					selectablePluginClassNames.addElementIgnoreDuplicates(plugins[p].getClass().getName());
 				continue;
 			}
-			if (plugins[p] instanceof DocumentViewer)
+			if (plugins[p] instanceof DocumentViewer) /* for use in XML view */ {
+				selectablePluginClassNames.addElementIgnoreDuplicates(plugins[p].getClass().getName());
 				continue;
+			}
 			if (plugins[p] instanceof DocumentEditorExtension)
 				continue;
 			if (plugins[p] instanceof DocumentProcessorManager)

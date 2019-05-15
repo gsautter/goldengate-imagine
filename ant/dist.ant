@@ -5,8 +5,7 @@
 -->
 
 <project name="dist">
-	<target name="zips" depends="imaginezip,imaginebatchzip,imaginewebzip,vpackerzip,imfdocio">
-	</target>
+	<target name="zips" depends="imaginezip,imaginebatchzip,imaginewebzip,vpackerzip,imfdocio" />
 	
 	<target name="imagine">
 		<delete file="${jar.imagine}" />
@@ -16,12 +15,14 @@
 				<exclude name="**/batch/**.class" />
 				<exclude name="**/starter/**.class" />
 				<exclude name="**/utilities/**.class" />
+				<exclude name="**/configuration/**.class" />
 			</fileset>
 			<fileset dir="${src.home}">
 				<include name="**/**.java" />
 				<exclude name="**/batch/**.java" />
 				<exclude name="**/starter/**.java" />
 				<exclude name="**/utilities/**.java" />
+				<exclude name="**/configuration/**.java" />
 			</fileset>
 			<fileset dir="." includes="LICENSE.txt"/>
 		</jar>

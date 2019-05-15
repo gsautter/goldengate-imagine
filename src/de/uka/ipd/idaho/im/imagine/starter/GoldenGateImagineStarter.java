@@ -54,11 +54,11 @@ public class GoldenGateImagineStarter implements GoldenGateImagineConstants {
 	 * @param args
 	 */
 	public static void main(String[] args) throws Exception {
-		
-		//	set platform L&F
-		try {
-			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-		} catch (Exception e) {}
+//		
+//		//	set platform look & feel
+//		try {
+//			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+//		} catch (Exception e) {}
 		
 		//	read data path
 		String dataBasePath = "./";
@@ -86,6 +86,7 @@ public class GoldenGateImagineStarter implements GoldenGateImagineConstants {
 		String proxyPort = null;
 		String proxyUser = null;
 		String proxyPwd = null;
+		String lookAndFeel = "SYSTEM";
 		try {
 			BufferedReader parameterReader = new BufferedReader(new FileReader(new File(basePath, PARAMETER_FILE_NAME)));
 			String line;
@@ -102,6 +103,8 @@ public class GoldenGateImagineStarter implements GoldenGateImagineConstants {
 					proxyUser = line.substring(PROXY_USER.length() + 1).trim();
 				else if (line.startsWith(PROXY_PWD + "="))
 					proxyPwd = line.substring(PROXY_PWD.length() + 1).trim();
+				else if (line.startsWith(LOOK_AND_FEEL_NAME + "="))
+					lookAndFeel = line.substring(LOOK_AND_FEEL_NAME.length() + 1).trim();
 			}
 			parameterReader.close();
 		}
@@ -111,6 +114,11 @@ public class GoldenGateImagineStarter implements GoldenGateImagineConstants {
 		catch (IOException ioe) {
 			System.out.println("GoldenGateImagineStarter: " + ioe.getClass().getName() + " (" + ioe.getMessage() + ") while reading GoldenGATE startup parameters.");
 		}
+		
+		//	set configured look & feel
+		try {
+			UIManager.setLookAndFeel("JAVA".equals(lookAndFeel) ? UIManager.getCrossPlatformLookAndFeelClassName() : UIManager.getSystemLookAndFeelClassName());
+		} catch (Exception e) {}
 		
 		//	configure web access
 		if (proxyName != null) {

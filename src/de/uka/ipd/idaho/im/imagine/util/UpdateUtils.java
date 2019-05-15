@@ -272,7 +272,7 @@ public class UpdateUtils implements GoldenGateImagineConstants {
 				
 				//	check if update is recent, download if so
 				String updateTimestamp = updateFileName.substring(updateName.length(), updateFileName.length() - 4);
-				if (updateTimestamp.compareTo(ggTimestampString) > 0) {
+				if (updateTimestamp.compareTo(ggTimestampString) < 0) {
 					System.out.println(" - update '" + updateFileName + "' is out of date.");
 					if (sd != null) sd.setStatusLabel(" - update '" + updateFileName + "' is out of date.");
 					continue;

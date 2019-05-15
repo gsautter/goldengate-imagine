@@ -94,6 +94,9 @@ public interface GoldenGateImagineConstants {
 	/** default value for maximum VM memory: 512 MB */
 	public static final String DEFAULT_MAX_MEMORY = "512";
 	
+	/** the name of the setting holding the initial memory for the Java VM */
+	public static final String LOOK_AND_FEEL_NAME = "LOOK_AND_FEEL";
+	
 	
 	/** the parameter indicating the GoldenGATE Imagine main class that it was started in an appropriate way */
 	public static final String RUN_PARAMETER = "RUN";

@@ -63,6 +63,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
 import de.uka.ipd.idaho.easyIO.settings.Settings;
+import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImage;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImageInputStream;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImageStore;
@@ -87,6 +88,8 @@ import de.uka.ipd.idaho.goldenGate.plugins.ResourceManager;
 import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.ImSupplement;
+import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionListener;
+import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineDocumentListener;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImaginePlugin;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
@@ -98,6 +101,7 @@ import de.uka.ipd.idaho.im.imagine.plugins.ReactionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
 import de.uka.ipd.idaho.im.ocr.OcrEngine;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImSupplementCache;
 import de.uka.ipd.idaho.stringUtils.StringVector;
@@ -160,7 +164,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		PageImage.addPageImageSource(this.pageImageStore);
 		
 		//	create PDF reader caching supplements on disc
-		String supplementFolderName = set.getSetting("supplementFolder", "Supplements");
+		String supplementFolderName = set.getSetting("supplementFolder", "./Supplements");
 		File supplementFolder;
 		if (supplementFolderName.startsWith("/") || (supplementFolderName.indexOf(':') != -1))
 			supplementFolder = new File(supplementFolderName);
@@ -197,6 +201,8 @@ public class GoldenGateImagine implements GoldenGateConstants {
 				this.registerDocumentExporter((ImageDocumentExporter) ggps[p]);
 			if (ggps[p] instanceof ReactionProvider)
 				this.registerReactionProvider((ReactionProvider) ggps[p]);
+			if (ggps[p] instanceof DisplayExtensionProvider)
+				this.registerDisplayExtensionProvider((DisplayExtensionProvider) ggps[p]);
 			if (ggps[p] instanceof GoldenGateImagineDocumentListener)
 				this.registerDocumentListener((GoldenGateImagineDocumentListener) ggps[p]);
 		}
@@ -291,119 +297,6 @@ public class GoldenGateImagine implements GoldenGateConstants {
 			super.removeSupplement(ims);
 		}
 	}
-//	private class GgiImDocument extends ImDocument {
-//		private File supplementFolder;
-//		GgiImDocument(String docId, File supplementFolder) {
-//			super(docId);
-//			this.supplementFolder = supplementFolder;
-//		}
-//		private long inMemorySupplementBytes = 0;
-//		public ImSupplement addSupplement(ImSupplement ims) {
-//			
-//			//	store known type supplements on disc if there are too many or too large
-//			if ((ims instanceof ImSupplement.Figure) || (ims instanceof ImSupplement.Graphics) || (ims instanceof ImSupplement.Scan) || (ims instanceof ImSupplement.Source)) try {
-//				
-//				//	threshold already exceeded, disc cache right away
-//				if (this.inMemorySupplementBytes > maxInMemorySupplementBytes)
-//					ims = this.createDiscSupplement(ims, null);
-//				
-//				//	still below threshold, check source
-//				else {
-//					InputStream sis = ims.getInputStream();
-//					
-//					//	this one resides in memory, count it
-//					if (sis instanceof ByteArrayInputStream)
-//						this.inMemorySupplementBytes += sis.available();
-//					
-//					//	threshold just exceeded
-//					if (this.inMemorySupplementBytes > maxInMemorySupplementBytes) {
-//						
-//						//	disc cache all existing supplements
-//						ImSupplement[] imss = this.getSupplements();
-//						for (int s = 0; s < imss.length; s++) {
-//							if ((imss[s] instanceof ImSupplement.Figure) || (imss[s] instanceof ImSupplement.Graphics) || (imss[s] instanceof ImSupplement.Scan) || (imss[s] instanceof ImSupplement.Scan))
-//								super.addSupplement(this.createDiscSupplement(imss[s], null));
-//						}
-//						
-//						//	disc cache argument supplement
-//						ims = this.createDiscSupplement(ims, sis);
-//					}
-//				}
-//			}
-//			catch (IOException ioe) {
-//				System.out.println("Error caching supplement '" + ims.getId() + "': " + ioe.getMessage());
-//				ioe.printStackTrace(System.out);
-//			}
-//			
-//			//	store (possibly modified) supplement
-//			return super.addSupplement(ims);
-//		}
-//		
-//		private ImSupplement createDiscSupplement(ImSupplement ims, InputStream sis) throws IOException {
-//			
-//			//	make sure not to call disk caching recursively
-//			if (ims.getClass().getName().startsWith(GoldenGateImagine.class.getName()))
-//				return ims;
-//			
-//			//	get input stream if not already done
-//			if (sis == null)
-//				sis = ims.getInputStream();
-//			
-//			//	this one's not in memory, close input stream and we're done
-//			if (!(sis instanceof ByteArrayInputStream)) {
-//				sis.close();
-//				return ims;
-//			}
-//			
-//			//	get file name and extension
-//			String sDataName = ims.getId().replaceAll("[^a-zA-Z0-9]", "_");
-//			String sDataType = ims.getMimeType();
-//			if (sDataType.indexOf('/') != -1)
-//				sDataType = sDataType.substring(sDataType.indexOf('/') + "/".length());
-//			
-//			//	create file
-//			this.supplementFolder.mkdirs();
-//			final File sFile = new File(this.supplementFolder, (this.docId + "." + sDataName + "." + sDataType));
-//			
-//			//	store supplement in file (if not done in previous run)
-//			if (!sFile.exists()) {
-//				sFile.createNewFile();
-//				OutputStream sos = new BufferedOutputStream(new FileOutputStream(sFile));
-//				byte[] sBuffer = new byte[1024];
-//				for (int r; (r = sis.read(sBuffer, 0, sBuffer.length)) != -1;)
-//					sos.write(sBuffer, 0, r);
-//				sos.flush();
-//				sos.close();
-//			}
-//			
-//			//	replace supplement with disc based one
-//			if (ims instanceof ImSupplement.Figure)
-//				return new ImSupplement.Figure(this, ims.getMimeType(), ((ImSupplement.Figure) ims).getPageId(), ((ImSupplement.Figure) ims).getRenderOrderNumber(), ((ImSupplement.Figure) ims).getDpi(), ((ImSupplement.Figure) ims).getBounds()) {
-//					public InputStream getInputStream() throws IOException {
-//						return new BufferedInputStream(new FileInputStream(sFile));
-//					}
-//				};
-//			else if (ims instanceof ImSupplement.Graphics)
-//				return new ImSupplement.Graphics(this, ((ImSupplement.Graphics) ims).getPageId(), ((ImSupplement.Graphics) ims).getRenderOrderNumber(), ((ImSupplement.Graphics) ims).getBounds()) {
-//					public InputStream getInputStream() throws IOException {
-//						return new BufferedInputStream(new FileInputStream(sFile));
-//					}
-//				};
-//			else if (ims instanceof ImSupplement.Scan)
-//				return new ImSupplement.Scan(this, ims.getMimeType(), ((ImSupplement.Scan) ims).getPageId(), ((ImSupplement.Scan) ims).getRenderOrderNumber(), ((ImSupplement.Scan) ims).getDpi()) {
-//					public InputStream getInputStream() throws IOException {
-//						return new BufferedInputStream(new FileInputStream(sFile));
-//					}
-//				};
-//			else if (ims instanceof ImSupplement.Source)
-//				return new ImSupplement.Source(this, ims.getMimeType()) {
-//					public InputStream getInputStream() throws IOException {
-//						return new BufferedInputStream(new FileInputStream(sFile));
-//					}
-//				};
-//			else return ims; // never gonna happen, but Java don't know
-//		}
-//	}
 	
 	/**
 	 * Retrieve the PDF Extractor embedded in this GoldenGATE Imagine instance.
@@ -667,7 +560,7 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	}
 	
 	/**
-	 * Find a ReactionProvider by its class name.
+	 * Find a reaction provider by its class name.
 	 * @param pluginClassName the class name of the desired reaction provider
 	 * @return the reaction provider with the specified class name
 	 */
@@ -676,12 +569,49 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	}
 	
 	/**
-	 * Get all ReactionProvider that are currently available.
+	 * Get all reaction providers that are currently available.
 	 * @return an array holding all reaction providers registered
 	 */
 	public ReactionProvider[] getReactionProviders() {
 		ArrayList rps = new ArrayList(this.reactionProvidersByClassName.values());
 		return ((ReactionProvider[]) rps.toArray(new ReactionProvider[rps.size()]));
+	}
+	
+	//	register and lookup method for display extension providers
+	private ArrayList displayExtensionProviders = new ArrayList();
+	
+	private void registerDisplayExtensionProvider(DisplayExtensionProvider dep) {
+		if (dep != null)
+			this.displayExtensionProviders.add(dep);
+	}
+	
+	/**
+	 * Get all display extension providers that are currently available.
+	 * @return an array holding all registered display extension providers
+	 */
+	public DisplayExtensionProvider[] getDisplayExtensionProviders() {
+		return ((DisplayExtensionProvider[]) this.displayExtensionProviders.toArray(new DisplayExtensionProvider[this.displayExtensionProviders.size()]));
+	}
+	
+	//	register for document listeners
+	private ArrayList displayExtensionListeners = new ArrayList();
+	
+	/**
+	 * Register a listener for changes to document display extensions.
+	 * @param del the listener to register
+	 */
+	public void addDisplayExtensionListener(DisplayExtensionListener del) {
+		if (del != null)
+			this.displayExtensionListeners.add(del);
+	}
+	
+	/**
+	 * Remove a listener for changes to document display extensions.
+	 * @param del the listener to remove
+	 */
+	public void removeDisplayExtensionListener(DisplayExtensionListener del) {
+		if (del != null)
+			this.displayExtensionListeners.remove(del);
 	}
 	
 	//	register for document listeners
@@ -708,10 +638,24 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	 * core. This method should be called by client code right after an Image
 	 * Markup document has been loaded.
 	 * @param doc the document that was opened
+	 * @param source the source the document was loaded from
+	 * @param pm a progress monitor observing post-load processing
 	 */
-	public void notifyDocumentOpened(ImDocument doc) {
+	public void notifyDocumentOpened(ImDocument doc, Object source, ProgressMonitor pm) {
 		for (int l = 0; l < this.documentListeners.size(); l++)
-			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentOpened(doc);
+			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentOpened(doc, source, pm);
+	}
+	
+	/**
+	 * Notify all registered document listeners that an Image Markup document
+	 * has been selected for editing in an application built around this
+	 * GoldenGATE Imagine core. This method should be called by client code
+	 * right after an Image Markup document has been loaded.
+	 * @param doc the document that was selected
+	 */
+	public void notifyDocumentSelected(ImDocument doc) {
+		for (int l = 0; l < this.documentListeners.size(); l++)
+			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentSelected(doc);
 	}
 	
 	/**
@@ -721,10 +665,12 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	 * if the Image Markup document is stored as such, rather than exported in
 	 * another format.
 	 * @param doc the document that is about to be saved
+	 * @param dest the destination the document will be saved to
+	 * @param pm a progress monitor observing saving preparations
 	 */
-	public void notifyDocumentSaving(ImDocument doc) {
+	public void notifyDocumentSaving(ImDocument doc, Object dest, ProgressMonitor pm) {
 		for (int l = 0; l < this.documentListeners.size(); l++)
-			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentSaving(doc);
+			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentSaving(doc, dest, pm);
 	}
 	
 	/**
@@ -734,10 +680,12 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	 * Markup document has been stored as such, rather than exported in another
 	 * format, and only if the saving process has completed successfully.
 	 * @param doc the document that has been saved
+	 * @param dest the destination the document was saved to
+	 * @param pm a progress monitor observing post-save preparations
 	 */
-	public void notifyDocumentSaved(ImDocument doc) {
+	public void notifyDocumentSaved(ImDocument doc, Object dest, ProgressMonitor pm) {
 		for (int l = 0; l < this.documentListeners.size(); l++)
-			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentSaved(doc);
+			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentSaved(doc, dest, pm);
 	}
 	
 	/**
@@ -769,6 +717,22 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	}
 	
 	/**
+	 * Issue a notification of a change to the display extensions in a given
+	 * document markup panel. Use a null argument to indicate a change that
+	 * affects all document markup panels current in use.
+	 * @param idmp the document markup panel affected by the change
+	 */
+	public void notifyDisplayExtensionsModified(ImDocumentMarkupPanel idmp) {
+		for (int l = 0; l < this.displayExtensionListeners.size(); l++) try {
+			((DisplayExtensionListener) this.displayExtensionListeners.get(l)).displayExtensionsModified(idmp);
+		}
+		catch (Exception e) {
+			System.out.println("Error issuing display extension change notification: " + e.getMessage());
+			e.printStackTrace(System.out);
+		}
+	}
+	
+	/**
 	 * Find a GoldenGatePlugin by its class name.
 	 * @param pluginClassName the class name of the desired GoldenGatePlugin
 	 * @return the GoldenGatePlugin with the specified class name
@@ -783,6 +747,25 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	 */
 	public GoldenGatePlugin[] getPlugins() {
 		return this.goldenGate.getPlugins();
+	}
+	
+	/**
+	 * Find a GoldenGatePlugin derived from a specific class.
+	 * @param cls the class whose implementation to find
+	 * @return the first GoldenGatePlugin derived from the argument class
+	 */
+	public GoldenGatePlugin getImplementingPlugin(Class cls) {
+		return this.goldenGate.getImplementingPlugin(cls);
+	}
+	
+	/**
+	 * Find all GoldenGatePlugins derived from a specific class.
+	 * @param cls the class whose implementations to find
+	 * @return an array holding the GoldenGatePlugins derived from the argument
+	 *            class
+	 */
+	public GoldenGatePlugin[] getImplementingPlugins(Class cls) {
+		return this.goldenGate.getImplementingPlugins(cls);
 	}
 	
 	/**

@@ -27,6 +27,7 @@
  */
 package de.uka.ipd.idaho.im.imagine.plugins;
 
+import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
 import de.uka.ipd.idaho.im.ImDocument;
 
 /**
@@ -40,33 +41,53 @@ public interface GoldenGateImagineDocumentListener extends GoldenGateImaginePlug
 	
 	/**
 	 * Receive notification that an Image Markup document has been opened. This
-	 * method is called right after the loading process is completed.
+	 * method is called right after the loading process is completed. The source
+	 * argument will usually be a file or an Image Markup IO provider, but might
+	 * also be null.
 	 * Notifications received through this method allow for receivers to load
 	 * additional data from supplements, for instance, e.g. to use in reactions
 	 * to user edits.
 	 * @param doc the document that was opened
+	 * @param source the source the document was loaded from
+	 * @param pm a progress monitor observing post-load processing
 	 */
-	public abstract void documentOpened(ImDocument doc);
+	public abstract void documentOpened(ImDocument doc, Object source, ProgressMonitor pm);
+	
+	/**
+	 * Receive notification that an Image Markup document has been selected for
+	 * displaying and editing (most likely in some sort of UI). This method is
+	 * called whenever the selected document changes.
+	 * Notifications received through this method allow for receivers to adjust
+	 * custom UI components, for instance.
+	 * @param doc the document that was selected
+	 */
+	public abstract void documentSelected(ImDocument doc);
 	
 	/**
 	 * Receive notification that an Image Markup document is about to be saved
 	 * to persistent storage. This method is called right before the actual
-	 * saving process begins.
+	 * saving process begins. The destination argument will usually be a file
+	 * or an Image Markup IO provider, but might also be null.
 	 * Notifications received through this method allow for receivers to update
 	 * supplements to be stored along with the document, for instance.
 	 * @param doc the document that is about to be saved
+	 * @param dest the destination the document will be saved to
+	 * @param pm a progress monitor observing saving preparations
 	 */
-	public abstract void documentSaving(ImDocument doc);
+	public abstract void documentSaving(ImDocument doc, Object dest, ProgressMonitor pm);
 	
 	/**
 	 * Receive notification that an Image Markup document has been saved to
 	 * persistent storage. This method is called right after the actual saving
-	 * process has completed successfully.
+	 * process has completed successfully. The destination argument will usually
+	 * be a file or an Image Markup IO provider, but might also be null.
 	 * Notifications received through this method allow for receivers to clean
 	 * up history data associated with the document, for instance.
 	 * @param doc the document that has been saved
+	 * @param dest the destination the document was saved to
+	 * @param pm a progress monitor observing post-save processing
 	 */
-	public abstract void documentSaved(ImDocument doc);
+	public abstract void documentSaved(ImDocument doc, Object dest, ProgressMonitor pm);
 	
 	/**
 	 * Receive notification that an Image Markup document has been closed. This

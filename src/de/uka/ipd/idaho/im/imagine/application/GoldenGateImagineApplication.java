@@ -37,6 +37,8 @@ import java.awt.Image;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -63,6 +65,7 @@ import java.util.HashSet;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
@@ -74,6 +77,7 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
@@ -82,6 +86,7 @@ import javax.swing.table.TableModel;
 
 import de.uka.ipd.idaho.easyIO.EasyIO;
 import de.uka.ipd.idaho.easyIO.settings.Settings;
+import de.uka.ipd.idaho.easyIO.utilities.ApplicationHttpsEnabler;
 import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
 import de.uka.ipd.idaho.gamta.util.swing.ProgressMonitorDialog;
 import de.uka.ipd.idaho.goldenGate.GoldenGateConfiguration;
@@ -108,6 +113,10 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 	private static StringVector CONFIG_HOSTS = new StringVector();
 	
 	private static final String CACHE_PATH_PARAMETER = "CACHE";
+	
+	private static final String SYSTEM_LOOK_AND_FEEL_NAME = "SYSTEM";
+	private static final String JAVA_LOOK_AND_FEEL_NAME = "JAVA";
+	private static final String[] LOOK_AND_FEEL_NAMES = {SYSTEM_LOOK_AND_FEEL_NAME, JAVA_LOOK_AND_FEEL_NAME};
 	
 	private static final String LOG_TIMESTAMP_DATE_FORMAT = "yyyyMMdd-HHmm";
 	private static final DateFormat LOG_TIMESTAMP_FORMATTER = new SimpleDateFormat(LOG_TIMESTAMP_DATE_FORMAT);
@@ -277,11 +286,27 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 			System.getProperties().put("proxyHost", PARAMETERS.getSetting(PROXY_NAME));
 			if (PARAMETERS.containsKey(PROXY_PORT))
 				System.getProperties().put("proxyPort", PARAMETERS.getSetting(PROXY_PORT));
-			
 			if (PARAMETERS.containsKey(PROXY_USER) && PARAMETERS.containsKey(PROXY_PWD)) {
 				//	initialize proxy authentication
 			}
 		}
+		
+		//	enable HTTPS
+		try {
+			File certFolder = new File(BASE_PATH, "HttpsCerts");
+			certFolder.mkdirs();
+			ApplicationHttpsEnabler https = new ApplicationHttpsEnabler(certFolder, true, false);
+			https.init();
+		}
+		catch (IOException ioe) {
+			System.out.println("Could not initialize HTTPS: " + ioe.getMessage());
+			ioe.printStackTrace(System.out);
+		}
+		
+		//	set configured look & feel
+		try {
+			UIManager.setLookAndFeel(JAVA_LOOK_AND_FEEL_NAME.equals(PARAMETERS.getSetting(LOOK_AND_FEEL_NAME, SYSTEM_LOOK_AND_FEEL_NAME)) ? UIManager.getCrossPlatformLookAndFeelClassName() : UIManager.getSystemLookAndFeelClassName());
+		} catch (Exception e) {}
 		
 		//	create log files if required
 		File logFolder = null;
@@ -578,7 +603,7 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 		private static final SimpleDateFormat timestampFormat = new SimpleDateFormat("yyyy.MM.dd.HH.mm");
 		private ConfigurationDescriptor[] configs;
 		private File masterBasePath;
-		private ConfigurationDescriptor selectedConfig = null;
+		ConfigurationDescriptor selectedConfig = null;
 		private JButton makeMasterConfigButton = new JButton("Make Master");
 		SelectConfigurationDialog(Image icon, ConfigurationDescriptor[] configs, File basePath) {
 			super("Select Configuration");
@@ -586,17 +611,15 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 			this.configs = configs;
 			this.masterBasePath = basePath;
 			this.getContentPane().setLayout(new BorderLayout());
-			
 			this.getContentPane().add(new JLabel("Please select the configuration to load.", JLabel.LEFT), BorderLayout.NORTH);
 			
+			//	assemble configuration list
 			final JTable configList = new JTable(new ConfigTableModel());
 			configList.getColumnModel().getColumn(2).setMinWidth(100);
 			configList.getColumnModel().getColumn(2).setMaxWidth(100);
 			configList.setShowHorizontalLines(true);
 			configList.setShowVerticalLines(true);
 			configList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-			if (this.configs.length != 0) 
-				configList.setRowSelectionInterval(0, 0);
 			configList.addMouseListener(new MouseAdapter() {
 				public void mouseClicked(MouseEvent me) {
 					if (me.getClickCount() > 1) {
@@ -639,6 +662,7 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 			configListBox.setViewportBorder(BorderFactory.createLoweredBevelBorder());
 			this.getContentPane().add(configListBox, BorderLayout.CENTER);
 			
+			//	assemble button panel
 			JButton okButton = new JButton("OK");
 			okButton.setBorder(BorderFactory.createRaisedBevelBorder());
 			okButton.setPreferredSize(new Dimension(100, 21));
@@ -690,8 +714,13 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
 			buttonPanel.add(okButton);
 			buttonPanel.add(cancelButton);
+			buttonPanel.add(this.makeMasterConfigButton);
 			buttonPanel.add(configButton);
 			this.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+			
+			//	select first configuration (if any)
+			if (this.configs.length != 0) 
+				configList.setRowSelectionInterval(0, 0);
 			
 			//	get feedback
 			this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -732,84 +761,10 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 		}
 		
 		private void configure() {
-			ConfigurationDialog sd = new ConfigurationDialog();
+			ConfigurationDialog sd = new ConfigurationDialog(this);
 			sd.setLocationRelativeTo(null);
 			sd.setVisible(true);
-			if (sd.committed) {
-				boolean parametersDirty = false;
-				if (!sd.startMemory.getText().equals(PARAMETERS.getSetting(START_MEMORY_NAME))) {
-					try {
-						int startMemory = Integer.parseInt(sd.startMemory.getText());
-						PARAMETERS.setSetting(START_MEMORY_NAME, ("" + startMemory));
-						parametersDirty = true;
-					} catch (Exception e) {}
-				}
-				if (!sd.maxMemory.getText().equals(PARAMETERS.getSetting(MAX_MEMORY_NAME))) {
-					try {
-						int maxMemory = Integer.parseInt(sd.maxMemory.getText());
-						PARAMETERS.setSetting(MAX_MEMORY_NAME, ("" + maxMemory));
-						parametersDirty = true;
-					} catch (Exception e) {}
-				}
-				if (!sd.wwwProxyName.getText().equals(PARAMETERS.getSetting(PROXY_NAME, ""))) {
-					try {
-						String proxyName = sd.wwwProxyName.getText().trim();
-						if (proxyName.length() == 0) PARAMETERS.removeSetting(PROXY_NAME);
-						else PARAMETERS.setSetting(PROXY_NAME, proxyName);
-						parametersDirty = true;
-					} catch (Exception e) {}
-				}
-				if (!sd.wwwProxyPort.getText().equals(PARAMETERS.getSetting(PROXY_PORT, ""))) {
-					try {
-						String proxyPortString = sd.wwwProxyPort.getText().trim();
-						if (proxyPortString.length() == 0) PARAMETERS.removeSetting(PROXY_PORT);
-						else {
-							int proxyPort = Integer.parseInt(proxyPortString);
-							PARAMETERS.setSetting(PROXY_PORT, ("" + proxyPort));
-						}
-						parametersDirty = true;
-					} catch (Exception e) {}
-				}
-				if (!sd.wwwProxyUser.getText().equals(PARAMETERS.getSetting(PROXY_USER, ""))) {
-					try {
-						String proxyUser = sd.wwwProxyUser.getText().trim();
-						if (proxyUser.length() == 0) PARAMETERS.removeSetting(PROXY_USER);
-						else PARAMETERS.setSetting(PROXY_USER, proxyUser);
-						parametersDirty = true;
-					} catch (Exception e) {}
-				}
-				if (!sd.wwwProxyPwd.getText().equals(PARAMETERS.getSetting(PROXY_PWD, ""))) {
-					try {
-						String proxyPwd = sd.wwwProxyPwd.getText().trim();
-						if (proxyPwd.length() == 0) PARAMETERS.removeSetting(PROXY_PWD);
-						else PARAMETERS.setSetting(PROXY_PWD, proxyPwd);
-						parametersDirty = true;
-					} catch (Exception e) {}
-				}
-				if (parametersDirty) writeParameterFile();
-				
-				StringVector updateHostParser = new StringVector();
-				updateHostParser.parseAndAddElements(sd.updateHosts.getText(), "\n");
-				for (int p = 0; p < updateHostParser.size(); p++)
-					updateHostParser.setElementAt(updateHostParser.get(p).trim(), p);
-				updateHostParser.removeAll("");
-				if ((updateHostParser.intersect(UPDATE_HOSTS, false).size() != UPDATE_HOSTS.size()) || updateHostParser.union(UPDATE_HOSTS, false).size() != UPDATE_HOSTS.size()) {
-					UPDATE_HOSTS.clear();
-					UPDATE_HOSTS.addContentIgnoreDuplicates(updateHostParser);
-					writeUpdateHostFile();
-				}
-				
-				StringVector configHostParser = new StringVector();
-				configHostParser.parseAndAddElements(sd.configHosts.getText(), "\n");
-				for (int p = 0; p < configHostParser.size(); p++)
-					configHostParser.setElementAt(configHostParser.get(p).trim(), p);
-				configHostParser.removeAll("");
-				if ((configHostParser.intersect(CONFIG_HOSTS, false).size() != CONFIG_HOSTS.size()) || configHostParser.union(CONFIG_HOSTS, false).size() != CONFIG_HOSTS.size()) {
-					CONFIG_HOSTS.clear();
-					CONFIG_HOSTS.addContentIgnoreDuplicates(configHostParser);
-					writeConfigHostFile();
-				}
-			}
+			sd.writeChangesIfCommitted();
 		}
 		
 		private int makeMasterConfig(ConfigurationDescriptor config) {
@@ -1019,189 +974,312 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 				update.renameTo(new File(targetName));
 			}
 		}
+	}
+	
+	/**
+	 * dialog for edition local configuration like WWW proxy, JVM memory, etc.
+	 * 
+	 * @author sautter
+	 */
+	private static class ConfigurationDialog extends JDialog {
 		
-		/**
-		 * dialog for edition local configuration like WWW proxy, JVM memory, etc.
-		 * 
-		 * @author sautter
-		 */
-		private class ConfigurationDialog extends JDialog {
+		private JTextField startMemory = new JTextField(PARAMETERS.getSetting(START_MEMORY_NAME, DEFAULT_START_MEMORY));
+		private JTextField maxMemory = new JTextField(PARAMETERS.getSetting(MAX_MEMORY_NAME, DEFAULT_START_MEMORY));
+		
+		private JTextField wwwProxyName = new JTextField(PARAMETERS.getSetting(PROXY_NAME, ""));
+		private JTextField wwwProxyPort = new JTextField(PARAMETERS.getSetting(PROXY_PORT, ""));
+		private JTextField wwwProxyUser = new JTextField(PARAMETERS.getSetting(PROXY_USER, ""));
+		private JTextField wwwProxyPwd = new JTextField(PARAMETERS.getSetting(PROXY_PWD, ""));
+		
+		private JButton logFolder = new JButton();
+		private JFileChooser logFolderChooser = new JFileChooser();
+		
+		private JComboBox lookAndFeelSelector = new JComboBox(LOOK_AND_FEEL_NAMES);
+		
+		private JTextArea updateHosts = new JTextArea(UPDATE_HOSTS.concatStrings("\n"));
+		private JScrollPane updateHostBox = new JScrollPane(this.updateHosts);
+		
+		private JTextArea configHosts = new JTextArea(CONFIG_HOSTS.concatStrings("\n"));
+		private JScrollPane configHostBox = new JScrollPane(this.configHosts);
+		
+		private SelectConfigurationDialog parent;
+		private boolean committed = false;
+		
+		ConfigurationDialog(SelectConfigurationDialog scd) {
+			super(scd, "Local GoldenGATE Settings", true);
+			this.parent = scd;
 			
-			private JTextField startMemory = new JTextField(PARAMETERS.getSetting(START_MEMORY_NAME, DEFAULT_START_MEMORY));
-			private JTextField maxMemory = new JTextField(PARAMETERS.getSetting(MAX_MEMORY_NAME, DEFAULT_START_MEMORY));
+			//	initialize main buttons
+			JButton commitButton = new JButton("OK");
+			commitButton.setBorder(BorderFactory.createRaisedBevelBorder());
+			commitButton.setPreferredSize(new Dimension(100, 21));
+			commitButton.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					committed = true;
+					dispose();
+				}
+			});
 			
-			private JTextField wwwProxyName = new JTextField(PARAMETERS.getSetting(PROXY_NAME, ""));
-			private JTextField wwwProxyPort = new JTextField(PARAMETERS.getSetting(PROXY_PORT, ""));
-			private JTextField wwwProxyUser = new JTextField(PARAMETERS.getSetting(PROXY_USER, ""));
-			private JTextField wwwProxyPwd = new JTextField(PARAMETERS.getSetting(PROXY_PWD, ""));
+			JButton abortButton = new JButton("Cancel");
+			abortButton.setBorder(BorderFactory.createRaisedBevelBorder());
+			abortButton.setPreferredSize(new Dimension(100, 21));
+			abortButton.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					dispose();
+				}
+			});
 			
-			private JTextArea updateHosts = new JTextArea(UPDATE_HOSTS.concatStrings("\n"));
-			private JScrollPane updateHostBox = new JScrollPane(this.updateHosts);
+			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+			buttonPanel.add(commitButton);
+			buttonPanel.add(abortButton);
 			
-			private JTextArea configHosts = new JTextArea(CONFIG_HOSTS.concatStrings("\n"));
-			private JScrollPane configHostBox = new JScrollPane(this.configHosts);
+			//	 initialize main system settings
+			this.startMemory.setBorder(BorderFactory.createLoweredBevelBorder());
+			this.startMemory.setPreferredSize(new Dimension(100, 21));
+			this.maxMemory.setBorder(BorderFactory.createLoweredBevelBorder());
+			this.maxMemory.setPreferredSize(new Dimension(100, 21));
 			
-			private JButton logFolder = new JButton();
-			private JFileChooser logFolderChooser = new JFileChooser();
-			
-			private boolean committed = false;
-			
-			ConfigurationDialog() {
-				super(SelectConfigurationDialog.this, "Local GoldenGATE Settings", true);
-				
-				//	initialize main buttons
-				JButton commitButton = new JButton("OK");
-				commitButton.setBorder(BorderFactory.createRaisedBevelBorder());
-				commitButton.setPreferredSize(new Dimension(100, 21));
-				commitButton.addActionListener(new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
-						committed = true;
-						dispose();
+			this.logFolderChooser.setSelectedFile(this.getLogFolder(PARAMETERS.getSetting(LOG_PATH, LOG_FOLDER_NAME)));
+			this.logFolderChooser.setAcceptAllFileFilterUsed(false);
+			this.logFolderChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+			this.logFolder.setText(this.getLogFolderName(this.logFolderChooser.getSelectedFile()));
+			this.logFolder.setBorder(BorderFactory.createLoweredBevelBorder());
+			this.logFolder.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					if (logFolderChooser.showOpenDialog(ConfigurationDialog.this) == JFileChooser.APPROVE_OPTION) {
+						String logFolderName = getLogFolderName(logFolderChooser.getSelectedFile());
+						logFolder.setText(logFolderName);
 					}
-				});
-				
-				JButton abortButton = new JButton("Cancel");
-				abortButton.setBorder(BorderFactory.createRaisedBevelBorder());
-				abortButton.setPreferredSize(new Dimension(100, 21));
-				abortButton.addActionListener(new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
-						dispose();
-					}
-				});
-				
-				JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-				buttonPanel.add(commitButton);
-				buttonPanel.add(abortButton);
-				
-				//	 initialize main system settings
-				this.startMemory.setBorder(BorderFactory.createLoweredBevelBorder());
-				this.startMemory.setPreferredSize(new Dimension(100, 21));
-				this.maxMemory.setBorder(BorderFactory.createLoweredBevelBorder());
-				this.maxMemory.setPreferredSize(new Dimension(100, 21));
-				
-				this.updateHostBox.setPreferredSize(new Dimension(450, 60));
-				this.configHostBox.setPreferredSize(new Dimension(450, 60));
-				
-				this.logFolderChooser.setSelectedFile(this.getLogFolder(PARAMETERS.getSetting(LOG_PATH, LOG_FOLDER_NAME)));
-				this.logFolderChooser.setAcceptAllFileFilterUsed(false);
-				this.logFolderChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-				this.logFolder.setText(this.getLogFolderName(this.logFolderChooser.getSelectedFile()));
-				this.logFolder.setBorder(BorderFactory.createLoweredBevelBorder());
-				this.logFolder.addActionListener(new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
-						if (logFolderChooser.showOpenDialog(ConfigurationDialog.this) == JFileChooser.APPROVE_OPTION) {
-							String logFolderName = getLogFolderName(logFolderChooser.getSelectedFile());
-							logFolder.setText(logFolderName);
-							PARAMETERS.setSetting(LOG_PATH, logFolderName);
-						}
-					}
-				});
-				
-				//	assemble data input fields
-				JPanel dataPanel = new JPanel(new GridBagLayout(), true);
-				GridBagConstraints gbc = new GridBagConstraints();
-				gbc.weightx = 1;
-				gbc.weighty = 0;
-				gbc.gridwidth = 1;
-				gbc.gridheight = 1;
-				gbc.insets.top = 2;
-				gbc.insets.bottom = 2;
-				gbc.insets.left = 3;
-				gbc.insets.right = 3;
-				gbc.fill = GridBagConstraints.BOTH;
-				
-				gbc.gridy = 0;
-				gbc.gridx = 0;
-				
-				gbc.gridwidth = 1;
-				dataPanel.add(new JLabel("Initial JVM Memory", JLabel.RIGHT), gbc.clone());
-				gbc.gridx++;
-				gbc.gridwidth = 2;
-				dataPanel.add(this.startMemory, gbc.clone());
-				gbc.gridx+=2;
-				gbc.gridwidth = 1;
-				dataPanel.add(new JLabel("Maximum JVM Memory", JLabel.RIGHT), gbc.clone());
-				gbc.gridx++;
-				gbc.gridwidth = 2;
-				dataPanel.add(this.maxMemory, gbc.clone());
-				
-				gbc.gridy++;
-				gbc.gridx = 0;
-				gbc.gridwidth = 1;
-				dataPanel.add(new JLabel("Proxy Name", JLabel.RIGHT), gbc.clone());
-				gbc.gridx++;
-				gbc.gridwidth = 3;
-				dataPanel.add(this.wwwProxyName, gbc.clone());
-				gbc.gridx += 3;
-				gbc.gridwidth = 1;
-				dataPanel.add(new JLabel("Proxy Port", JLabel.RIGHT), gbc.clone());
-				gbc.gridx++;
-				dataPanel.add(this.wwwProxyPort, gbc.clone());
-				
-				gbc.gridy++;
-				gbc.gridx = 0;
-				gbc.gridwidth = 1;
-				dataPanel.add(new JLabel("Proxy User", JLabel.RIGHT), gbc.clone());
-				gbc.gridx++;
-				gbc.gridwidth = 2;
-				dataPanel.add(this.wwwProxyUser, gbc.clone());
-				gbc.gridx += 2;
-				gbc.gridwidth = 1;
-				dataPanel.add(new JLabel("Proxy Password", JLabel.RIGHT), gbc.clone());
-				gbc.gridx++;
-				gbc.gridwidth = 2;
-				dataPanel.add(this.wwwProxyPwd, gbc.clone());
-				
-				gbc.gridy++;
-				gbc.gridx = 0;
-				gbc.gridwidth = 2;
-				dataPanel.add(new JLabel("Log Folder (click to change)", JLabel.RIGHT), gbc.clone());
-				gbc.gridx += 2;
-				gbc.gridwidth = 4;
-				dataPanel.add(this.logFolder, gbc.clone());
-				
-				gbc.gridy++;
-				gbc.gridx = 0;
-				gbc.gridwidth = 1;
-				gbc.weighty = 1;
-				dataPanel.add(new JLabel("Update Hosts", JLabel.RIGHT), gbc.clone());
-				gbc.gridx++;
-				gbc.gridwidth = 5;
-				dataPanel.add(this.updateHostBox, gbc.clone());
-				
-				gbc.gridy++;
-				gbc.gridx = 0;
-				gbc.gridwidth = 1;
-				dataPanel.add(new JLabel("Config Hosts", JLabel.RIGHT), gbc.clone());
-				gbc.gridx++;
-				gbc.gridwidth = 5;
-				dataPanel.add(this.configHostBox, gbc.clone());
-				
-				//	put the whole stuff together
-				this.getContentPane().setLayout(new BorderLayout());
-				this.getContentPane().add(dataPanel, BorderLayout.CENTER);
-				this.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-				
-				//	set dialog size
-				this.setSize(new Dimension(500, 250));
-				this.setResizable(true);
+				}
+			});
+			
+			this.lookAndFeelSelector.setEditable(false);
+			this.lookAndFeelSelector.setSelectedItem(PARAMETERS.getSetting(LOOK_AND_FEEL_NAME, SYSTEM_LOOK_AND_FEEL_NAME));
+			this.lookAndFeelSelector.addItemListener(new ItemListener() {
+				public void itemStateChanged(ItemEvent ie) {
+					try {
+						UIManager.setLookAndFeel(JAVA_LOOK_AND_FEEL_NAME.equals(lookAndFeelSelector.getSelectedItem()) ? UIManager.getCrossPlatformLookAndFeelClassName() : UIManager.getSystemLookAndFeelClassName());
+						SwingUtilities.updateComponentTreeUI(ConfigurationDialog.this);
+						SwingUtilities.updateComponentTreeUI(ConfigurationDialog.this.parent);
+						SwingUtilities.updateComponentTreeUI(ConfigurationDialog.this.logFolderChooser);
+					} catch (Exception e) {}
+				}
+			});
+			
+			this.updateHostBox.setPreferredSize(new Dimension(450, 60));
+			this.configHostBox.setPreferredSize(new Dimension(450, 60));
+			
+			//	assemble data input fields
+			JPanel dataPanel = new JPanel(new GridBagLayout(), true);
+			GridBagConstraints gbc = new GridBagConstraints();
+			gbc.weighty = 0;
+			gbc.gridwidth = 1;
+			gbc.gridheight = 1;
+			gbc.insets.top = 2;
+			gbc.insets.bottom = 2;
+			gbc.insets.left = 3;
+			gbc.insets.right = 3;
+			gbc.fill = GridBagConstraints.BOTH;
+			
+			gbc.gridy = 0;
+			gbc.gridx = 0;
+			
+			gbc.weightx = 0;
+			gbc.gridwidth = 1;
+			dataPanel.add(new JLabel("Initial JVM Memory", JLabel.RIGHT), gbc.clone());
+			gbc.gridx++;
+			gbc.weightx = 1;
+			gbc.gridwidth = 2;
+			dataPanel.add(this.startMemory, gbc.clone());
+			gbc.gridx+=2;
+			gbc.gridwidth = 1;
+			dataPanel.add(new JLabel("Maximum JVM Memory", JLabel.RIGHT), gbc.clone());
+			gbc.gridx++;
+			gbc.gridwidth = 2;
+			dataPanel.add(this.maxMemory, gbc.clone());
+			
+			gbc.gridy++;
+			gbc.gridx = 0;
+			gbc.weightx = 0;
+			gbc.gridwidth = 1;
+			dataPanel.add(new JLabel("Proxy Name", JLabel.RIGHT), gbc.clone());
+			gbc.gridx++;
+			gbc.weightx = 1;
+			gbc.gridwidth = 3;
+			dataPanel.add(this.wwwProxyName, gbc.clone());
+			gbc.gridx += 3;
+			gbc.gridwidth = 1;
+			dataPanel.add(new JLabel("Proxy Port", JLabel.RIGHT), gbc.clone());
+			gbc.gridx++;
+			dataPanel.add(this.wwwProxyPort, gbc.clone());
+			
+			gbc.gridy++;
+			gbc.gridx = 0;
+			gbc.weightx = 0;
+			gbc.gridwidth = 1;
+			dataPanel.add(new JLabel("Proxy User", JLabel.RIGHT), gbc.clone());
+			gbc.gridx++;
+			gbc.weightx = 1;
+			gbc.gridwidth = 2;
+			dataPanel.add(this.wwwProxyUser, gbc.clone());
+			gbc.gridx += 2;
+			gbc.gridwidth = 1;
+			dataPanel.add(new JLabel("Proxy Password", JLabel.RIGHT), gbc.clone());
+			gbc.gridx++;
+			gbc.gridwidth = 2;
+			dataPanel.add(this.wwwProxyPwd, gbc.clone());
+			
+			gbc.gridy++;
+			gbc.gridx = 0;
+			gbc.weightx = 0;
+			gbc.gridwidth = 2;
+			dataPanel.add(new JLabel("Log Folder (click to change)", JLabel.RIGHT), gbc.clone());
+			gbc.gridx += 2;
+			gbc.weightx = 4;
+			gbc.gridwidth = 4;
+			dataPanel.add(this.logFolder, gbc.clone());
+			
+			gbc.gridy++;
+			gbc.gridx = 0;
+			gbc.weightx = 0;
+			gbc.gridwidth = 1;
+			dataPanel.add(new JLabel("Look & Feel", JLabel.RIGHT), gbc.clone());
+			gbc.gridx += 2;
+			gbc.weightx = 5;
+			gbc.gridwidth = 5;
+			dataPanel.add(this.lookAndFeelSelector, gbc.clone());
+			
+			gbc.gridy++;
+			gbc.gridx = 0;
+			gbc.weightx = 0;
+			gbc.gridwidth = 1;
+			gbc.weighty = 1;
+			dataPanel.add(new JLabel("Update Hosts", JLabel.RIGHT), gbc.clone());
+			gbc.gridx++;
+			gbc.weightx = 5;
+			gbc.gridwidth = 5;
+			dataPanel.add(this.updateHostBox, gbc.clone());
+			
+			gbc.gridy++;
+			gbc.gridx = 0;
+			gbc.weightx = 0;
+			gbc.gridwidth = 1;
+			dataPanel.add(new JLabel("Config Hosts", JLabel.RIGHT), gbc.clone());
+			gbc.gridx++;
+			gbc.weightx = 5;
+			gbc.gridwidth = 5;
+			dataPanel.add(this.configHostBox, gbc.clone());
+			
+			//	put the whole stuff together
+			this.getContentPane().setLayout(new BorderLayout());
+			this.getContentPane().add(dataPanel, BorderLayout.CENTER);
+			this.getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+			
+			//	set dialog size
+			this.setSize(new Dimension(600, 350));
+			this.setResizable(true);
+		}
+		
+		File getLogFolder(String logFolderName) {
+			File logFolder = ((logFolderName.startsWith("/") || (logFolderName.indexOf(':') != -1)) ? new File(logFolderName) : new File(BASE_PATH, logFolderName));
+			return logFolder.getAbsoluteFile();
+		}
+		
+		String getLogFolderName(File logFolder) {
+			String logFolderName = logFolder.getAbsolutePath();
+			logFolderName = logFolderName.replace('\\', '/');
+			logFolderName = logFolderName.replaceAll("\\/(\\.?\\/)*", "/");
+			while (logFolderName.startsWith("./"))
+				logFolderName = logFolderName.substring("./".length());
+			String basePathName = BASE_PATH.getAbsolutePath();
+			basePathName = basePathName.replace('\\', '/');
+			basePathName = basePathName.replaceAll("\\/(\\.?\\/)*", "/");
+			while (basePathName.startsWith("./"))
+				basePathName = basePathName.substring("./".length());
+			return (logFolderName.startsWith(basePathName) ? logFolderName.substring(basePathName.length()) : logFolderName);
+		}
+		
+		void writeChangesIfCommitted() {
+			if (!this.committed) {
+				if (!PARAMETERS.getSetting(LOOK_AND_FEEL_NAME, SYSTEM_LOOK_AND_FEEL_NAME).equals(this.lookAndFeelSelector.getSelectedItem())) try {
+					UIManager.setLookAndFeel(JAVA_LOOK_AND_FEEL_NAME.equals(PARAMETERS.getSetting(LOOK_AND_FEEL_NAME, SYSTEM_LOOK_AND_FEEL_NAME)) ? UIManager.getCrossPlatformLookAndFeelClassName() : UIManager.getSystemLookAndFeelClassName());
+					SwingUtilities.updateComponentTreeUI(this.parent);
+				} catch (Exception e) {}
+				return;
 			}
-			File getLogFolder(String logFolderName) {
-				File logFolder = ((logFolderName.startsWith("/") || (logFolderName.indexOf(':') != -1)) ? new File(logFolderName) : new File(BASE_PATH, logFolderName));
-				return logFolder.getAbsoluteFile();
+			
+			boolean parametersDirty = false;
+			if (!this.startMemory.getText().equals(PARAMETERS.getSetting(START_MEMORY_NAME))) try {
+				int startMemory = Integer.parseInt(this.startMemory.getText());
+				PARAMETERS.setSetting(START_MEMORY_NAME, ("" + startMemory));
+				parametersDirty = true;
+			} catch (Exception e) {}
+			if (!this.maxMemory.getText().equals(PARAMETERS.getSetting(MAX_MEMORY_NAME))) try {
+				int maxMemory = Integer.parseInt(this.maxMemory.getText());
+				PARAMETERS.setSetting(MAX_MEMORY_NAME, ("" + maxMemory));
+				parametersDirty = true;
+			} catch (Exception e) {}
+			if (!this.wwwProxyName.getText().equals(PARAMETERS.getSetting(PROXY_NAME, ""))) try {
+				String proxyName = this.wwwProxyName.getText().trim();
+				if (proxyName.length() == 0) PARAMETERS.removeSetting(PROXY_NAME);
+				else PARAMETERS.setSetting(PROXY_NAME, proxyName);
+				parametersDirty = true;
+			} catch (Exception e) {}
+			if (!this.wwwProxyPort.getText().equals(PARAMETERS.getSetting(PROXY_PORT, ""))) try {
+				String proxyPortString = this.wwwProxyPort.getText().trim();
+				if (proxyPortString.length() == 0) PARAMETERS.removeSetting(PROXY_PORT);
+				else {
+					int proxyPort = Integer.parseInt(proxyPortString);
+					PARAMETERS.setSetting(PROXY_PORT, ("" + proxyPort));
+				}
+				parametersDirty = true;
+			} catch (Exception e) {}
+			if (!this.wwwProxyUser.getText().equals(PARAMETERS.getSetting(PROXY_USER, ""))) try {
+				String proxyUser = this.wwwProxyUser.getText().trim();
+				if (proxyUser.length() == 0) PARAMETERS.removeSetting(PROXY_USER);
+				else PARAMETERS.setSetting(PROXY_USER, proxyUser);
+				parametersDirty = true;
+			} catch (Exception e) {}
+			if (!this.wwwProxyPwd.getText().equals(PARAMETERS.getSetting(PROXY_PWD, ""))) try {
+				String proxyPwd = this.wwwProxyPwd.getText().trim();
+				if (proxyPwd.length() == 0) PARAMETERS.removeSetting(PROXY_PWD);
+				else PARAMETERS.setSetting(PROXY_PWD, proxyPwd);
+				parametersDirty = true;
+			} catch (Exception e) {}
+			if (!this.logFolder.getText().equals(PARAMETERS.getSetting(LOG_PATH))) try {
+				String logFolderName = this.logFolder.getText().trim();
+				if (logFolderName.length() == 0) PARAMETERS.removeSetting(LOG_PATH);
+				else PARAMETERS.setSetting(LOG_PATH, logFolderName);
+				parametersDirty = true;
+			} catch (Exception e) {}
+			if (!PARAMETERS.getSetting(LOOK_AND_FEEL_NAME, SYSTEM_LOOK_AND_FEEL_NAME).equals(this.lookAndFeelSelector.getSelectedItem())) try {
+				String lookAndFeelName = this.lookAndFeelSelector.getSelectedItem().toString().trim();
+				if (lookAndFeelName.length() == 0) PARAMETERS.removeSetting(LOOK_AND_FEEL_NAME);
+				else PARAMETERS.setSetting(LOOK_AND_FEEL_NAME, lookAndFeelName);
+				parametersDirty = true;
+			} catch (Exception e) {}
+			if (parametersDirty) writeParameterFile();
+			
+			StringVector updateHostParser = new StringVector();
+			updateHostParser.parseAndAddElements(this.updateHosts.getText(), "\n");
+			for (int p = 0; p < updateHostParser.size(); p++)
+				updateHostParser.setElementAt(updateHostParser.get(p).trim(), p);
+			updateHostParser.removeAll("");
+			if ((updateHostParser.intersect(UPDATE_HOSTS, false).size() != UPDATE_HOSTS.size()) || updateHostParser.union(UPDATE_HOSTS, false).size() != UPDATE_HOSTS.size()) {
+				UPDATE_HOSTS.clear();
+				UPDATE_HOSTS.addContentIgnoreDuplicates(updateHostParser);
+				writeUpdateHostFile();
 			}
-			String getLogFolderName(File logFolder) {
-				String logFolderName = logFolder.getAbsolutePath();
-				logFolderName = logFolderName.replace('\\', '/');
-				logFolderName = logFolderName.replaceAll("\\/(\\.?\\/)*", "/");
-				while (logFolderName.startsWith("./"))
-					logFolderName = logFolderName.substring("./".length());
-				String basePathName = BASE_PATH.getAbsolutePath();
-				basePathName = basePathName.replace('\\', '/');
-				basePathName = basePathName.replaceAll("\\/(\\.?\\/)*", "/");
-				while (basePathName.startsWith("./"))
-					basePathName = basePathName.substring("./".length());
-				return (logFolderName.startsWith(basePathName) ? logFolderName.substring(basePathName.length()) : logFolderName);
+			
+			StringVector configHostParser = new StringVector();
+			configHostParser.parseAndAddElements(this.configHosts.getText(), "\n");
+			for (int p = 0; p < configHostParser.size(); p++)
+				configHostParser.setElementAt(configHostParser.get(p).trim(), p);
+			configHostParser.removeAll("");
+			if ((configHostParser.intersect(CONFIG_HOSTS, false).size() != CONFIG_HOSTS.size()) || configHostParser.union(CONFIG_HOSTS, false).size() != CONFIG_HOSTS.size()) {
+				CONFIG_HOSTS.clear();
+				CONFIG_HOSTS.addContentIgnoreDuplicates(configHostParser);
+				writeConfigHostFile();
 			}
 		}
 	}

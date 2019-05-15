@@ -38,11 +38,24 @@ import de.uka.ipd.idaho.im.ImDocument;
  * choosing the export destination file in any sort of way, in particular
  * without opening any <code>JFileChooser</code> prompts. This is especially
  * useful in deployment scenarios that do not have a UI in the same JVM the
- * export runs in.
+ * export runs in. On top of that, it provides a three-argument version of the
+ * generic export function, adding a likely export destination, e.g. for
+ * priming a file chooser.
  * 
  * @author sautter
  */
 public interface ImageDocumentFileExporter extends ImageDocumentExporter {
+	
+	/**
+	 * Export a document. The argument file indicates a likely destination of
+	 * an export, e.g. for priming a file chooser. If the application cannot
+	 * make such a prediction, the argument is null. It is recommended that
+	 * implementations of the two-argument version delegate here.
+	 * @param likelyDest the likely destination file
+	 * @param doc the document to export
+	 * @param pm a progress monitor observing export progress
+	 */
+	public abstract void exportDocument(File likelyDest, ImDocument doc, ProgressMonitor pm);
 	
 	/**
 	 * Export a document to a file. Implementations may extend the name of the
