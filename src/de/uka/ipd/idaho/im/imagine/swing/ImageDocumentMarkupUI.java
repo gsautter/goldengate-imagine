@@ -10,11 +10,11 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Universität Karlsruhe (TH) / KIT nor the
+ *     * Neither the name of the Universitaet Karlsruhe (TH) / KIT nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY UNIVERSITÄT KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
+ * THIS SOFTWARE IS PROVIDED BY UNIVERSITAET KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -215,6 +215,9 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			ioe.printStackTrace(System.out);
 		}
 		
+		//	disable UNDO menu by initially (need something to happen before that thing has any content)
+		this.undoMenu.setEnabled(false);
+		
 		//	build main menu
 		this.addFileMenu(fileMenuItemNames);
 		this.addExportMenu(exportMenuItemNames);
@@ -252,10 +255,10 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			this.docTabs.addChangeListener(new ChangeListener() {
 				public void stateChanged(ChangeEvent ce) {
 					ImageDocumentEditorTab idet = getActiveDocument();
+					viewControl.update(idet);
 					if (idet == null)
 						return;
 					idet.updateUndoMenu();
-					viewControl.update(idet);
 					ImageDocumentMarkupUI.this.ggImagine.notifyDocumentSelected(idet.getMarkupPanel().document);
 				}
 			});
@@ -270,80 +273,80 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		//	make sure to focus document, not zoom control
 		this.setFocusTraversalPolicy(new FocusTraversalPolicy() {
 			public Component getComponentAfter(Container aContainer, Component aComponent) {
-				return docComp;
+				return viewControl;
 			}
 			public Component getComponentBefore(Container aContainer, Component aComponent) {
-				return docComp;
+				return viewControl;
 			}
 			public Component getFirstComponent(Container aContainer) {
-				return docComp;
+				return viewControl;
 			}
 			public Component getLastComponent(Container aContainer) {
-				return docComp;
+				return viewControl;
 			}
 			public Component getDefaultComponent(Container aContainer) {
-				return docComp;
+				return viewControl;
 			}
 		});
 		
 		//	make document views scroll on page-up and page-down
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0), "docScrollUp");
-		docComp.getActionMap().put("docScrollUp", new AbstractAction() {
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0), "docScrollUp", new AbstractAction() {
 			public void actionPerformed(ActionEvent ae) {
 				ImageDocumentEditorTab idet = getActiveDocument();
 				if (idet != null)
 					idet.scrollUp();
+				viewControl.requestFocusInWindow();
 			}
 		});
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0), "docScrollDown");
-		docComp.getActionMap().put("docScrollDown", new AbstractAction() {
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0), "docScrollDown", new AbstractAction() {
 			public void actionPerformed(ActionEvent ae) {
 				ImageDocumentEditorTab idet = getActiveDocument();
 				if (idet != null)
 					idet.scrollDown();
+				viewControl.requestFocusInWindow();
 			}
 		});
 		
 		//	trigger UNDO on Ctrl-Z
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.CTRL_DOWN_MASK), "docUndo");
-		docComp.getActionMap().put("docUndo", new AbstractAction() {
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.CTRL_DOWN_MASK), "docUndo", new AbstractAction() {
 			public void actionPerformed(ActionEvent ae) {
-				if (undoMenu.getMenuComponentCount() == 0)
-					return;
-				JMenuItem mi = ((JMenuItem) undoMenu.getMenuComponent(0));
-				ActionListener[] miAls = mi.getActionListeners();
-				for (int l = 0; l < miAls.length; l++)
-					miAls[l].actionPerformed(ae);
+				if (undoMenu.getMenuComponentCount() != 0) {
+					JMenuItem mi = ((JMenuItem) undoMenu.getMenuComponent(0));
+					ActionListener[] miAls = mi.getActionListeners();
+					for (int l = 0; l < miAls.length; l++)
+						miAls[l].actionPerformed(ae);
+				}
+				viewControl.requestFocusInWindow();
 			}
 		});
 		
 		//	zoom in and out on Ctrl-<plus> and Ctrl-<minus>
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_PLUS, KeyEvent.CTRL_DOWN_MASK), "docZoomIn");
-		docComp.getActionMap().put("docZoomIn", new AbstractAction() {
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_PLUS, KeyEvent.CTRL_DOWN_MASK), "docZoomIn", new AbstractAction() {
 			public void actionPerformed(ActionEvent ae) {
 				viewControl.zoomIn();
+				viewControl.requestFocusInWindow();
 			}
 		});
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, KeyEvent.CTRL_DOWN_MASK), "docZoomOut");
-		docComp.getActionMap().put("docZoomOut", new AbstractAction() {
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, KeyEvent.CTRL_DOWN_MASK), "docZoomOut", new AbstractAction() {
 			public void actionPerformed(ActionEvent ae) {
 				viewControl.zoomOut();
+				viewControl.requestFocusInWindow();
 			}
 		});
 		
 		//	set document layout using Ctrl+<arrow-keys>
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, KeyEvent.CTRL_DOWN_MASK), "docPagesHorizontal");
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, KeyEvent.CTRL_DOWN_MASK), "docPagesHorizontal");
-		docComp.getActionMap().put("docPagesHorizontal", new AbstractAction() {
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, KeyEvent.CTRL_DOWN_MASK), "docPagesHorizontal", null);
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, KeyEvent.CTRL_DOWN_MASK), "docPagesHorizontal", new AbstractAction() {
 			public void actionPerformed(ActionEvent ae) {
 				viewControl.setSideBySidePages(0);
+				viewControl.requestFocusInWindow();
 			}
 		});
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, KeyEvent.CTRL_DOWN_MASK), "docPagesVertical");
-		docComp.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, KeyEvent.CTRL_DOWN_MASK), "docPagesVertical");
-		docComp.getActionMap().put("docPagesVertical", new AbstractAction() {
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_UP, KeyEvent.CTRL_DOWN_MASK), "docPagesVertical", null);
+		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, KeyEvent.CTRL_DOWN_MASK), "docPagesVertical", new AbstractAction() {
 			public void actionPerformed(ActionEvent ae) {
 				viewControl.setSideBySidePages(1);
+				viewControl.requestFocusInWindow();
 			}
 		});
 		
@@ -353,6 +356,19 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		//	assemble major parts
 		this.add(menuPanel, BorderLayout.NORTH);
 		this.add(docComp, BorderLayout.CENTER);
+	}
+	
+	private void mapKeyStroke(JComponent docComp, KeyStroke ks, String ak, AbstractAction aa) {
+		docComp.getInputMap().put(ks, ak);
+		this.viewControl.getInputMap().put(ks, ak);
+		this.viewControl.zoomSelector.getInputMap().put(ks, ak);
+		this.viewControl.layoutSelector.getInputMap().put(ks, ak);
+		if (aa != null) {
+			docComp.getActionMap().put(ak, aa);
+			this.viewControl.getActionMap().put(ak, aa);
+			this.viewControl.zoomSelector.getActionMap().put(ak, aa);
+			this.viewControl.layoutSelector.getActionMap().put(ak, aa);
+		}
 	}
 	
 	private void addFileMenu(ArrayList itemNames) {
@@ -494,114 +510,6 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			}
 		});
 		items.put(mi.getText(), mi);
-//		
-//		mi = new JMenuItem("As XML (without element IDs)");
-//		mi.addActionListener(new ActionListener() {
-//			public void actionPerformed(ActionEvent ae) {
-//				ImageDocumentEditorTab idet = getActiveDocument();
-//				if (idet == null)
-//					return;
-//				clearFileFilters(fileChooser);
-//				fileChooser.addChoosableFileFilter(xmlFileFilter);
-//				File likelyFile = getLikelyExportDestination(idet);
-//				if (likelyFile != null)
-//					fileChooser.setSelectedFile(likelyFile);
-//				if (fileChooser.showSaveDialog(ImageDocumentMarkupUI.this) != JFileChooser.APPROVE_OPTION)
-//					return;
-//				File file = fileChooser.getSelectedFile();
-//				if (file.isDirectory())
-//					return;
-//				try {
-//					exportXml(idet.getMarkupPanel().document, file, ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS, false);
-//				}
-//				catch (IOException ioe) {
-//					JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document to '" + file.getAbsolutePath() + "':\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
-//					ioe.printStackTrace(System.out);
-//				}
-//			}
-//		});
-//		items.put(mi.getText(), mi);
-//		
-//		mi = new JMenuItem("As XML (with element IDs)");
-//		mi.addActionListener(new ActionListener() {
-//			public void actionPerformed(ActionEvent ae) {
-//				ImageDocumentEditorTab idet = getActiveDocument();
-//				if (idet == null)
-//					return;
-//				clearFileFilters(fileChooser);
-//				fileChooser.addChoosableFileFilter(xmlFileFilter);
-//				File likelyFile = getLikelyExportDestination(idet);
-//				if (likelyFile != null)
-//					fileChooser.setSelectedFile(likelyFile);
-//				if (fileChooser.showSaveDialog(ImageDocumentMarkupUI.this) != JFileChooser.APPROVE_OPTION)
-//					return;
-//				File file = fileChooser.getSelectedFile();
-//				if (file.isDirectory())
-//					return;
-//				try {
-//					exportXml(idet.getMarkupPanel().document, file, ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS, true);
-//				}
-//				catch (IOException ioe) {
-//					JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document to '" + file.getAbsolutePath() + "':\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
-//					ioe.printStackTrace(System.out);
-//				}
-//			}
-//		});
-//		items.put(mi.getText(), mi);
-//		
-//		mi = new JMenuItem("As Raw XML (without element IDs)");
-//		mi.addActionListener(new ActionListener() {
-//			public void actionPerformed(ActionEvent ae) {
-//				ImageDocumentEditorTab idet = getActiveDocument();
-//				if (idet == null)
-//					return;
-//				clearFileFilters(fileChooser);
-//				fileChooser.addChoosableFileFilter(xmlFileFilter);
-//				File likelyFile = getLikelyExportDestination(idet);
-//				if (likelyFile != null)
-//					fileChooser.setSelectedFile(likelyFile);
-//				if (fileChooser.showSaveDialog(ImageDocumentMarkupUI.this) != JFileChooser.APPROVE_OPTION)
-//					return;
-//				File file = fileChooser.getSelectedFile();
-//				if (file.isDirectory())
-//					return;
-//				try {
-//					exportXml(idet.getMarkupPanel().document, file, (ImDocumentRoot.NORMALIZATION_LEVEL_RAW | ImDocumentRoot.SHOW_TOKENS_AS_WORD_ANNOTATIONS), false);
-//				}
-//				catch (IOException ioe) {
-//					JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document to '" + file.getAbsolutePath() + "':\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
-//					ioe.printStackTrace(System.out);
-//				}
-//			}
-//		});
-//		items.put(mi.getText(), mi);
-//		
-//		mi = new JMenuItem("As Raw XML (with element IDs)");
-//		mi.addActionListener(new ActionListener() {
-//			public void actionPerformed(ActionEvent ae) {
-//				ImageDocumentEditorTab idet = getActiveDocument();
-//				if (idet == null)
-//					return;
-//				clearFileFilters(fileChooser);
-//				fileChooser.addChoosableFileFilter(xmlFileFilter);
-//				File likelyFile = getLikelyExportDestination(idet);
-//				if (likelyFile != null)
-//					fileChooser.setSelectedFile(likelyFile);
-//				if (fileChooser.showSaveDialog(ImageDocumentMarkupUI.this) != JFileChooser.APPROVE_OPTION)
-//					return;
-//				File file = fileChooser.getSelectedFile();
-//				if (file.isDirectory())
-//					return;
-//				try {
-//					exportXml(idet.getMarkupPanel().document, file, (ImDocumentRoot.NORMALIZATION_LEVEL_RAW | ImDocumentRoot.SHOW_TOKENS_AS_WORD_ANNOTATIONS), true);
-//				}
-//				catch (IOException ioe) {
-//					JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document to '" + file.getAbsolutePath() + "':\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
-//					ioe.printStackTrace(System.out);
-//				}
-//			}
-//		});
-//		items.put(mi.getText(), mi);
 		
 		mi = new JMenuItem("Export GAMTA XML");
 		mi.addActionListener(new ActionListener() {
@@ -913,6 +821,8 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			DocumentProcessorManager[] dpms = this.ggImagine.getDocumentProcessorProviders();
 			for (int m = 0; m < dpms.length; m++) {
 				final DocumentProcessorManager dpm = dpms[m];
+				if (dpm instanceof ImageMarkupToolProvider)
+					continue; // we have handled the contributions from this one above
 				final String toolsMenuLabel = dpm.getToolsMenuLabel();
 				if (toolsMenuLabel == null)
 					continue;
@@ -971,7 +881,6 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 //				if (dpmHelp != null)
 //					menuHelp.addSubChapter(dpmHelp);
 			}
-			
 		}
 		
 		//	finally ...
@@ -1061,7 +970,7 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			this.help.showHelp(on);
 	}
 	
-	private class ViewControl extends JPanel {
+	class ViewControl extends JPanel {
 		private JLabel scrollPosition = new JLabel("Page 0 of 0", JLabel.CENTER);
 		private int pageImageDpi = ImDocumentMarkupPanel.DEFAULT_RENDERING_DPI;
 		private JComboBox zoomSelector = new JComboBox();
@@ -1158,10 +1067,14 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			if (this.inNotification)
 				return;
 			this.inUpdate = true;
-			idet.updateScrollPosition();
-			this.pageImageDpi = idet.getMarkupPanel().getMaxPageImageDpi();
-			this.zoomSelector.setSelectedItem(new ZoomLevel(idet.getMarkupPanel().getRenderingDpi()));
-			this.layoutSelector.setSelectedItem((idet.getMarkupPanel().getSideBySidePages() == 1) ? "Pages Top-Down" : "Pages Left-Right");
+			if (idet == null)
+				this.scrollPosition.setText("Page 0 of 0");
+			else {
+				idet.updateScrollPosition();
+				this.pageImageDpi = idet.getMarkupPanel().getMaxPageImageDpi();
+				this.zoomSelector.setSelectedItem(new ZoomLevel(idet.getMarkupPanel().getRenderingDpi()));
+				this.layoutSelector.setSelectedItem((idet.getMarkupPanel().getSideBySidePages() == 1) ? "Pages Top-Down" : "Pages Left-Right");
+			}
 			this.inUpdate = false;
 		}
 		
@@ -1182,6 +1095,15 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 	}
 	
 	private void addMenu(String name, ArrayList itemNames, HashMap items) {
+		
+		/* TODO facilitate configuring sub menus:
+		 * - prefix top level menu item name with '+'
+		 * - prefix entries with '-'
+		 * - handle here accordingly
+		 * - also group items with non-configured positions by parent plug-in (if more than one)
+		 * ==> prevents menus from growing out of screen
+		 * ==> most likely need special menu items that hold parent plug-in name
+		 */
 		
 		//	build menu
 		JMenu menu = new JMenu(name);
@@ -1264,13 +1186,13 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 	 * @author sautter
 	 */
 	public static class ImageDocumentEditorTab extends ImageDocumentMarkupPanel {
-		private ImageDocumentMarkupUI parent;
 		private String docName;
 		
 		/** Constructor
-		 * @param parent the parent UI (for callbacks)
 		 * @param doc the document to display
 		 * @param docName the name of the document
+		 * @param ggImagine the GoldenGATE Imagine instance to use
+		 * @param ggiConfig the configuration of the GoldenGATE Imagine instance to use
 		 */
 		protected ImageDocumentEditorTab(ImDocument doc, String docName, GoldenGateImagine ggImagine, Settings ggiConfig) {
 			super(doc, ggImagine, ggiConfig);
@@ -1286,17 +1208,6 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			super(doc, parent.ggImagine, parent.ggiConfig);
 			this.docName = docName;
 			this.setParent(parent);
-		}
-		
-		void setParent(ImageDocumentMarkupUI parent) {
-			this.parent = parent;
-			
-			//	set document view to current configuration
-			int renderingDpi = this.parent.viewControl.getRenderingDpi();
-			if ((0 < renderingDpi) && (renderingDpi != ImDocumentMarkupPanel.DEFAULT_RENDERING_DPI))
-				this.setRenderingDpi(renderingDpi);
-			if (this.parent.viewControl.isLeftRightLayout())
-				this.setSideBySidePages(0);
 		}
 		
 		/* (non-Javadoc)

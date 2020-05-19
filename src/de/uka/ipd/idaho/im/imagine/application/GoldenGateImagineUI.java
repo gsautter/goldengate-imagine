@@ -10,11 +10,11 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Universität Karlsruhe (TH) / KIT nor the
+ *     * Neither the name of the Universitaet Karlsruhe (TH) / KIT nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY UNIVERSITÄT KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
+ * THIS SOFTWARE IS PROVIDED BY UNIVERSITAET KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -848,7 +848,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	
 	FontModeTray[] getFontModeOptions() {
 		ArrayList fcts = new ArrayList();
-		fcts.add(new FontModeTray("Do Not Decode Font", 'Q', PdfFontDecoder.NO_DECODING));
+		fcts.add(new FontModeTray("Do Not Decode Fonts", 'Q', PdfFontDecoder.NO_DECODING));
 		fcts.add(new FontModeTray("Render Glyphs Only", 'R', PdfFontDecoder.RENDER_ONLY));
 		fcts.add(new FontModeTray("Decode Unmapped Glyphs", 'U'));
 		fcts.add(new FontModeTray("Verify Mapped Glyphs", 'V'));
@@ -905,7 +905,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	
 	FontCharsetTray[] getFontCharsetOptions() {
 		ArrayList fcts = new ArrayList();
-		fcts.add(new FontCharsetTray("Configured Default", this.fontDecoderCharset));
+		fcts.add(new FontCharsetTray("Default Charset", this.fontDecoderCharset));
 		fcts.add(new FontCharsetTray("Basic Latin", PdfFontDecoder.LATIN_BASIC));
 		fcts.add(new FontCharsetTray("Extended Latin", PdfFontDecoder.LATIN));
 		fcts.add(new FontCharsetTray("Full Latin", PdfFontDecoder.LATIN_FULL));
@@ -931,6 +931,11 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 						loadScreen.setStep("Loading IMF Archive");
 						ImDocument doc;
 						File docDataCache = null;
+						
+						//	wait for load screen to show
+						while (!loadScreen.isVisible()) try {
+							Thread.sleep(10);
+						} catch (InterruptedException ie) {}
 						
 						 // 50 MB should OK to hold in memory
 						if (inLength < (1024 * 1024 * 50))
@@ -981,6 +986,11 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				public void run() {
 					try {
 						
+						//	wait for load screen to show
+						while (!loadScreen.isVisible()) try {
+							Thread.sleep(10);
+						} catch (InterruptedException ie) {}
+						
 						//	get entry folder and load document
 						File docFolder = new File(docSource.getAbsolutePath() + "ir");
 						if (!docFolder.exists())
@@ -1020,6 +1030,11 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			Thread loadThread = new Thread("LoaderThread") {
 				public void run() {
 					try {
+						
+						//	wait for load screen to show
+						while (!loadScreen.isVisible()) try {
+							Thread.sleep(10);
+						} catch (InterruptedException ie) {}
 						
 						//	load list of document entries
 						ArrayList docEntries = new ArrayList();
@@ -1068,6 +1083,11 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 					try {
 						loadScreen.setStep("Loading PDF Document");
 						ImDocument doc;
+						
+						//	wait for load screen to show
+						while (!loadScreen.isVisible()) try {
+							Thread.sleep(10);
+						} catch (InterruptedException ie) {}
 						
 						//	load in slave JVM
 						if ("slave".equals(ggiConfig.getSetting("pdfDecodeMode", "main"))) {
@@ -1224,10 +1244,15 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			public void run() {
 				try {
 					loadScreen.setStep("Loading Document");
+					while (!loadScreen.isVisible()) try {
+						Thread.sleep(10);
+					} catch (InterruptedException ie) {}
+					
 					ImDocument doc = idip.loadDocument(loadScreen);
 					if (doc == null)
 						return;
 					String docName = ((String) doc.getAttribute(DOCUMENT_NAME_ATTRIBUTE));
+					
 					ggImagine.notifyDocumentOpened(doc, idip, loadScreen);
 					ui.openDocument(new GgiDocumentEditorTab(doc, docName, null, null, ((idip.getSaveDestinationName() == null) ? null : idip)));
 				}
@@ -1275,6 +1300,9 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		public boolean closeDocument(ImageDocumentEditorTab idet) {
 			if (!super.closeDocument(idet))
 				return false;
+			
+			//	dispose document
+			idet.getMarkupPanel().document.dispose();
 			
 			//	clean up any cached files
 			String docDataCachePath = ((String) GoldenGateImagineUI.this.docDataCachePathsById.get(idet.getMarkupPanel().document.docId));

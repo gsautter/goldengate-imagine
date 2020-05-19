@@ -10,11 +10,11 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Universität Karlsruhe (TH) / KIT nor the
+ *     * Neither the name of the Universitaet Karlsruhe (TH) / KIT nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY UNIVERSITÄT KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
+ * THIS SOFTWARE IS PROVIDED BY UNIVERSITAET KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -52,6 +52,7 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.awt.font.TextLayout;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -71,6 +72,7 @@ import javax.swing.WindowConstants;
 
 import de.uka.ipd.idaho.easyIO.settings.Settings;
 import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
+import de.uka.ipd.idaho.gamta.util.imaging.BoundingBox;
 import de.uka.ipd.idaho.gamta.util.imaging.ImagingConstants;
 import de.uka.ipd.idaho.gamta.util.swing.DialogFactory;
 import de.uka.ipd.idaho.goldenGate.plugins.ResourceSplashScreen;
@@ -84,6 +86,7 @@ import de.uka.ipd.idaho.im.ImRegion;
 import de.uka.ipd.idaho.im.ImSupplement;
 import de.uka.ipd.idaho.im.ImWord;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
+import de.uka.ipd.idaho.im.imagine.plugins.ClickActionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionListener;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
@@ -116,6 +119,7 @@ import de.uka.ipd.idaho.im.util.ImImageEditorPanel.ImImageEditTool;
 public abstract class ImageDocumentMarkupPanel extends JPanel implements ImagingConstants, DisplayExtensionListener {
 	final GoldenGateImagine ggImagine;
 	final Settings ggiConfig;
+	ImageDocumentMarkupUI parent;
 	
 	final SelectionActionUsageStats saUsageStats;
 	
@@ -236,22 +240,53 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		this.idmpBox.setViewport(new IdmpViewport(this.idmp));
 		this.idmpViewSize = this.idmpBox.getViewport().getVisibleRect();
 		
+		//	adjust primary target of mouse wheel to page alignment, and zoom with Ctrl plus mouse wheel
+		this.idmpBox.setWheelScrollingEnabled(false);
+		this.idmpBox.addMouseWheelListener(new MouseAdapter() {
+			public void mouseWheelMoved(MouseWheelEvent mwe) {
+				if (mwe.isControlDown()) {
+					if (parent == null)
+						return;
+					boolean zoomIn = (mwe.getWheelRotation() < 0);
+					int zoomSteps = Math.abs(mwe.getWheelRotation());
+					for (int s = 0; s < zoomSteps; s++) {
+						if (zoomIn)
+							parent.viewControl.zoomIn();
+						else parent.viewControl.zoomOut();
+					}
+					parent.viewControl.requestFocusInWindow();
+				}
+				else {
+					JScrollBar tsb = (((idmp.getSideBySidePages() == 1) != mwe.isShiftDown()) ? idmpBox.getVerticalScrollBar() : idmpBox.getHorizontalScrollBar());
+					if (!tsb.isVisible())
+						tsb = (((idmp.getSideBySidePages() == 1) != mwe.isShiftDown()) ? idmpBox.getHorizontalScrollBar() : idmpBox.getVerticalScrollBar());
+					if (!tsb.isVisible())
+						return;
+					int valueDelta = (tsb.getBlockIncrement() * mwe.getWheelRotation());
+					if (valueDelta < 0)
+						tsb.setValue(Math.max(tsb.getMinimum(), (tsb.getValue() + valueDelta)));
+					else if (valueDelta > 0)
+						tsb.setValue(Math.min(tsb.getMaximum(), (tsb.getValue() + valueDelta)));
+				}
+			}
+		});
+		
 		//	set scroll distances
 		final JScrollBar vsb = this.idmpBox.getVerticalScrollBar();
 		vsb.setUnitIncrement(this.idmpViewSize.height / 10);
-		vsb.setBlockIncrement(this.idmpViewSize.height / 10);
+		vsb.setBlockIncrement(this.idmpViewSize.height / 3);
 		final JScrollBar hsb = this.idmpBox.getHorizontalScrollBar();
 		hsb.setUnitIncrement(this.idmpViewSize.width / 10);
-		hsb.setBlockIncrement(this.idmpViewSize.width / 10);
+		hsb.setBlockIncrement(this.idmpViewSize.width / 3);
 		
 		//	track window resizing
 		this.addComponentListener(new ComponentAdapter() {
 			public void componentResized(ComponentEvent ce) {
 				idmpViewSize = idmpBox.getViewport().getViewRect();
 				vsb.setUnitIncrement(idmpViewSize.height / 10);
-				vsb.setBlockIncrement(idmpViewSize.height / 10);
+				vsb.setBlockIncrement(idmpViewSize.height / 3);
 				hsb.setUnitIncrement(idmpViewSize.width / 10);
-				hsb.setBlockIncrement(idmpViewSize.width / 10);
+				hsb.setBlockIncrement(idmpViewSize.width / 3);
 			}
 		});
 		
@@ -272,7 +307,7 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 				}
 				updateScrollPosition();
 				long aeTime = System.currentTimeMillis();
-				//	valueIsAdjusting is only true if mouse button held down in scrollbar _outside_ the buttons at the ends
+				//	valueIsAdjusting is only true if mouse button held down in scrollbar _outside_ the buttons at the ends (on either side of the know, or on knob proper)
 				if (ae.getValueIsAdjusting()) {
 					float valueDelta = ((this.lastAe == null) ? ae.getValue() : (ae.getValue() - this.lastAe.getValue()));
 					int timeDelta = ((this.lastAe == null) ? 10 : Math.max(10, ((int) (aeTime - this.lastAeTime))));
@@ -316,6 +351,17 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		this.add(this.idmp.getControlPanel(), BorderLayout.EAST);
 	}
 	
+	void setParent(ImageDocumentMarkupUI parent) {
+		this.parent = parent;
+		
+		//	set document view to current configuration
+		int renderingDpi = this.parent.viewControl.getRenderingDpi();
+		if ((0 < renderingDpi) && (renderingDpi != ImDocumentMarkupPanel.DEFAULT_RENDERING_DPI))
+			this.setRenderingDpi(renderingDpi);
+		if (this.parent.viewControl.isLeftRightLayout())
+			this.setSideBySidePages(0);
+	}
+	
 	/**
 	 * Update the scroll position indicator of the surrounding UI, e.g. when a
 	 * markup panel is newly opened, or when it is selected in a multi-document
@@ -326,10 +372,12 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		int viewCenterX = ((int) (viewRect.getMinX() + (viewRect.getWidth() / 2)));
 		int viewCenterY = ((int) (viewRect.getMinY() + (viewRect.getHeight() / 2)));
 		PagePoint viewPagePoint = this.idmp.pagePointAt(viewCenterX, viewCenterY);
-		if (viewPagePoint != null) {
-			Object pageNumber = viewPagePoint.page.getAttribute(PAGE_NUMBER_ATTRIBUTE);
-			this.scrollPositionChanged("Page " + (viewPagePoint.page.pageId + 1) + " / " + this.idmp.document.getPageCount() + ((pageNumber == null) ? "" : (" (Nr. " + pageNumber + ")")));
-		}
+		ImPage viewPage;
+		if (viewPagePoint == null) // happens on opening, before actually becoming visible
+			viewPage = this.idmp.document.getPage(this.idmp.document.getFirstPageId());
+		else viewPage = viewPagePoint.page;
+		Object pageNumber = viewPage.getAttribute(PAGE_NUMBER_ATTRIBUTE);
+		this.scrollPositionChanged("Page " + ((viewPage.pageId - this.idmp.document.getFirstPageId()) + 1) + " / " + this.idmp.document.getPageCount() + ((pageNumber == null) ? "" : (" (Nr. " + pageNumber + ")")));
 	}
 	
 	void setIdmpBoxFastScroll(boolean ibfs) {
@@ -371,12 +419,6 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 				return; // no 'Undo' recording on 'Undo' ... TODO maybe use this for 'Redo' ...
 			finishMultipartUndoAction();
 		}
-//		public void beginAtomicAction(String label) {
-//			startMultipartUndoAction(label);
-//		}
-//		public void endAtomicAction() {
-//			finishMultipartUndoAction();
-//		}
 		protected SelectionAction[] getActions(ImWord start, ImWord end) {
 			LinkedList actions = new LinkedList(Arrays.asList(super.getActions(start, end)));
 			SelectionActionProvider[] saps = ImageDocumentMarkupPanel.this.ggImagine.getSelectionActionProviders();
@@ -390,6 +432,19 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 			}
 			return ((SelectionAction[]) actions.toArray(new SelectionAction[actions.size()]));
 		}
+		protected ClickSelectionAction[] getClickActions(ImWord word, int clickCount) {
+			LinkedList actions = new LinkedList(Arrays.asList(super.getClickActions(word, clickCount)));
+			ClickActionProvider[] caps = ImageDocumentMarkupPanel.this.ggImagine.getClickActionProviders();
+			for (int p = 0; p < caps.length; p++) {
+				ClickSelectionAction[] csas = caps[p].getActions(word, clickCount, this);
+				if ((csas != null) && (csas.length != 0)) {
+					if (actions.size() != 0)
+						actions.add(SelectionAction.SEPARATOR);
+					actions.addAll(Arrays.asList(csas));
+				}
+			}
+			return ((ClickSelectionAction[]) actions.toArray(new ClickSelectionAction[actions.size()]));
+		}
 		protected SelectionAction[] getActions(ImPage page, Point start, Point end) {
 			LinkedList actions = new LinkedList(Arrays.asList(super.getActions(page, start, end)));
 			SelectionActionProvider[] saps = ImageDocumentMarkupPanel.this.ggImagine.getSelectionActionProviders();
@@ -402,6 +457,19 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 				}
 			}
 			return ((SelectionAction[]) actions.toArray(new SelectionAction[actions.size()]));
+		}
+		protected ClickSelectionAction[] getClickActions(ImPage page, Point point, int clickCount) {
+			LinkedList actions = new LinkedList(Arrays.asList(super.getClickActions(page, point, clickCount)));
+			ClickActionProvider[] caps = ImageDocumentMarkupPanel.this.ggImagine.getClickActionProviders();
+			for (int p = 0; p < caps.length; p++) {
+				ClickSelectionAction[] csas = caps[p].getActions(page, point, clickCount, this);
+				if ((csas != null) && (csas.length != 0)) {
+					if (actions.size() != 0)
+						actions.add(SelectionAction.SEPARATOR);
+					actions.addAll(Arrays.asList(csas));
+				}
+			}
+			return ((ClickSelectionAction[]) actions.toArray(new ClickSelectionAction[actions.size()]));
 		}
 		protected boolean[] markAdvancedSelectionActions(SelectionAction[] sas) {
 			return ImageDocumentMarkupPanel.this.saUsageStats.markAdvancedSelectionActions(sas);
@@ -433,6 +501,46 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		}
 		public ProgressMonitor getProgressMonitor(String title, String text, boolean supportPauseResume, boolean supportAbort) {
 			return new ResourceSplashScreen(getMainWindow(), title, text, supportPauseResume, supportAbort);
+		}
+		public boolean setDisplayOverlay(DisplayOverlay overlay, int pageId) {
+			if (!super.setDisplayOverlay(overlay, pageId))
+				return false;
+			
+			//	scroll to show this thing
+			Point ol = overlay.getOnPageLocation();
+			Dimension os = overlay.getOnPageSize();
+			int pid = overlay.getPageId();
+			
+			//	get position of overlay, and compare to current view
+			Rectangle vpPos = idmpBox.getViewport().getViewRect();
+			Rectangle oPos = this.getPosition(new BoundingBox(ol.x, (ol.x + os.width), ol.y, (ol.y + os.height)), pid);
+			
+			//	scroll selection to view if required (moving near center)
+			if (!vpPos.contains(oPos)) {
+//				idmpBox.getViewport().scrollRectToVisible(wsPos); // DOESN'T SEEM TO WORK AS SUPPOSED TO, FOR WHATEVER REASON
+				int vx;
+				if ((vpPos.x <= oPos.x) && ((vpPos.x + vpPos.width) >= (oPos.x + oPos.width))) // selection in bounds horizontally, no need for scrolling
+					vx = vpPos.x;
+				else /* center selection in viewport */ {
+					int ocx = (oPos.x + (oPos.width / 2));
+					vx = (ocx - (vpPos.width / 2));
+					if (vx < 0)
+						vx = 0;
+				}
+				int vy;
+				if ((vpPos.y <= oPos.y) && ((vpPos.y + vpPos.height) >= (oPos.y + oPos.height))) // selection in bounds vertically, no need for scrolling
+					vy = vpPos.y;
+				else /* center selection in viewport */ {
+					int ocy = (oPos.y + (oPos.height / 2));
+					vy = (ocy - (vpPos.height / 2));
+					if (vy < 0)
+						vy = 0;
+				}
+				idmpBox.getViewport().setViewPosition(new Point(vx, vy));
+			}
+			
+			//	pass on super class success
+			return true;
 		}
 		public boolean setWordSelection(ImWord startWord, ImWord endWord) {
 			if (!super.setWordSelection(startWord, endWord))
@@ -472,13 +580,13 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 					vx = (wscx - (vpPos.width / 2));
 					if (vpPos.x < vx) // scrolling right, don't go all that far
 						vx -= (vpPos.width / 4);
-					else if (vpPos.x > vx) // scrolling up, don't go all that far
+					else if (vpPos.x > vx) // scrolling left, don't go all that far
 						vx += (vpPos.width / 4);
 					if (vx < 0)
 						vx = 0;
 				}
 				int vy;
-				if ((vpPos.y <= wsPos.y) && ((vpPos.y + vpPos.height) >= (wsPos.y + wsPos.height))) // selection in bounds horizontally, no need for scrolling
+				if ((vpPos.y <= wsPos.y) && ((vpPos.y + vpPos.height) >= (wsPos.y + wsPos.height))) // selection in bounds vertically, no need for scrolling
 					vy = vpPos.y;
 				else /* center selection in viewport */ {
 					int wscy = (wsPos.y + (wsPos.height / 2));
@@ -829,14 +937,61 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		int oldRenderingDpi = this.idmp.getRenderingDpi();
 		if (renderingDpi == oldRenderingDpi)
 			return;
+		
+		//	we're not visible, just set resolution and we're done
+		if (!this.isVisible()) {
+			this.idmp.setRenderingDpi(renderingDpi);
+			this.validate();
+			this.repaint();
+			return;
+		}
+		
+		//	get current view center point
 		Dimension viewSize = this.idmpBox.getViewport().getExtentSize();
 		Point oldViewPos = this.idmpBox.getViewport().getViewPosition();
 		Point oldViewCenter = new Point((oldViewPos.x + (viewSize.width / 2)), (oldViewPos.y + (viewSize.height / 2)));
+		
+		//	find page panel at view center for use as anchor (will be null before we're added to UI)
+		Component centerComp = this.idmp.getComponentAt(oldViewCenter);
+		if (centerComp == null) {
+			this.idmp.setRenderingDpi(renderingDpi);
+			this.validate();
+			this.repaint();
+			return;
+		}
+		
+		//	seek page panel if view center in main document panel proper
+		if ((this.idmp.getSideBySidePages() < 1) && (centerComp.getLocation().x < 0)) /* horizontal page arrangement */ {
+			Point seekViewCenter = new Point(oldViewCenter.x, oldViewCenter.y);
+			while ((centerComp.getLocation().x < 0) && (oldViewPos.x < seekViewCenter.x)) /* this is the markup panel proper in its parent scrolling viewport */ {
+				seekViewCenter.x--;
+				centerComp = this.idmp.getComponentAt(seekViewCenter);
+			}
+		}
+		else if ((this.idmp.getSideBySidePages() > 0) && (centerComp.getLocation().y < 0)) /* vertical page arrangement */ {
+			Point seekViewCenter = new Point(oldViewCenter.x, oldViewCenter.y);
+			while ((centerComp.getLocation().y < 0) && (oldViewPos.y < seekViewCenter.y)) /* this is the markup panel proper in its parent scrolling viewport */ {
+				seekViewCenter.y--;
+				centerComp = this.idmp.getComponentAt(seekViewCenter);
+			}
+		}
+		
+		//	compute position relative to anchor component
+		Point oldCenterCompPos = centerComp.getLocation();
+		Point oldRelViewCenter = new Point((oldViewCenter.x - oldCenterCompPos.x), (oldViewCenter.y - oldCenterCompPos.y));
+		
+		//	change zoom level
 		this.idmp.setRenderingDpi(renderingDpi);
 		this.validate();
 		this.repaint();
-		Point newViewCenter = new Point(((oldViewCenter.x * renderingDpi) / oldRenderingDpi), ((oldViewCenter.y * renderingDpi) / oldRenderingDpi));
+		
+		//	compute zoomed view center from anchor component
+		Point newCenterCompPos = centerComp.getLocation();
+		Point newRelViewCenter = new Point(((oldRelViewCenter.x * renderingDpi) / oldRenderingDpi), ((oldRelViewCenter.y * renderingDpi) / oldRenderingDpi));
+		Point newViewCenter = new Point((newCenterCompPos.x + newRelViewCenter.x), (newCenterCompPos.y + newRelViewCenter.y));
 		Point newViewPos = new Point(Math.max((newViewCenter.x - (viewSize.width / 2)), 0), Math.max((newViewCenter.y - (viewSize.height / 2)), 0));
+		
+		//	adjust scroll position
 		this.idmpBox.getViewport().setViewPosition(newViewPos);
 	}
 	
@@ -1070,14 +1225,13 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 				public void actionPerformed(ActionEvent ae) {
 					try {
 						ua.target.inUndoAction = true;
-//						ua.target.idmp.beginAtomicAction("UNDO");
 						
 						while (undoActions.size() != 0) {
 							UndoAction eua = ((UndoAction) undoActions.removeFirst());
 							try {
 								if (ua instanceof MultipartUndoAction)
 									ua.target.idmp.startAtomicAction(((MultipartUndoAction) ua).actionId, "UNDO", null, null, null);
-								else ua.target.idmp.beginAtomicAction("UNDO");
+								else ua.target.idmp.startAtomicAction(-1, "UNDO", null, null, null);
 								eua.execute();
 							}
 							finally {
@@ -1090,7 +1244,6 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 						updateUndoMenu();
 					}
 					finally {
-//						ua.target.idmp.endAtomicAction();
 						ua.target.inUndoAction = false;
 						
 						ua.target.idmp.validate();
@@ -1143,13 +1296,13 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 	
 	private static class IdmpViewport extends JViewport implements TwoClickActionMessenger {
 		private static Color halfTransparentRed = new Color(Color.red.getRed(), Color.red.getGreen(), Color.red.getBlue(), 128);
-		private ImDocumentMarkupPanel idvp;
+		private ImDocumentMarkupPanel idmp;
 		private String tcaMessage = null;
-		IdmpViewport(ImDocumentMarkupPanel idvp) {
-			this.idvp = idvp;
-			this.idvp.setTwoClickActionMessenger(this);
-			this.setView(this.idvp);
-			this.setOpaque(false);
+		IdmpViewport(ImDocumentMarkupPanel idmp) {
+			this.idmp = idmp;
+			this.idmp.setTwoClickActionMessenger(this);
+			this.setView(this.idmp);
+			this.setOpaque(true); // we need some explicit background because in some look&feels window background is white
 		}
 		public void twoClickActionChanged(TwoClickSelectionAction tcsa) {
 			this.tcaMessage = ((tcsa == null) ? null : tcsa.getActiveLabel());

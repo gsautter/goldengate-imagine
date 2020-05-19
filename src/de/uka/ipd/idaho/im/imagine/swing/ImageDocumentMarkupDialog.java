@@ -10,11 +10,11 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Universität Karlsruhe (TH) / KIT nor the
+ *     * Neither the name of the Universitaet Karlsruhe (TH) / KIT nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY UNIVERSITÄT KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
+ * THIS SOFTWARE IS PROVIDED BY UNIVERSITAET KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -32,6 +32,7 @@ import java.awt.Window;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
+import javax.swing.JComponent;
 import javax.swing.JMenuItem;
 
 import de.uka.ipd.idaho.easyIO.settings.Settings;
@@ -71,8 +72,7 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	/** Constructor
 	 * @param ggImagine the GoldenGATE Imagine core providing editing functionality
 	 * @param ggiConfig the GoldenGATE Imagine configuration
-	 * @param doc the document to display
-	 * @param docName the name of the document to display
+	 * @param docTag the document tab to display
 	 */
 	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab) {
 		super("GoldenGATE Imagine - " + docTab.getDocName());
@@ -102,6 +102,16 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 		this.add(this.ui, BorderLayout.CENTER);
 		this.setSize(1000, 800);
 		this.setLocationRelativeTo(null);
+	}
+	
+	/**
+	 * Retrieve the enclosed markup UI. This method intentionally returns a
+	 * generic JComponent because the only reason sub classes are intended to
+	 * access the markup UI is for dialog content layout purposes.
+	 * @return the markup UI component
+	 */
+	protected JComponent getMarkupUI() {
+		return this.ui;
 	}
 	
 	void close() {

@@ -27,19 +27,42 @@
  */
 package de.uka.ipd.idaho.im.imagine.plugins;
 
-import de.uka.ipd.idaho.im.util.ImImageEditorPanel.ImImageEditTool;
+import java.awt.Point;
+
+import de.uka.ipd.idaho.im.ImPage;
+import de.uka.ipd.idaho.im.ImWord;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ClickSelectionAction;
 
 /**
- * Provider of tools for editing page images, to dynamically extend the page
- * image editor.
+ * Provider of click actions working on Image Markup documents, to dynamically
+ * extend the image markup editor.
  * 
  * @author sautter
  */
-public interface ImageEditToolProvider extends GoldenGateImaginePlugin {
+public interface ClickActionProvider extends GoldenGateImaginePlugin {
 	
 	/**
-	 * Retrieve the image editing tools from this provider.
-	 * @return an array holding the tools
+	 * Retrieve the available actions for a given number of clicks on a word.
+	 * The argument editor panel is to provide the current configuration of the
+	 * editing interface.
+	 * @param word the word that was clicked
+	 * @param clickCount the number of clicks
+	 * @param idmp the document editor panel to use the actions in
+	 * @return an array holding the actions
 	 */
-	public abstract ImImageEditTool[] getImageEditTools();
+	public abstract ClickSelectionAction[] getActions(ImWord word, int clickCount, ImDocumentMarkupPanel idmp);
+	
+	/**
+	 * Retrieve the available actions for a given number of clicks on a point
+	 * in a given page. The argument point is relative to the argument page,
+	 * and in its original resolution. The argument editor panel is to provide
+	 * the current configuration of the editing interface.
+	 * @param page the document page the point lies in
+	 * @param point the point that was clicked
+	 * @param clickCount the number of clicks
+	 * @param idmp the document editor panel to use the actions in
+	 * @return an array holding the actions
+	 */
+	public abstract ClickSelectionAction[] getActions(ImPage page, Point point, int clickCount, ImDocumentMarkupPanel idmp);
 }

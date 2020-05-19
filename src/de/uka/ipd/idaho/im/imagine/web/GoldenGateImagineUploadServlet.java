@@ -10,11 +10,11 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Universität Karlsruhe (TH) / KIT nor the
+ *     * Neither the name of the Universitaet Karlsruhe (TH) / KIT nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY UNIVERSITÄT KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
+ * THIS SOFTWARE IS PROVIDED BY UNIVERSITAET KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -29,7 +29,6 @@ package de.uka.ipd.idaho.im.imagine.web;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -45,7 +44,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.Vector;
@@ -71,6 +69,7 @@ import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder.HtmlPageBuilderH
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.ImSupplement;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.util.ImSupplementCache;
 import de.uka.ipd.idaho.plugins.bibRefs.BibRefConstants;
 import de.uka.ipd.idaho.plugins.bibRefs.BibRefEditorFormHandler;
 import de.uka.ipd.idaho.plugins.bibRefs.BibRefTypeSystem;
@@ -240,132 +239,21 @@ public class GoldenGateImagineUploadServlet extends GoldenGateImagineServlet imp
 	 * @author sautter
 	 */
 	private class DiscCachingImDocument extends ImDocument {
-		private long inMemorySupplementSize = 0;
-		private File supplementCacheFolder;
-		private LinkedHashSet supplementCacheFiles = null;
+		private ImSupplementCache supplementCache;
 		DiscCachingImDocument(String docId, File supplementCacheFolder) {
 			super(docId);
-			this.supplementCacheFolder = supplementCacheFolder;
+			this.supplementCache = new ImSupplementCache(this, supplementCacheFolder, maxInMemorySupplementSize);
 		}
 		public ImSupplement addSupplement(ImSupplement ims) {
-			
-			//	store known type supplements on disc if there are too many or too large
-			if ((ims instanceof ImSupplement.Figure) || (ims instanceof ImSupplement.Graphics) || (ims instanceof ImSupplement.Scan) || (ims instanceof ImSupplement.Source)) try {
-				
-				//	threshold already exceeded, disc cache right away
-				if (this.inMemorySupplementSize > maxInMemorySupplementSize)
-					ims = this.createDiscSupplement(ims, null);
-				
-				//	still below threshold, check source
-				else {
-					InputStream sis = ims.getInputStream();
-					
-					//	this one resides in memory, count it
-					if (sis instanceof ByteArrayInputStream)
-						this.inMemorySupplementSize += sis.available();
-					
-					//	threshold just exceeded
-					if (this.inMemorySupplementSize > maxInMemorySupplementSize) {
-						
-						//	disc cache all existing image supplements
-						ImSupplement[] imss = this.getSupplements();
-						for (int s = 0; s < imss.length; s++) {
-							if ((imss[s] instanceof ImSupplement.Figure) || (imss[s] instanceof ImSupplement.Graphics) || (imss[s] instanceof ImSupplement.Scan))
-								super.addSupplement(this.createDiscSupplement(imss[s], null));
-						}
-						
-						//	disc cache argument supplement
-						ims = this.createDiscSupplement(ims, sis);
-					}
-				}
-			}
-			catch (IOException ioe) {
-				System.out.println("Error caching supplement '" + ims.getId() + "': " + ioe.getMessage());
-				ioe.printStackTrace(System.out);
-			}
-			
-			//	store (possibly modified) supplement
+			ims = this.supplementCache.cacheSupplement(ims);
 			return super.addSupplement(ims);
 		}
-		
-		private ImSupplement createDiscSupplement(ImSupplement ims, InputStream sis) throws IOException {
-			
-			//	make sure not to call disk caching recursively
-			if (ims.getClass().getName().startsWith(GoldenGateImagineUploadServlet.class.getName()))
-				return ims;
-			
-			//	get input stream if not already done
-			if (sis == null)
-				sis = ims.getInputStream();
-			
-			//	this one's not in memory, close input stream and we're done
-			if (!(sis instanceof ByteArrayInputStream)) {
-				sis.close();
-				return ims;
-			}
-			
-			//	get file name and extension
-			String sDataName = ims.getId().replaceAll("[^a-zA-Z0-9]", "_");
-			String sDataType = ims.getMimeType();
-			if (sDataType.indexOf('/') != -1)
-				sDataType = sDataType.substring(sDataType.indexOf('/') + "/".length());
-			
-			//	create file tracker on demand
-			if (this.supplementCacheFiles == null)
-				this.supplementCacheFiles = new LinkedHashSet();
-			
-			//	create file
-			final File sFile = new File(this.supplementCacheFolder, (this.docId + "." + sDataName + "." + sDataType));
-			this.supplementCacheFiles.add(sFile);
-			
-			//	store supplement in file (if not done in previous run)
-			if (!sFile.exists()) {
-				sFile.createNewFile();
-				OutputStream sos = new BufferedOutputStream(new FileOutputStream(sFile));
-				byte[] sBuffer = new byte[1024];
-				for (int r; (r = sis.read(sBuffer, 0, sBuffer.length)) != -1;)
-					sos.write(sBuffer, 0, r);
-				sos.flush();
-				sos.close();
-			}
-			
-			//	replace supplement with disc based one
-			if (ims instanceof ImSupplement.Figure)
-				return new ImSupplement.Figure(this, ims.getMimeType(), ((ImSupplement.Figure) ims).getPageId(), ((ImSupplement.Figure) ims).getRenderOrderNumber(), ((ImSupplement.Figure) ims).getDpi(), ((ImSupplement.Figure) ims).getBounds()) {
-					public InputStream getInputStream() throws IOException {
-						return new BufferedInputStream(new FileInputStream(sFile));
-					}
-				};
-			else if (ims instanceof ImSupplement.Graphics)
-				return new ImSupplement.Graphics(this, ((ImSupplement.Graphics) ims).getPageId(), ((ImSupplement.Graphics) ims).getRenderOrderNumber(), ((ImSupplement.Graphics) ims).getBounds()) {
-					public InputStream getInputStream() throws IOException {
-						return new BufferedInputStream(new FileInputStream(sFile));
-					}
-				};
-			else if (ims instanceof ImSupplement.Scan)
-				return new ImSupplement.Scan(this, ims.getMimeType(), ((ImSupplement.Scan) ims).getPageId(), ((ImSupplement.Scan) ims).getRenderOrderNumber(), ((ImSupplement.Scan) ims).getDpi()) {
-					public InputStream getInputStream() throws IOException {
-						return new BufferedInputStream(new FileInputStream(sFile));
-					}
-				};
-			else if (ims instanceof ImSupplement.Source)
-				return new ImSupplement.Source(this, ims.getMimeType()) {
-					public InputStream getInputStream() throws IOException {
-						return new BufferedInputStream(new FileInputStream(sFile));
-					}
-				};
-			else return ims; // never gonna happen, but Java don't know
+		public void removeSupplement(ImSupplement ims) {
+			this.supplementCache.deleteSupplement(ims);
+			super.removeSupplement(ims);
 		}
-		
 		public void dispose() {
-			
-			//	clean up cached supplements
-			if (this.supplementCacheFiles != null) {
-				for (Iterator cfit = this.supplementCacheFiles.iterator(); cfit.hasNext();)
-					((File) cfit.next()).delete();
-			}
-			
-			//	clean up super class
+			this.supplementCache.clear();
 			super.dispose();
 		}
 	}

@@ -10,11 +10,11 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Universität Karlsruhe (TH) / KIT nor the
+ *     * Neither the name of the Universitaet Karlsruhe (TH) / KIT nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY UNIVERSITÄT KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
+ * THIS SOFTWARE IS PROVIDED BY UNIVERSITAET KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -88,6 +88,7 @@ import de.uka.ipd.idaho.goldenGate.plugins.ResourceManager;
 import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.ImSupplement;
+import de.uka.ipd.idaho.im.imagine.plugins.ClickActionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionListener;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineDocumentListener;
@@ -193,6 +194,8 @@ public class GoldenGateImagine implements GoldenGateConstants {
 				this.registerImageMarkupToolProvider((ImageMarkupToolProvider) ggps[p]);
 			if (ggps[p] instanceof SelectionActionProvider)
 				this.registerSelectionActionProvider((SelectionActionProvider) ggps[p]);
+			if (ggps[p] instanceof ClickActionProvider)
+				this.registerClickActionProvider((ClickActionProvider) ggps[p]);
 			if (ggps[p] instanceof ImageDocumentDropHandler)
 				this.registerDropHandler((ImageDocumentDropHandler) ggps[p]);
 			if (ggps[p] instanceof ImageDocumentIoProvider)
@@ -482,14 +485,6 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		return ((ImageMarkupToolProvider) this.imageMarkupToolProvidersByClassName.get(pluginClassName));
 	}
 	
-	//	register and lookup method for selection action providers
-	private HashMap selectionActionProvidersByClassName = new LinkedHashMap();
-	
-	private void registerSelectionActionProvider(SelectionActionProvider sap) {
-		if (sap != null)
-			this.selectionActionProvidersByClassName.put(sap.getClass().getName(), sap);
-	}
-	
 	/**
 	 * Retrieve an image markup tool by its name. The name may be fully
 	 * qualified, i.e., include the providerClassName, but need not. In the
@@ -533,6 +528,14 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		}
 	}
 	
+	//	register and lookup method for selection action providers
+	private HashMap selectionActionProvidersByClassName = new LinkedHashMap();
+	
+	private void registerSelectionActionProvider(SelectionActionProvider sap) {
+		if (sap != null)
+			this.selectionActionProvidersByClassName.put(sap.getClass().getName(), sap);
+	}
+	
 	/**
 	 * Find a GoldenGatePlugin by its class name.
 	 * @param pluginClassName the class name of the desired GoldenGatePlugin
@@ -549,6 +552,32 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	public SelectionActionProvider[] getSelectionActionProviders() {
 		ArrayList saps = new ArrayList(this.selectionActionProvidersByClassName.values());
 		return ((SelectionActionProvider[]) saps.toArray(new SelectionActionProvider[saps.size()]));
+	}
+	
+	//	register and lookup method for click action providers
+	private HashMap clickActionProvidersByClassName = new LinkedHashMap();
+	
+	private void registerClickActionProvider(ClickActionProvider cap) {
+		if (cap != null)
+			this.clickActionProvidersByClassName.put(cap.getClass().getName(), cap);
+	}
+	
+	/**
+	 * Find a GoldenGatePlugin by its class name.
+	 * @param pluginClassName the class name of the desired GoldenGatePlugin
+	 * @return the GoldenGatePlugin with the specified class name
+	 */
+	public ClickActionProvider getClickActionProvider(String pluginClassName) {
+		return ((ClickActionProvider) this.clickActionProvidersByClassName.get(pluginClassName));
+	}
+	
+	/**
+	 * Get all GoldenGatePlugins that are currently available.
+	 * @return an array holding all GoldenGatePlugins registered
+	 */
+	public ClickActionProvider[] getClickActionProviders() {
+		ArrayList caps = new ArrayList(this.clickActionProvidersByClassName.values());
+		return ((ClickActionProvider[]) caps.toArray(new ClickActionProvider[caps.size()]));
 	}
 	
 	//	register and lookup method for reaction providers

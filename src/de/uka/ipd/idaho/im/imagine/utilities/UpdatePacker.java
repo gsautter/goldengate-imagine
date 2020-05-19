@@ -10,11 +10,11 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Universität Karlsruhe (TH) nor the
+ *     * Neither the name of the Universitaet Karlsruhe (TH) nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY UNIVERSITÄT KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
+ * THIS SOFTWARE IS PROVIDED BY UNIVERSITAET KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -66,7 +66,6 @@ public class UpdatePacker {
 		long updateTimestamp = System.currentTimeMillis();
 		System.out.println("Update timestamp is " + updateTimestamp);
 		
-//		String updateName = "GgUpdate." + timestamper.format(new Date(updateTimestamp)) + ".zip";
 		String updateName = UpdateUtils.getUpdateName(updateTimestamp);
 		System.out.println("Building update '" + updateName + "'");
 		
@@ -75,7 +74,7 @@ public class UpdatePacker {
 		
 		//	TODO read relevant JAR names from config file
 		
-		String[] updateFileNames = getUpdateJars(rootFolder, updateName, lastUpdateTimestamp);
+		String[] updateFileNames = getUpdateFiles(rootFolder, updateName, lastUpdateTimestamp);
 		if (updateFileNames.length == 0) {
 			System.out.println("No jar files selected for update, aborting.");
 			return;
@@ -119,27 +118,30 @@ public class UpdatePacker {
 		return lastUpdateTimestamp;
 	}
 	
-	private static String[] getUpdateJars(File folder, String updateName, long lastUpdateTimestamp) {
-		String[] jars = getJars(folder);
+	private static String[] getUpdateFiles(File folder, String updateName, long lastUpdateTimestamp) {
+		String[] files = getFiles(folder);
 		
-		Set selectedJars = new TreeSet();
-		Set newJars = new TreeSet();
-		for (int j = 0; j < jars.length; j++)
-			if (lastUpdateTimestamp < new File(folder, jars[j]).lastModified()) {
-				if ((jars[j].indexOf("/") == -1) && (jars[j].indexOf("Starter.jar") == -1))
-					selectedJars.add(jars[j]);
-				newJars.add(jars[j]);
+		Set selectedFiles = new TreeSet();
+		Set newFiles = new TreeSet();
+		for (int j = 0; j < files.length; j++)
+			if (lastUpdateTimestamp < new File(folder, files[j]).lastModified()) {
+				if ((files[j].indexOf("/") == -1) && (files[j].indexOf("Starter.jar") == -1))
+					selectedFiles.add(files[j]);
+				newFiles.add(files[j]);
 			}
 		
-		return PackerUtils.selectStrings(jars, selectedJars, newJars, ("Select Jar Files to Include in Update '" + updateName + "'"), null);
+		return PackerUtils.selectStrings(files, selectedFiles, newFiles, ("Select JAR and Config Files to Include in Update '" + updateName + "'"), null);
 	}
 	
-	private static String[] getJars(File folder) {
-		String[] files = PackerUtils.listFilesRelative(folder, 8);
-		Set jars = new TreeSet();
-		for (int f = 0; f < files.length; f++)
-			if (files[f].endsWith(".jar"))
-				jars.add(files[f]);
-		return ((String[]) jars.toArray(new String[jars.size()]));
+	private static String[] getFiles(File folder) {
+		String[] allFiles = PackerUtils.listFilesRelative(folder, 8);
+		Set files = new TreeSet();
+		for (int f = 0; f < allFiles.length; f++) {
+			if (allFiles[f].endsWith(".jar"))
+				files.add(allFiles[f]);
+			else if (allFiles[f].endsWith(".cnfg"))
+				files.add(allFiles[f]);
+		}
+		return ((String[]) files.toArray(new String[files.size()]));
 	}
 }

@@ -10,11 +10,11 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the Universität Karlsruhe (TH) / KIT nor the
+ *     * Neither the name of the Universitaet Karlsruhe (TH) / KIT nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY UNIVERSITÄT KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
+ * THIS SOFTWARE IS PROVIDED BY UNIVERSITAET KARLSRUHE (TH) / KIT AND CONTRIBUTORS 
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
  * ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
@@ -52,7 +52,7 @@ public interface SelectionActionProvider extends GoldenGateImaginePlugin {
 	 */
 	public abstract SelectionAction[] getActions(ImWord start, ImWord end, ImDocumentMarkupPanel idmp);
 	
-	//	TODO consider adding spanning and overlapping annotations as arguments ... no use, or higher effort, computing separately them in every instance of this class
+	//	TODO consider adding spanning and overlapping annotations as arguments ... no use, or higher effort, computing them separately in every instance of this class
 	
 	/**
 	 * Retrieve the available actions for a box selection. The argument editor
@@ -63,7 +63,7 @@ public interface SelectionActionProvider extends GoldenGateImaginePlugin {
 	 *            the box
 	 * @param page the document page the selection belongs to
 	 * @param idmp the document editor panel to display the actions in
-	 * @return true if the document was changed by the method, false otherwise
+	 * @return an array holding the actions
 	 */
 	public abstract SelectionAction[] getActions(Point start, Point end, ImPage page, ImDocumentMarkupPanel idmp);
 }
