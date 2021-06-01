@@ -72,6 +72,7 @@ import de.uka.ipd.idaho.goldenGate.DocumentEditor;
 import de.uka.ipd.idaho.goldenGate.GoldenGATE;
 import de.uka.ipd.idaho.goldenGate.GoldenGateConfiguration;
 import de.uka.ipd.idaho.goldenGate.GoldenGateConstants;
+import de.uka.ipd.idaho.goldenGate.observers.ResourceObserver;
 import de.uka.ipd.idaho.goldenGate.plugins.AnnotationFilter;
 import de.uka.ipd.idaho.goldenGate.plugins.AnnotationFilterManager;
 import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSource;
@@ -92,6 +93,7 @@ import de.uka.ipd.idaho.im.imagine.plugins.ClickActionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionListener;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineDocumentListener;
+import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineDocumentListener.CancelSavingException;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImaginePlugin;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentExporter;
@@ -643,6 +645,23 @@ public class GoldenGateImagine implements GoldenGateConstants {
 			this.displayExtensionListeners.remove(del);
 	}
 	
+	/**
+	 * Add a resource observer so it is notified when resources change.
+	 * @param ro the resource observer to add
+	 */
+	public void addResourceObserver(ResourceObserver ro) {
+		this.goldenGate.registerResourceObserver(ro);
+	}
+	
+	/**
+	 * Remove a resource observer so it is not notified any more when resources
+	 * change.
+	 * @param ro the resource observer to remove
+	 */
+	public void removeResourceObserver(ResourceObserver ro) {
+		this.goldenGate.unregisterResourceObserver(ro);
+	}
+	
 	//	register for document listeners
 	private ArrayList documentListeners = new ArrayList();
 	
@@ -679,7 +698,8 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	 * Notify all registered document listeners that an Image Markup document
 	 * has been selected for editing in an application built around this
 	 * GoldenGATE Imagine core. This method should be called by client code
-	 * right after an Image Markup document has been loaded.
+	 * right after an Image Markup document has been selected (most importantly
+	 * after changing between documents in a multi-document UI).
 	 * @param doc the document that was selected
 	 */
 	public void notifyDocumentSelected(ImDocument doc) {
@@ -692,12 +712,18 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	 * is about to be saved to persistent storage in an application built
 	 * around this GoldenGATE Imagine core. This method should only be called
 	 * if the Image Markup document is stored as such, rather than exported in
-	 * another format.
+	 * another format. 
+	 * If an implementor of the <code>documentSaving()</code> method decides to
+	 * cancel the saving process, this method throws a
+	 * <code>CancelSavingException</code>, with the reason for the cancellation
+	 * in the message, e.g. to write it to a log file or display it in a UI.
 	 * @param doc the document that is about to be saved
 	 * @param dest the destination the document will be saved to
 	 * @param pm a progress monitor observing saving preparations
+	 * @param throws CancelSavingException any of the registered listeners
+	 *            desires to cancel the saving process
 	 */
-	public void notifyDocumentSaving(ImDocument doc, Object dest, ProgressMonitor pm) {
+	public void notifyDocumentSaving(ImDocument doc, Object dest, ProgressMonitor pm) throws CancelSavingException {
 		for (int l = 0; l < this.documentListeners.size(); l++)
 			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentSaving(doc, dest, pm);
 	}

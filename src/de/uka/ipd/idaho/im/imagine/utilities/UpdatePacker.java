@@ -121,6 +121,16 @@ public class UpdatePacker {
 	private static String[] getUpdateFiles(File folder, String updateName, long lastUpdateTimestamp) {
 		String[] files = getFiles(folder);
 		
+		/* TODO Consider changes in comparison to previous updates when pre-selecting JARs in update packers:
+- run backwards through previous updates present in "_Updates" folder ...
+- ... that match own update file name pattern ...
+- ... collecting byte size of update entries per name ...
+- ... for JARs pre-selected based upon change timestamps
+- maybe also add default exclusion list in respective ".cnfg" file
+==> should help prevent forgetting some JAR in some update
+==> still know what changed for conscious inclusion !!!
+		 */
+		
 		Set selectedFiles = new TreeSet();
 		Set newFiles = new TreeSet();
 		for (int j = 0; j < files.length; j++)

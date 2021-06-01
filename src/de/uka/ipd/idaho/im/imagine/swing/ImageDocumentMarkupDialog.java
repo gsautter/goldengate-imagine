@@ -33,7 +33,6 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
 import javax.swing.JComponent;
-import javax.swing.JMenuItem;
 
 import de.uka.ipd.idaho.easyIO.settings.Settings;
 import de.uka.ipd.idaho.gamta.util.imaging.ImagingConstants;
@@ -41,6 +40,7 @@ import de.uka.ipd.idaho.goldenGate.GoldenGateConstants;
 import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
+import de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupUI.FileMenuItem;
 import de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupUI.ImageDocumentEditorTab;
 
 /**
@@ -65,8 +65,19 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	 * @param docName the name of the document to display
 	 */
 	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName) {
+		this(ggImagine, ggiConfig, doc, docName, false);
+	}
+	
+	/** Constructor
+	 * @param ggImagine the GoldenGATE Imagine core providing editing functionality
+	 * @param ggiConfig the GoldenGATE Imagine configuration
+	 * @param doc the document to display
+	 * @param docName the name of the document to display
+	 * @param isSubDocument is the document a sub document of another one (setting to true hides 'File' and 'Export' menu)
+	 */
+	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName, boolean isSubDocument) {
 		super("GoldenGATE Imagine - " + docName);
-		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, ggiConfig, doc, docName));
+		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, ggiConfig, doc, docName, isSubDocument));
 	}
 	
 	/** Constructor
@@ -75,8 +86,18 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	 * @param docTag the document tab to display
 	 */
 	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab) {
+		this(ggImagine, ggiConfig, docTab, false);
+	}
+	
+	/** Constructor
+	 * @param ggImagine the GoldenGATE Imagine core providing editing functionality
+	 * @param ggiConfig the GoldenGATE Imagine configuration
+	 * @param docTag the document tab to display
+	 * @param isSubDocument is the document a sub document of another one (setting to true hides 'File' and 'Export' menu)
+	 */
+	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab, boolean isSubDocument) {
 		super("GoldenGATE Imagine - " + docTab.getDocName());
-		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, ggiConfig, docTab));
+		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, ggiConfig, docTab, isSubDocument));
 	}
 	
 	private void init(GoldenGateImagine ggImagine, DialogDoumentMarkupUI ui) {
@@ -121,13 +142,13 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	}
 	
 	private class DialogDoumentMarkupUI extends ImageDocumentMarkupUI {
-		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName) {
-			super(ggImagine, ggiConfig, doc, docName);
+		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName, boolean isSubDocument) {
+			super(ggImagine, ggiConfig, doc, docName, isSubDocument);
 		}
-		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab) {
-			super(ggImagine, ggiConfig, docTab);
+		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab, boolean isSubDocument) {
+			super(ggImagine, ggiConfig, docTab, isSubDocument);
 		}
-		protected JMenuItem[] getFileMenuItems() {
+		protected FileMenuItem[] getFileMenuItems() {
 			return ImageDocumentMarkupDialog.this.getFileMenuItems();
 		}
 		protected void documentNameChanged(ImageDocumentEditorTab idet) {
@@ -166,8 +187,8 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	 * to overwrite it as needed.
 	 * @return an array holding the menu items
 	 */
-	protected JMenuItem[] getFileMenuItems() {
-		return new JMenuItem[0];
+	protected FileMenuItem[] getFileMenuItems() {
+		return new FileMenuItem[0];
 	}
 	
 	/**

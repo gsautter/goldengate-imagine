@@ -184,7 +184,7 @@ public class GoldenGateImagineApplication implements GoldenGateConstants {
 	private static void writeConfigHostFile() {
 		File configHostFile = new File(BASE_PATH, CONFIG_HOST_FILE_NAME);
 		
-		//	remane existing file to .old if necessary
+		//	rename existing file to .old if necessary
 		if (configHostFile.exists()) {
 			String configHostFileName = configHostFile.toString();
 			File oldConfigHostFile = new File(configHostFileName + ".old");

@@ -40,6 +40,23 @@ import de.uka.ipd.idaho.im.ImDocument;
 public interface GoldenGateImagineDocumentListener extends GoldenGateImaginePlugin {
 	
 	/**
+	 * Dedicated runtime exception to be thrown from implementations of the
+	 * <code>documentSaving()</code> method if the implementation wants to
+	 * abort the saving process for whichever reason.
+	 * 
+	 * @author sautter
+	 */
+	public static class CancelSavingException extends IllegalStateException {
+		
+		/** Constructor
+		 * @param reason the reason for the cancellation of the saving process
+		 */
+		public CancelSavingException(String reason) {
+			super(reason);
+		}
+	}
+	
+	/**
 	 * Receive notification that an Image Markup document has been opened. This
 	 * method is called right after the loading process is completed. The source
 	 * argument will usually be a file or an Image Markup IO provider, but might
@@ -70,11 +87,16 @@ public interface GoldenGateImagineDocumentListener extends GoldenGateImaginePlug
 	 * or an Image Markup IO provider, but might also be null.
 	 * Notifications received through this method allow for receivers to update
 	 * supplements to be stored along with the document, for instance.
+	 * If an implementor of this method desires to cancel the saving process,
+	 * it may do so by throwing a <code>CancelSavingException</code>, with the
+	 * reason for the cancellation in the message.
 	 * @param doc the document that is about to be saved
 	 * @param dest the destination the document will be saved to
 	 * @param pm a progress monitor observing saving preparations
+	 * @param throws CancelSavingException if the implementor desires to cancel
+	 *            the saving process
 	 */
-	public abstract void documentSaving(ImDocument doc, Object dest, ProgressMonitor pm);
+	public abstract void documentSaving(ImDocument doc, Object dest, ProgressMonitor pm) throws CancelSavingException;
 	
 	/**
 	 * Receive notification that an Image Markup document has been saved to

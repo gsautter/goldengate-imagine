@@ -80,6 +80,7 @@ import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
 import de.uka.ipd.idaho.im.ImAnnotation;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.ImDocument.ImDocumentListener;
+import de.uka.ipd.idaho.im.ImFont;
 import de.uka.ipd.idaho.im.ImObject;
 import de.uka.ipd.idaho.im.ImPage;
 import de.uka.ipd.idaho.im.ImRegion;
@@ -107,7 +108,10 @@ import de.uka.ipd.idaho.im.util.ImImageEditorPanel.ImImageEditTool;
  * in the UI of an application built around a GoldenGATE Imagine core. This
  * class handles display control, integration with GoldenGATE Imagine plug-ins
  * (selection actions, reactions, drop handling, and display extensions), and
- * 'Undo' management. It further provides mounting points for integration in a
+ * 'Undo' management. The latter reverts atomic actions in corresponding
+ * inverse atomic actions whose IDs are the inverse of the IDs of the original
+ * actions. The IDs of atomic actions reverting changes made individually are
+ * always -1. Further, this class provides mounting points for integration in a
  * window based UI.<br/>
  * By default, the panel contains the document display and its associated view
  * control in the <code>BorderLayout.CENTER</code> and <code>BorderLayout.EAST</code>
@@ -681,6 +685,10 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 				void doExecute() {
 					object.setType(oldType);
 				}
+//				int doExecute() {
+//					object.setType(oldType);
+//					return 1;
+//				}
 			});
 		}
 		public void regionAdded(final ImRegion region) {
@@ -690,6 +698,10 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 				void doExecute() {
 					idmp.document.getPage(region.pageId).removeRegion(region);
 				}
+//				int doExecute() {
+//					idmp.document.getPage(region.pageId).removeRegion(region);
+//					return 1;
+//				}
 			});
 		}
 		public void regionRemoved(final ImRegion region) {
@@ -700,11 +712,19 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 					void doExecute() {
 						idmp.document.getPage(region.pageId).addWord((ImWord) region);
 					}
+//					int doExecute() {
+//						idmp.document.getPage(region.pageId).addWord((ImWord) region);
+//						return 1;
+//					}
 				});
 			else addUndoAction(new UndoAction(("Remove '" + region.getType() + "' Region"), ImageDocumentMarkupPanel.this) {
 				void doExecute() {
 					idmp.document.getPage(region.pageId).addRegion(region);
 				}
+//				int doExecute() {
+//					idmp.document.getPage(region.pageId).addRegion(region);
+//					return 1;
+//				}
 			});
 		}
 		public void attributeChanged(final ImObject object, final String attributeName, final Object oldValue) {
@@ -715,17 +735,29 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 					void doExecute() {
 						object.setAttribute(attributeName, oldValue); // we need to set here instead of removing, as some objects have built-in special attributes (ImWord !!!)
 					}
+//					int doExecute() {
+//						object.setAttribute(attributeName, oldValue); // we need to set here instead of removing, as some objects have built-in special attributes (ImWord !!!)
+//						return 1;
+//					}
 				});
 			else if (object.getAttribute(attributeName) == null)
 				addUndoAction(new UndoAction(("Remove '" + attributeName + "' Attribute from " + object.getType()), ImageDocumentMarkupPanel.this) {
 					void doExecute() {
 						object.setAttribute(attributeName, oldValue);
 					}
+//					int doExecute() {
+//						object.setAttribute(attributeName, oldValue);
+//						return 1;
+//					}
 				});
 			else addUndoAction(new UndoAction(("Change '" + attributeName + "' Attribute of " + object.getType() + " to '" + object.getAttribute(attributeName).toString() + "'"), ImageDocumentMarkupPanel.this) {
 				void doExecute() {
 					object.setAttribute(attributeName, oldValue);
 				}
+//				int doExecute() {
+//					object.setAttribute(attributeName, oldValue);
+//					return 1;
+//				}
 			});
 		}
 		public void supplementChanged(final String supplementId, final ImSupplement oldValue) {
@@ -737,6 +769,10 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 					void doExecute() {
 						idmp.document.removeSupplement(newValue);
 					}
+//					int doExecute() {
+//						idmp.document.removeSupplement(newValue);
+//						return 1;
+//					}
 				});
 			}
 			else if (idmp.document.getSupplement(supplementId) == null)
@@ -744,11 +780,54 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 					void doExecute() {
 						idmp.document.addSupplement(oldValue);
 					}
+//					int doExecute() {
+//						idmp.document.addSupplement(oldValue);
+//						return 1;
+//					}
 				});
 			else addUndoAction(new UndoAction(("Change '" + supplementId + "' Supplemen"), ImageDocumentMarkupPanel.this) {
 				void doExecute() {
 					idmp.document.addSupplement(oldValue);
 				}
+//				int doExecute() {
+//					idmp.document.addSupplement(oldValue);
+//					return 1;
+//				}
+			});
+		}
+		public void fontChanged(final String fontName, final ImFont oldValue) {
+			if (inUndoAction)
+				return;
+			if (oldValue == null) {
+				final ImFont newValue = idmp.document.getFont(fontName);
+				addUndoAction(new UndoAction(("Add Font '" + fontName + "'"), ImageDocumentMarkupPanel.this) {
+					void doExecute() {
+						idmp.document.removeFont(newValue);
+					}
+//					int doExecute() {
+//						idmp.document.removeSupplement(newValue);
+//						return 1;
+//					}
+				});
+			}
+			else if (idmp.document.getFont(fontName) == null)
+				addUndoAction(new UndoAction(("Remove Font '" + fontName + "'"), ImageDocumentMarkupPanel.this) {
+					void doExecute() {
+						idmp.document.addFont(oldValue);
+					}
+//					int doExecute() {
+//						idmp.document.addSupplement(oldValue);
+//						return 1;
+//					}
+				});
+			else addUndoAction(new UndoAction(("Replace Font '" + fontName + "'"), ImageDocumentMarkupPanel.this) {
+				void doExecute() {
+					idmp.document.addFont(oldValue);
+				}
+//				int doExecute() {
+//					idmp.document.addSupplement(oldValue);
+//					return 1;
+//				}
 			});
 		}
 		public void annotationAdded(final ImAnnotation annotation) {
@@ -770,6 +849,22 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 //					}
 					idmp.document.removeAnnotation(annotation);
 				}
+//				int doExecute() {
+////					/* We need to re-get annotation and make our own
+////					 * comparison, as removing and re-adding thwarts
+////					 * this simple approach */
+////					ImAnnotation[] annots = annotation.getDocument().getAnnotations(annotation.getFirstWord(), null);
+////					for (int a = 0; a < annots.length; a++) {
+////						if (!annots[a].getLastWord().getLocalID().equals(annotation.getLastWord().getLocalID()))
+////							continue;
+////						if (!annots[a].getType().equals(annotation.getType()))
+////							continue;
+////						idmp.document.removeAnnotation(annots[a]);
+////						break;
+////					}
+//					idmp.document.removeAnnotation(annotation);
+//					return 1;
+//				}
 			});
 		}
 		public void annotationRemoved(final ImAnnotation annotation) {
@@ -782,6 +877,13 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 //						reAnnot.copyAttributes(annotation);
 					idmp.document.addAnnotation(annotation);
 				}
+//				int doExecute() {
+////					ImAnnotation reAnnot = idmp.document.addAnnotation(annotation.getFirstWord(), annotation.getLastWord(), annotation.getType());
+////					if (reAnnot != null)
+////						reAnnot.copyAttributes(annotation);
+//					idmp.document.addAnnotation(annotation);
+//					return 1;
+//				}
 			});
 		}
 	}
@@ -854,6 +956,9 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		}
 		public void supplementChanged(String supplementId, ImSupplement oldValue) {
 			//	no reaction triggering for supplement modifications
+		}
+		public void fontChanged(String fontName, ImFont oldValue) {
+			//	no reaction triggering for font modifications
 		}
 		public void annotationAdded(ImAnnotation annotation) {
 			if (inUndoAction || imToolActive || !this.inReactionObjects.add(annotation))
@@ -1225,7 +1330,7 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 				public void actionPerformed(ActionEvent ae) {
 					try {
 						ua.target.inUndoAction = true;
-						
+						long us = System.currentTimeMillis();
 						while (undoActions.size() != 0) {
 							UndoAction eua = ((UndoAction) undoActions.removeFirst());
 							try {
@@ -1242,10 +1347,14 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 						}
 						
 						updateUndoMenu();
+						System.out.println("Executed undo actions in " + (System.currentTimeMillis() - us) + "ms");
 					}
 					finally {
 						ua.target.inUndoAction = false;
 						
+						/* we are on the EDT, so we can repaint right here
+						 * without any risk of incurring a deadlock between
+						 * on synchronized parts of UI or data structures */
 						ua.target.idmp.validate();
 						ua.target.idmp.repaint();
 						ua.target.idmp.validateControlPanel();
@@ -1393,7 +1502,7 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 	}
 	
 	private static class MultipartUndoAction extends UndoAction {
-		LinkedList parts = new LinkedList();
+		final LinkedList parts = new LinkedList();
 		final long actionId;
 		MultipartUndoAction(long id, String label, ImageDocumentMarkupPanel target) {
 			super(label, target);

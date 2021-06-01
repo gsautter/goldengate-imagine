@@ -121,6 +121,7 @@ import de.uka.ipd.idaho.htmlXmlUtil.grammars.Html;
 import de.uka.ipd.idaho.im.ImAnnotation;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.ImDocument.ImDocumentListener;
+import de.uka.ipd.idaho.im.ImFont;
 import de.uka.ipd.idaho.im.ImObject;
 import de.uka.ipd.idaho.im.ImPage;
 import de.uka.ipd.idaho.im.ImRegion;
@@ -1283,39 +1284,76 @@ window.setTimeout('executeCalls()', 100);
 		String startWordId = request.getParameter("selStartWordId");
 		String endWordId = request.getParameter("selEndWordId");
 		
+		//	get box selection
+		String pageIdStr = request.getParameter("selPageId");
+		String boundsStr = request.getParameter("selBounds");
+		
 		//	get pending two-click action
 		final TwoClickSelectionAction ptca = this.pendingTwoClickAction;
 		this.pendingTwoClickAction = null;
 		
 		//	get pending two-click action (might be second click for two-click action)
-		if ((startWordId != null) && (endWordId != null) && startWordId.equals(endWordId) && (ptca != null)) {
-			final ImWord secondWord = this.idmp.document.getWord(startWordId);
-			if (secondWord != null) {
-				
-				//	start action thread to execute two-click action
-				ActionThread at = new ActionThread() {
-					public void execute() throws Exception {
-						ptca.performAction(secondWord);
-					}
-				};
-				at.start();
-				
-				//	wait for action thread to finish or block
-				String fbjsc = at.getFinalOrBlockingJavaScriptCall();
-				String[] jscs = this.idmp.getJavaScriptCalls();
-				
-				//	send JavaScript calls up to this point
-				response.setContentType("text/plain");
-				response.setCharacterEncoding("UTF-8");
-				Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
-				BufferedLineWriter blw = new BufferedLineWriter(out);
-				for (int c = 0; c < jscs.length; c++)
-					blw.writeLine(jscs[c]);
-				blw.writeLine(fbjsc);
-				blw.flush();
-				out.flush();
-				blw.close();
-				return;
+		if (ptca != null) {
+			if ((startWordId != null) && (endWordId != null) && startWordId.equals(endWordId)) {
+				final ImWord secondWord = this.idmp.document.getWord(startWordId);
+				if (secondWord != null) {
+					
+					//	start action thread to execute two-click action
+					ActionThread at = new ActionThread() {
+						public void execute() throws Exception {
+							ptca.performAction(secondWord);
+						}
+					};
+					at.start();
+					
+					//	wait for action thread to finish or block
+					String fbjsc = at.getFinalOrBlockingJavaScriptCall();
+					String[] jscs = this.idmp.getJavaScriptCalls();
+					
+					//	send JavaScript calls up to this point
+					response.setContentType("text/plain");
+					response.setCharacterEncoding("UTF-8");
+					Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
+					BufferedLineWriter blw = new BufferedLineWriter(out);
+					for (int c = 0; c < jscs.length; c++)
+						blw.writeLine(jscs[c]);
+					blw.writeLine(fbjsc);
+					blw.flush();
+					out.flush();
+					blw.close();
+					return;
+				}
+			}
+			else if ((pageIdStr != null) && pageIdStr.matches("[0-9]+") && (boundsStr != null)) {
+				final ImPage page = this.idmp.document.getPage(Integer.parseInt(pageIdStr));
+				final BoundingBox bounds = BoundingBox.parse(boundsStr);
+				if ((page != null) && (bounds != null) && (bounds.getWidth() < 5) && (bounds.getHeight() < 5)) {
+					
+					//	start action thread to execute two-click action
+					ActionThread at = new ActionThread() {
+						public void execute() throws Exception {
+							ptca.performAction(page, bounds.getCenterPoint());
+						}
+					};
+					at.start();
+					
+					//	wait for action thread to finish or block
+					String fbjsc = at.getFinalOrBlockingJavaScriptCall();
+					String[] jscs = this.idmp.getJavaScriptCalls();
+					
+					//	send JavaScript calls up to this point
+					response.setContentType("text/plain");
+					response.setCharacterEncoding("UTF-8");
+					Writer out = new OutputStreamWriter(response.getOutputStream(), "UTF-8");
+					BufferedLineWriter blw = new BufferedLineWriter(out);
+					for (int c = 0; c < jscs.length; c++)
+						blw.writeLine(jscs[c]);
+					blw.writeLine(fbjsc);
+					blw.flush();
+					out.flush();
+					blw.close();
+					return;
+				}
 			}
 		}
 		
@@ -1339,10 +1377,10 @@ window.setTimeout('executeCalls()', 100);
 		String[] allRegionTypes = this.idmp.getLayoutObjectTypes();
 		for (int t = 0; t < allRegionTypes.length; t++)
 			this.idmp.setRegionsPainted(allRegionTypes[t], paintedRegionTypes.contains(allRegionTypes[t]));
-		
-		//	get box selection
-		String pageIdStr = request.getParameter("selPageId");
-		String boundsStr = request.getParameter("selBounds");
+//		
+//		//	get box selection
+//		String pageIdStr = request.getParameter("selPageId");
+//		String boundsStr = request.getParameter("selBounds");
 		
 		//	get actions from plugins
 		SelectionAction[] actions = null;
@@ -1362,7 +1400,9 @@ window.setTimeout('executeCalls()', 100);
 			BoundingBox bounds = BoundingBox.parse(boundsStr);
 			if ((page != null) && (bounds != null)) {
 				Point start = new Point(bounds.left, bounds.top);
+				this.ensurePointInPageBounds(start, page);
 				Point end = new Point(bounds.right, bounds.bottom);
+				this.ensurePointInPageBounds(end, page);
 				System.out.println("Getting box selection actions for '" + start.toString() + "' to '" + end.toString() + "' on page " + page.pageId);
 				System.out.println("  Painted annotation types are " + paintedAnnotTypes.toString());
 				System.out.println("  Painted region types are " + paintedRegionTypes.toString());
@@ -1390,6 +1430,17 @@ window.setTimeout('executeCalls()', 100);
 		blw.flush();
 		out.flush();
 		blw.close();
+	}
+	
+	private void ensurePointInPageBounds(Point point, ImPage page) {
+		if (point.x < page.bounds.left)
+			point.x = page.bounds.left;
+		else if (page.bounds.right < point.x)
+			point.x = page.bounds.right;
+		if (point.y < page.bounds.top)
+			point.y = page.bounds.top;
+		else if (page.bounds.bottom < point.y)
+			point.y = page.bounds.bottom;
 	}
 	
 	private void sendContextMenuAction(SelectionAction action, JMenuItem mi, BufferedLineWriter blw, String indent) throws IOException {
@@ -1422,13 +1473,14 @@ window.setTimeout('executeCalls()', 100);
 		}
 		else if (action instanceof TwoClickSelectionAction) {
 			blw.writeLine(indent + "  \"twoClickLabel\": \"" + GoldenGateImagineWebUtils.escapeForJavaScript(((TwoClickSelectionAction) action).getActiveLabel()) + "\",");
-			ImWord hw = ((TwoClickSelectionAction) action).getFirstWord();
+//			ImWord hw = ((TwoClickSelectionAction) action).getFirstWord();
+			ImRegion hr = ((TwoClickSelectionAction) action).getFirstRegion();
 			blw.writeLine(indent + "  \"twoClickHighlight\": {");
-			blw.writeLine(indent + "    \"left\": " + hw.bounds.left + ",");
-			blw.writeLine(indent + "    \"right\": " + hw.bounds.right + ",");
-			blw.writeLine(indent + "    \"top\": " + hw.bounds.top + ",");
-			blw.writeLine(indent + "    \"bottom\": " + hw.bounds.bottom + ",");
-			blw.writeLine(indent + "    \"pageId\": " + hw.pageId + "");
+			blw.writeLine(indent + "    \"left\": " + hr.bounds.left + ",");
+			blw.writeLine(indent + "    \"right\": " + hr.bounds.right + ",");
+			blw.writeLine(indent + "    \"top\": " + hr.bounds.top + ",");
+			blw.writeLine(indent + "    \"bottom\": " + hr.bounds.bottom + ",");
+			blw.writeLine(indent + "    \"pageId\": " + hr.pageId + "");
 			blw.writeLine(indent + "  },");
 			blw.writeLine(indent + "  \"id\": " + action.hashCode() + "");
 			this.actionMap.put(new Integer(action.hashCode()), action);
@@ -3817,6 +3869,29 @@ window.setTimeout('executeCalls()', 100);
 					}
 				});
 			}
+			public void fontChanged(final String fontName, final ImFont oldValue) {
+				if (inUndoAction)
+					return;
+				if (oldValue == null) {
+					final ImFont newValue = document.getFont(fontName);
+					addUndoAction(new UndoAction("Add Font '" + fontName + "'") {
+						void doExecute() {
+							document.removeFont(newValue);
+						}
+					});
+				}
+				else if (document.getFont(fontName) == null)
+					addUndoAction(new UndoAction("Remove Font '" + fontName + "'") {
+						void doExecute() {
+							document.addFont(oldValue);
+						}
+					});
+				else addUndoAction(new UndoAction("Replace Font '" + fontName + "'") {
+					void doExecute() {
+						document.addFont(oldValue);
+					}
+				});
+			}
 			public void annotationAdded(final ImAnnotation annotation) {
 				if (inUndoAction)
 					return;
@@ -3994,6 +4069,9 @@ window.setTimeout('executeCalls()', 100);
 			public void supplementChanged(String supplementId, ImSupplement oldValue) {
 				//	no reaction triggering for supplement modifications
 			}
+			public void fontChanged(String fontName, ImFont oldValue) {
+				//	no reaction triggering for font modifications
+			}
 			public void annotationAdded(final ImAnnotation annotation) {
 				if (inUndoAction || imToolActive || !inReactionObjects.add(annotation))
 					return;
@@ -4060,6 +4138,9 @@ window.setTimeout('executeCalls()', 100);
 			}
 			public void supplementChanged(String supplementId, ImSupplement oldValue) {
 				//	nothing to relay about supplement modifications
+			}
+			public void fontChanged(String fontName, ImFont oldValue) {
+				//	no reaction triggering for font modifications
 			}
 			public void regionAdded(final ImRegion region) {
 				StringBuffer jsonRegion = new StringBuffer("{");
@@ -4291,6 +4372,7 @@ window.setTimeout('executeCalls()', 100);
 					}
 					public void attributeChanged(ImObject object, String attributeName, Object oldValue) {}
 					public void supplementChanged(String supplementId, ImSupplement oldValue) {}
+					public void fontChanged(String fontName, ImFont oldValue) {}
 					public void regionAdded(ImRegion region) {
 						regionCss.add(region.getType());
 					}

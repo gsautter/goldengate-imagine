@@ -73,10 +73,10 @@ import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
@@ -97,6 +97,7 @@ import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentIoProvider;
 import de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupUI;
+import de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupUI.FileMenuItem;
 import de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupUI.ImageDocumentEditorTab;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
 import de.uka.ipd.idaho.im.pdf.PdfFontDecoder;
@@ -126,7 +127,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 	private FontDecoderCharset fontDecoderCharset = PdfFontDecoder.UNICODE;
 	private LazyFontDecoderCharset[] customFontDecoderCharsets = null;
 	
-	private int scanDecoderFlags = (PdfExtractor.USE_EMBEDDED_OCR | PdfExtractor.META_PAGES | PdfExtractor.ENHANCE_SCANS); // TODO make this default configurable
+	private int scanDecoderFlags = (PdfExtractor.USE_EMBEDDED_OCR | PdfExtractor.META_PAGES | PdfExtractor.ENHANCE_SCANS | PdfExtractor.ENHANCE_SCANS_ALL_OPTIONS); // TODO make this default configurable
 	
 	GoldenGateImagineUI(GoldenGateImagine ggImagine, File docCacheRoot, Settings ggiConfig) {
 		super("GoldenGATE Imagine - " + ggImagine.getConfigurationName());
@@ -181,15 +182,15 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		this.setLocationRelativeTo(null);
 	}
 	
-	private JMenuItem[] getFileMenuItems() {
+	private FileMenuItem[] getFileMenuItems() {
 		ArrayList items = new ArrayList();
-		JMenuItem mi;
+		FileMenuItem mi;
 		
 		//	get document IO providers
 		ImageDocumentIoProvider[] docIoProviders = this.ggImagine.getDocumentIoProviders();
 		
 		//	add built-in loading options
-		mi = new JMenuItem("Open Document");
+		mi = new FileMenuItem("Open Document", false);
 		mi.addActionListener(new ActionListener() {
 			private FileFilter loadFileFilter = imfFileFilter;
 			private char fontMode = fontDecoderMode;
@@ -246,7 +247,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		});
 		items.add(mi);
 		
-		mi = new JMenuItem("Load Document from URL");
+		mi = new FileMenuItem("Load Document from URL", false);
 		mi.addActionListener(new ActionListener() {
 			private FileFilter loadFormat = genericPdfFileFilter;
 			private char fontMode = fontDecoderMode;
@@ -270,7 +271,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				if (sourceName == null)
 					continue;
 				final ImageDocumentIoProvider idip = docIoProviders[p];
-				mi = new JMenuItem("Load Document from " + sourceName);
+				mi = new FileMenuItem(("Load Document from " + sourceName), false);
 				mi.addActionListener(new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
 						loadDocument(idip);
@@ -279,7 +280,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				items.add(mi);
 			}
 		
-		mi = new JMenuItem("Save Document As");
+		mi = new FileMenuItem("Save Document As", true);
 		mi.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent ae) {
 				GgiDocumentEditorTab idet = getActiveDocument();
@@ -297,7 +298,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				if (destName == null)
 					continue;
 				final ImageDocumentIoProvider idip = docIoProviders[p];
-				mi = new JMenuItem("Save Document to " + destName);
+				mi = new FileMenuItem(("Save Document to " + destName), true);
 				mi.addActionListener(new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
 						GgiDocumentEditorTab idet = getActiveDocument();
@@ -309,7 +310,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 				items.add(mi);
 			}
 		
-		mi = new JMenuItem("Exit");
+		mi = new FileMenuItem("Exit", false);
 		mi.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent ae) {
 				exit();
@@ -318,23 +319,27 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		items.add(mi);
 		
 		//	finally ...
-		return ((JMenuItem[]) items.toArray(new JMenuItem[items.size()]));
+		return ((FileMenuItem[]) items.toArray(new FileMenuItem[items.size()]));
 	}
 	
 	private void handleDrop(Transferable transfer) {
 		DataFlavor[] dataFlavors = transfer.getTransferDataFlavors();
-		for (int d = 0; d < dataFlavors.length; d++) {
-			System.out.println("Trying data flavor " + dataFlavors[d].toString());
-			System.out.println(" - MIME type is " + dataFlavors[d].getMimeType());
-			System.out.println(" - representation class is " + dataFlavors[d].getRepresentationClass());
+		for (int f = 0; f < dataFlavors.length; f++) {
+			System.out.println("Trying data flavor " + dataFlavors[f].toString());
+			System.out.println(" - MIME type is " + dataFlavors[f].getMimeType());
+			System.out.println(" - representation class is " + dataFlavors[f].getRepresentationClass());
 			
 			//	nothing to work with
-			if (dataFlavors[d].getMimeType() == null)
+			if (dataFlavors[f].getMimeType() == null)
 				continue;
 			
+			//	get basic data
+			String mimeType = dataFlavors[f].getMimeType();
+			Class representationClass = dataFlavors[f].getRepresentationClass();
+			
 			//	file drop
-			if (("application/x-java-file-list".equalsIgnoreCase(dataFlavors[d].getMimeType()) || dataFlavors[d].getMimeType().toLowerCase().startsWith("application/x-java-file-list; class=")) && List.class.isAssignableFrom(dataFlavors[d].getRepresentationClass())) try {
-				List droppedFileList = ((List) transfer.getTransferData(dataFlavors[d]));
+			if (("application/x-java-file-list".equalsIgnoreCase(mimeType) || mimeType.toLowerCase().startsWith("application/x-java-file-list; class=")) && List.class.isAssignableFrom(representationClass)) try {
+				List droppedFileList = ((List) transfer.getTransferData(dataFlavors[f]));
 				for (int t = 0; t < droppedFileList.size(); t++) {
 					File droppedFile = ((File) droppedFileList.get(t));
 					try {
@@ -368,8 +373,8 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			}
 			
 			//	URL drop
-			if (("application/x-java-url".equalsIgnoreCase(dataFlavors[d].getMimeType()) || dataFlavors[d].getMimeType().toLowerCase().startsWith("application/x-java-url; class=")) && URL.class.isAssignableFrom(dataFlavors[d].getRepresentationClass())) try {
-				URL droppedUrl = ((URL) transfer.getTransferData(dataFlavors[d]));
+			if (("application/x-java-url".equalsIgnoreCase(mimeType) || mimeType.toLowerCase().startsWith("application/x-java-url; class=")) && URL.class.isAssignableFrom(representationClass)) try {
+				URL droppedUrl = ((URL) transfer.getTransferData(dataFlavors[f]));
 				String droppedUrlString = droppedUrl.toString();
 				FileFilter matchFileFilter = null;
 				if (droppedUrlString.toLowerCase().matches("http\\:\\/\\/(.+\\/)+.+\\.imf"))
@@ -486,7 +491,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			
 			//	configure dialog proper
 			this.setResizable(true);
-			this.setSize(new Dimension(500, 220));
+			this.setSize(new Dimension(500, 240));
 			this.setLocationRelativeTo(GoldenGateImagineUI.this);
 			
 			//	if we have a URL and a file format, we can start loading right after dialog comes up (load from EDT, though)
@@ -667,13 +672,26 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		
 		private JPanel scanOptionPanel;
 		private JCheckBox useEmbeddedOcr;
+//		private JCheckBox fixEmbeddedOcr;
+		private JComboBox embeddedOcrModeSelector;
 		private JCheckBox enhanceScans;
+		private JButton enhanceScansOptionButton;
+		private JCheckBox enhanceScansInvertWhiteBlack;
+		private JCheckBox enhanceScansSmoothLetters;
+		private JCheckBox enhanceScansEliminateBackground;
+		private JCheckBox enhanceScansWhiteBalance;
+		private JCheckBox enhanceScansCleanPageEdges;
+		private JCheckBox enhanceScansFeatherDust;
+		private JCheckBox enhanceScansCorrectRotation;
+		private JCheckBox enhanceScansCorrectSkew;
 		private JCheckBox metaPages;
 		
 		private JPanel pageFormatPanel;
 		private JRadioButton autoPages;
 		private JRadioButton singlePages;
 		private JRadioButton doublePages;
+		private JCheckBox useFixedDpi;
+		private JTextField fixedDpi;
 		
 		PdfLoadOptionPanel(char fontMode, FontDecoderCharset fontCharset, int scanFlags, boolean forFileChooser) {
 			super((forFileChooser ? new BorderLayout() : new GridLayout(1, 0)), true);
@@ -723,14 +741,51 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			
 			//	initialize options for scanned PDFs
 			this.useEmbeddedOcr = new JCheckBox("Use Embedded OCR", ((scanFlags & PdfExtractor.USE_EMBEDDED_OCR) != 0));
+			this.useEmbeddedOcr.addItemListener(new ItemListener() {
+				public void itemStateChanged(ItemEvent ie) {
+//					fixEmbeddedOcr.setEnabled(useEmbeddedOcr.isSelected());
+					embeddedOcrModeSelector.setEnabled(useEmbeddedOcr.isSelected());
+				}
+			});
+//			this.fixEmbeddedOcr = new JCheckBox("Fix Embedded OCR", ((scanFlags & PdfExtractor.FIX_EMBEDDED_OCR) != 0));
+//			this.addIndentBorder(this.fixEmbeddedOcr);
+			this.embeddedOcrModeSelector = new JComboBox(embeddedOcrModes);
+			this.embeddedOcrModeSelector.setSelectedItem(new EmbeddedOcrModeTray("<dummy>", (scanFlags & PdfExtractor.ADJUST_EMBEDDED_OCR_NONE)));
+			this.addIndentBorder(this.embeddedOcrModeSelector);
 			this.enhanceScans = new JCheckBox("Enhance Scans", ((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0));
+			this.enhanceScansOptionButton = new JButton("...");
+			this.enhanceScansOptionButton.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					showEnhanceScansOptions();
+				}
+			});
+			this.enhanceScans.addItemListener(new ItemListener() {
+				public void itemStateChanged(ItemEvent ie) {
+					enhanceScansOptionButton.setEnabled(enhanceScans.isSelected());
+				}
+			});
 			this.metaPages = new JCheckBox("Expect Meta Pages", ((scanFlags & PdfExtractor.META_PAGES) != 0));
+			
+			//	initialize options for scan enhancement
+			this.enhanceScansInvertWhiteBlack = new JCheckBox("Check Inversion (white on black)", (((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0) && ((scanFlags & PdfExtractor.ENHANCE_SCANS_INVERT_WHITE_ON_BLACK) != 0)));
+			this.enhanceScansSmoothLetters = new JCheckBox("Smooth Letters (and other edges)", (((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0) && ((scanFlags & PdfExtractor.ENHANCE_SCANS_SMOOTH_LETTERS) != 0)));
+			this.enhanceScansEliminateBackground = new JCheckBox("Remove Background (for grayscale only)", (((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0) && ((scanFlags & PdfExtractor.ENHANCE_SCANS_ELIMINATE_BACKGROUND) != 0)));
+			this.enhanceScansWhiteBalance = new JCheckBox("White Balance (for grayscale only)", (((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0) && ((scanFlags & PdfExtractor.ENHANCE_SCANS_WHITE_BALANCE) != 0)));
+			this.enhanceScansCleanPageEdges = new JCheckBox("Remove Dark Page Edges (usually scan artifacts)", (((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0) && ((scanFlags & PdfExtractor.ENHANCE_SCANS_CLEAN_PAGE_EDGES) != 0)));
+			this.enhanceScansFeatherDust = new JCheckBox("Remove Speckles (spots too small for any meaning)", (((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0) && ((scanFlags & PdfExtractor.ENHANCE_SCANS_REMOVE_SPECKLES) != 0)));
+			this.enhanceScansCorrectRotation = new JCheckBox("Correct Rotation (above 2°)", (((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0) && ((scanFlags & PdfExtractor.ENHANCE_SCANS_CORRECT_ROTATION) != 0)));
+			this.enhanceScansCorrectSkew = new JCheckBox("Correct Skew (below 2°)", (((scanFlags & PdfExtractor.ENHANCE_SCANS) != 0) && ((scanFlags & PdfExtractor.ENHANCE_SCANS_CORRECT_SKEW) != 0)));
 			
 			//	assemble option panel for scanned PDFs
 			this.scanOptionPanel = new JPanel(new GridLayout(0, 1), true);
 			this.scanOptionPanel.add(new JLabel(("<HTML><B>" + (forFileChooser ? "" : "&nbsp;&nbsp;") + "Options for Scanned PDFs</B></HTML>"), (forFileChooser ? JLabel.CENTER : JLabel.LEFT)));
 			this.scanOptionPanel.add(this.useEmbeddedOcr);
-			this.scanOptionPanel.add(this.enhanceScans);
+//			this.scanOptionPanel.add(this.fixEmbeddedOcr);
+			this.scanOptionPanel.add(this.embeddedOcrModeSelector);
+			JPanel enhanceScansPanel = new JPanel(new BorderLayout(), true);
+			enhanceScansPanel.add(this.enhanceScans, BorderLayout.CENTER);
+			enhanceScansPanel.add(this.enhanceScansOptionButton, BorderLayout.EAST);
+			this.scanOptionPanel.add(enhanceScansPanel);
 			this.scanOptionPanel.add(this.metaPages);
 			
 			//	initialize page format options
@@ -743,6 +798,13 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			pageButtons.add(this.autoPages);
 			pageButtons.add(this.singlePages);
 			pageButtons.add(this.doublePages);
+			this.useFixedDpi = new JCheckBox("Fix DPI", ((scanFlags & PdfExtractor.USE_FIXED_RESOLUTION) != 0));
+			this.useFixedDpi.addItemListener(new ItemListener() {
+				public void itemStateChanged(ItemEvent ie) {
+					fixedDpi.setEnabled(useFixedDpi.isSelected());
+				}
+			});
+			this.fixedDpi = new JTextField();
 			
 			//	assemble option panel for scanned PDFs
 			this.pageFormatPanel = new JPanel(new GridLayout(0, 1), true);
@@ -750,6 +812,10 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			this.pageFormatPanel.add(this.autoPages);
 			this.pageFormatPanel.add(this.singlePages);
 			this.pageFormatPanel.add(this.doublePages);
+			JPanel fixedDpiPanel = new JPanel(new BorderLayout(), true);
+			fixedDpiPanel.add(this.useFixedDpi, BorderLayout.WEST);
+			fixedDpiPanel.add(this.fixedDpi, BorderLayout.CENTER);
+			this.pageFormatPanel.add(fixedDpiPanel);
 			
 			//	assemble the whole thing
 			if (forFileChooser) {
@@ -774,6 +840,23 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			}
 		}
 		
+		private void addIndentBorder(JComponent jc) {
+			jc.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(0, 20, 0, 0, this.getBackground()), jc.getBorder()));
+		}
+		
+		void showEnhanceScansOptions() {
+			JPanel enhanceScansOptionPanel = new JPanel(new GridLayout(0, 1), true);
+			enhanceScansOptionPanel.add(this.enhanceScansInvertWhiteBlack);
+			enhanceScansOptionPanel.add(this.enhanceScansSmoothLetters);
+			enhanceScansOptionPanel.add(this.enhanceScansEliminateBackground);
+			enhanceScansOptionPanel.add(this.enhanceScansWhiteBalance);
+			enhanceScansOptionPanel.add(this.enhanceScansCleanPageEdges);
+			enhanceScansOptionPanel.add(this.enhanceScansFeatherDust);
+			enhanceScansOptionPanel.add(this.enhanceScansCorrectRotation);
+			enhanceScansOptionPanel.add(this.enhanceScansCorrectSkew);
+			JOptionPane.showMessageDialog(this.enhanceScans, enhanceScansOptionPanel, "Scan Enhancement Options", JOptionPane.PLAIN_MESSAGE);
+		}
+		
 		public void propertyChange(PropertyChangeEvent pce) {
 			Object newValue = pce.getNewValue();
 			if (newValue instanceof FileFilter)
@@ -787,12 +870,17 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			this.fontOptionPanel.setEnabled(bornDigitalPDFs);
 			boolean scannedPDFs = ((fileFilter == imagePdfFileFilter) || (fileFilter == genericPdfFileFilter));
 			this.useEmbeddedOcr.setEnabled(scannedPDFs);
+//			this.fixEmbeddedOcr.setEnabled(scannedPDFs && this.useEmbeddedOcr.isSelected());
+			this.embeddedOcrModeSelector.setEnabled(scannedPDFs && this.useEmbeddedOcr.isSelected());
 			this.enhanceScans.setEnabled(scannedPDFs);
+			this.enhanceScansOptionButton.setEnabled(scannedPDFs && this.enhanceScans.isSelected());
 			this.metaPages.setEnabled(scannedPDFs);
 			this.scanOptionPanel.setEnabled(scannedPDFs);
 			this.autoPages.setEnabled(scannedPDFs);
 			this.singlePages.setEnabled(scannedPDFs);
 			this.doublePages.setEnabled(scannedPDFs);
+			this.useFixedDpi.setEnabled(scannedPDFs);
+			this.fixedDpi.setEnabled(scannedPDFs && this.useFixedDpi.isSelected());
 			this.pageFormatPanel.setEnabled(scannedPDFs);
 		}
 		
@@ -812,16 +900,44 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		
 		int getScanFlags() {
 			int flags = 0;
-			if (this.useEmbeddedOcr.isSelected())
+			if (this.useEmbeddedOcr.isSelected()) {
 				flags |= PdfExtractor.USE_EMBEDDED_OCR;
-			if (this.enhanceScans.isSelected())
+//				if (this.fixEmbeddedOcr.isSelected())
+//					flags |= PdfExtractor.FIX_EMBEDDED_OCR;
+				flags |= ((EmbeddedOcrModeTray) this.embeddedOcrModeSelector.getSelectedItem()).flagPair;
+			}
+			if (this.enhanceScans.isSelected()) {
 				flags |= PdfExtractor.ENHANCE_SCANS;
+				if (this.enhanceScansInvertWhiteBlack.isSelected())
+					flags |= PdfExtractor.ENHANCE_SCANS_INVERT_WHITE_ON_BLACK;
+				if (this.enhanceScansSmoothLetters.isSelected())
+					flags |= PdfExtractor.ENHANCE_SCANS_SMOOTH_LETTERS;
+				if (this.enhanceScansEliminateBackground.isSelected())
+					flags |= PdfExtractor.ENHANCE_SCANS_ELIMINATE_BACKGROUND;
+				if (this.enhanceScansWhiteBalance.isSelected())
+					flags |= PdfExtractor.ENHANCE_SCANS_WHITE_BALANCE;
+				if (this.enhanceScansCleanPageEdges.isSelected())
+					flags |= PdfExtractor.ENHANCE_SCANS_CLEAN_PAGE_EDGES;
+				if (this.enhanceScansFeatherDust.isSelected())
+					flags |= PdfExtractor.ENHANCE_SCANS_REMOVE_SPECKLES;
+				if (this.enhanceScansCorrectRotation.isSelected())
+					flags |= PdfExtractor.ENHANCE_SCANS_CORRECT_ROTATION;
+				if (this.enhanceScansCorrectSkew.isSelected())
+					flags |= PdfExtractor.ENHANCE_SCANS_CORRECT_SKEW;
+			}
 			if (this.metaPages.isSelected())
 				flags |= PdfExtractor.META_PAGES;
 			if (this.singlePages.isSelected())
 				flags |= PdfExtractor.SINGLE_PAGE_SCANS;
 			else if (this.doublePages.isSelected())
 				flags |= PdfExtractor.DOUBLE_PAGE_SCANS;
+			if (this.useFixedDpi.isSelected()) try {
+				int fixedDpi = Integer.parseInt(this.fixedDpi.getText());
+				if (fixedDpi > 0) {
+					flags |= PdfExtractor.USE_FIXED_RESOLUTION;
+					flags |= (fixedDpi << 16);
+				}
+			} catch (Exception e) {}
 			return flags;
 		}
 	}
@@ -915,6 +1031,28 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 			fcts.add(new FontCharsetTray(cfdcs[c].name, cfdcs[c]));
 		return ((FontCharsetTray[]) fcts.toArray(new FontCharsetTray[fcts.size()]));
 	}
+	
+	private static class EmbeddedOcrModeTray {
+		final String label;
+		final int flagPair;
+		EmbeddedOcrModeTray(String label, int flagPair) {
+			this.label = label;
+			this.flagPair = flagPair;
+		}
+		public String toString() {
+			return this.label;
+		}
+		public boolean equals(Object obj) {
+			return ((obj instanceof EmbeddedOcrModeTray) && (((EmbeddedOcrModeTray) obj).flagPair == this.flagPair));
+		}
+	}
+	
+	private static EmbeddedOcrModeTray[] embeddedOcrModes = {
+		new EmbeddedOcrModeTray("Adjust to Blocks", PdfExtractor.ADJUST_EMBEDDED_OCR_BLOCKS),
+		new EmbeddedOcrModeTray("Adjust to Lines", PdfExtractor.ADJUST_EMBEDDED_OCR_LINES),
+		new EmbeddedOcrModeTray("Adjust to Words", PdfExtractor.ADJUST_EMBEDDED_OCR_WORDS),
+		new EmbeddedOcrModeTray("No Adjustment", PdfExtractor.ADJUST_EMBEDDED_OCR_NONE)
+	};
 	
 	void loadDocument(final String docName, final File docSource, final String docSourceUrl, final FileFilter fileFilter, final char fontMode, final FontDecoderCharset fontCharset, final int scanFlags, final InputStream in, final long inLength) throws IOException {
 		if (docSource != null)
@@ -1281,7 +1419,7 @@ public class GoldenGateImagineUI extends JFrame implements ImagingConstants, Gol
 		GgiDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig) {
 			super(ggImagine, ggiConfig, null, null);
 		}
-		protected JMenuItem[] getFileMenuItems() {
+		protected FileMenuItem[] getFileMenuItems() {
 			return GoldenGateImagineUI.this.getFileMenuItems();
 		}
 		protected Window getMainWindow() {

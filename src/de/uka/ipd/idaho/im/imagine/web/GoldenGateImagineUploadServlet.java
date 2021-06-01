@@ -812,6 +812,7 @@ public class GoldenGateImagineUploadServlet extends GoldenGateImagineServlet imp
 			this.addRefDataAttribute(rd, YEAR_ANNOTATION_TYPE);
 			this.addRefDataAttribute(rd, TITLE_ANNOTATION_TYPE);
 			this.addRefDataAttribute(rd, JOURNAL_NAME_ANNOTATION_TYPE);
+			this.addRefDataAttribute(rd, SERIES_IN_JOURNAL_ANNOTATION_TYPE);
 			this.addRefDataAttribute(rd, PUBLISHER_ANNOTATION_TYPE);
 			this.addRefDataAttribute(rd, LOCATION_ANNOTATION_TYPE);
 			this.addRefDataAttribute(rd, EDITOR_ANNOTATION_TYPE);
