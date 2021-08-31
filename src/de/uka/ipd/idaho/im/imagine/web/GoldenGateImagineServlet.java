@@ -45,9 +45,9 @@ import de.uka.ipd.idaho.htmlXmlUtil.accessories.HtmlPageBuilder;
  * @author sautter
  */
 public abstract class GoldenGateImagineServlet extends HtmlServlet implements LiteratureConstants {
-	
-	/** the root folder for transient caching */
-	protected File cacheRootPath = null;
+//	
+//	/** the root folder for transient caching */
+//	protected File cacheRootPath = null;
 	
 	/** the root folder of the GoldenGATE Imagine installation */
 	protected File ggImagineRootPath = null;
@@ -61,16 +61,16 @@ public abstract class GoldenGateImagineServlet extends HtmlServlet implements Li
 	 */
 	protected void reInit() throws ServletException {
 		super.reInit();
-		
-		//	get cache root
-		String cacheRootPath = this.getSetting("cacheRootPath");
-		if (cacheRootPath == null)
-			this.cacheRootPath = new File(this.webInfFolder, "cache");
-		else if (cacheRootPath.startsWith("./"))
-			this.cacheRootPath = new File(this.webInfFolder, cacheRootPath.substring("./".length()));
-		else this.cacheRootPath = new File(cacheRootPath);
-		if (this.cacheRootPath != null)
-			this.cacheRootPath.mkdirs();
+//		
+//		//	get cache root
+//		String cacheRootPath = this.getSetting("cacheRootPath");
+//		if (cacheRootPath == null)
+//			this.cacheRootPath = new File(this.webInfFolder, "cache");
+//		else if (cacheRootPath.startsWith("./"))
+//			this.cacheRootPath = new File(this.webInfFolder, cacheRootPath.substring("./".length()));
+//		else this.cacheRootPath = new File(cacheRootPath);
+//		if (this.cacheRootPath != null)
+//			this.cacheRootPath.mkdirs();
 		
 		//	get root of GoldenGATE Imagine installation
 		String ggImagineRootPath = this.getSetting("ggImagineRootPath");

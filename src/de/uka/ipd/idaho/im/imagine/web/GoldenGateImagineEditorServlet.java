@@ -271,7 +271,8 @@ public class GoldenGateImagineEditorServlet extends GoldenGateImagineServlet imp
 		}
 		
 		//	create export cache folder
-		this.exportCacheFolder = new File(this.cacheRootPath, "export");
+//		this.exportCacheFolder = new File(this.cacheRootPath, "export");
+		this.exportCacheFolder = new File(this.cacheRootFolder, "export");
 		this.exportCacheFolder.mkdirs();
 		
 		//	create help base infrastructure

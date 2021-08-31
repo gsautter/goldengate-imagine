@@ -172,10 +172,12 @@ public class GoldenGateImagineUploadServlet extends GoldenGateImagineServlet imp
 		this.uploadHandler = new UploadRequestHandler();
 		
 		//	create cache folder
-		this.uploadCacheFolder = new File(this.cacheRootPath, "upload");
+//		this.uploadCacheFolder = new File(this.cacheRootPath, "upload");
+		this.uploadCacheFolder = new File(this.cacheRootFolder, "upload");
 		
 		//	create page image store to put page images in shared cache path
-		final File pageImageFolder = new File(this.cacheRootPath, "pageImages");
+//		final File pageImageFolder = new File(this.cacheRootPath, "pageImages");
+		final File pageImageFolder = new File(this.cacheRootFolder, "pageImages");
 		if (!pageImageFolder.exists())
 			pageImageFolder.mkdirs();
 		PageImageStore pageImageStore = new AbstractPageImageStore() {
@@ -220,7 +222,8 @@ public class GoldenGateImagineUploadServlet extends GoldenGateImagineServlet imp
 		PageImage.addPageImageSource(pageImageStore);
 		
 		//	create PDF reader caching supplements on disc
-		final File supplementCacheFolder = new File(this.cacheRootPath, "supplements");
+//		final File supplementCacheFolder = new File(this.cacheRootPath, "supplements");
+		final File supplementCacheFolder = new File(this.cacheRootFolder, "supplements");
 		if (!supplementCacheFolder.exists())
 			supplementCacheFolder.mkdirs();
 		this.pdfExtractor = new PdfExtractor(this.ggImagineRootPath, pageImageStore, true) {
