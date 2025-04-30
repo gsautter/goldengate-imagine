@@ -44,32 +44,25 @@ import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowFocusListener;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Properties;
+import java.util.Arrays;
 
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
-import javax.swing.Icon;
 import javax.swing.JCheckBox;
-import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
-import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -80,49 +73,48 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.filechooser.FileFilter;
 
-import de.uka.ipd.idaho.easyIO.help.Help;
-import de.uka.ipd.idaho.easyIO.help.HelpChapter;
-import de.uka.ipd.idaho.easyIO.settings.Settings;
 import de.uka.ipd.idaho.gamta.Annotation;
 import de.uka.ipd.idaho.gamta.AnnotationUtils;
-import de.uka.ipd.idaho.gamta.Gamta;
 import de.uka.ipd.idaho.gamta.QueriableAnnotation;
 import de.uka.ipd.idaho.gamta.util.GenericGamtaXML;
 import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
-import de.uka.ipd.idaho.gamta.util.ReadOnlyDocument;
-import de.uka.ipd.idaho.gamta.util.TestDocumentProvider;
 import de.uka.ipd.idaho.gamta.util.imaging.ImagingConstants;
-import de.uka.ipd.idaho.gamta.util.swing.AnnotationSelectorPanel;
 import de.uka.ipd.idaho.gamta.util.swing.AnnotationSelectorPanel.AnnotationSelectorAccessory;
 import de.uka.ipd.idaho.gamta.util.swing.DialogFactory;
-import de.uka.ipd.idaho.gamta.util.swing.MenuBuilder;
+import de.uka.ipd.idaho.goldenGate.GoldenGATE;
 import de.uka.ipd.idaho.goldenGate.GoldenGateConstants;
-import de.uka.ipd.idaho.goldenGate.observers.ResourceObserver;
-import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSource;
-import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSourceManager;
-import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSourceParameterPanel;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessor;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessorManager;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentSaveOperation;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentSaver;
-import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePlugin;
-import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePluginDataProvider;
-import de.uka.ipd.idaho.goldenGate.plugins.MonitorableDocumentProcessor;
+import de.uka.ipd.idaho.goldenGate.plugins.DocumentViewProvider;
 import de.uka.ipd.idaho.goldenGate.plugins.ResourceSplashScreen;
-import de.uka.ipd.idaho.goldenGate.util.HelpChapterDataProviderBased;
-import de.uka.ipd.idaho.goldenGate.util.ResourceDialog;
+import de.uka.ipd.idaho.goldenGate.ui.DialogMainButton;
+import de.uka.ipd.idaho.goldenGate.ui.DocumentView.DocumentViewAugmenter;
+import de.uka.ipd.idaho.goldenGate.ui.DocumentViewAdapter;
+import de.uka.ipd.idaho.goldenGate.ui.DocumentViewDisplayService;
+import de.uka.ipd.idaho.goldenGate.ui.DocumentViewDisplayService.DesktopDocumentViewDisplayService;
+import de.uka.ipd.idaho.goldenGate.ui.DocumentViewInstance;
+import de.uka.ipd.idaho.goldenGate.ui.DynamicWindowMenu;
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI;
+import de.uka.ipd.idaho.goldenGate.ui.UserInterfaceUtils;
+import de.uka.ipd.idaho.goldenGate.ui.UserInterfaceUtils.LayoutMenu;
+import de.uka.ipd.idaho.goldenGate.ui.WindowMenu;
+import de.uka.ipd.idaho.goldenGate.ui.WindowMenuBar;
+import de.uka.ipd.idaho.goldenGate.ui.WindowMenuCheckBox;
+import de.uka.ipd.idaho.goldenGate.ui.WindowMenuElement;
+import de.uka.ipd.idaho.goldenGate.ui.WindowMenuFunction;
+import de.uka.ipd.idaho.goldenGate.ui.WindowMenuOwner;
+import de.uka.ipd.idaho.goldenGate.util.ResourceListener;
 import de.uka.ipd.idaho.im.ImAnnotation;
 import de.uka.ipd.idaho.im.ImDocument;
+import de.uka.ipd.idaho.im.ImObject;
 import de.uka.ipd.idaho.im.gamta.ImDocumentRoot;
 import de.uka.ipd.idaho.im.gamta.ImDocumentRootOptionPanel;
+import de.uka.ipd.idaho.im.gamta.LazyMutableAnnotation;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
-import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentExporter;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentFileExporter;
-import de.uka.ipd.idaho.im.imagine.plugins.ImageEditToolProvider;
-import de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider;
-import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
+import de.uka.ipd.idaho.im.imagine.ui.ImageDocumentViewInstance;
+import de.uka.ipd.idaho.im.imagine.ui.ImageUserInterfaceUtils;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.AtomicActionListener;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.SymbolTable;
 
@@ -138,30 +130,43 @@ import de.uka.ipd.idaho.im.util.SymbolTable;
  * 
  * @author sautter
  */
-public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingConstants, GoldenGateConstants {
+public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingConstants, GoldenGateConstants, GoldenGateUI, WindowFocusListener {
+	final GoldenGATE goldenGate;
 	final GoldenGateImagine ggImagine;
-	final Settings ggiConfig;
 	final boolean ggiInMasterConfiguration;
 	
-	private JMenuBar mainMenu = new JMenuBar();
-	private ArrayList editMenuItemNames;
-	private JMenu editMenu;
-	final JMenu undoMenu = new JMenu("Undo");
-	final JCheckBoxMenuItem allowReactionPrompts = new JCheckBoxMenuItem("Prompt in Reaction to Input");
-	private ArrayList toolsMenuItemNames;
-	private JMenu toolsMenu;
-	private int xmlWrapperFlags = (ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS | ImDocumentRoot.NORMALIZE_CHARACTERS);
-	private LinkedHashSet documentDependentMenuItems = new LinkedHashSet();
-	
-	private GoldenGatePluginDataProvider helpDataProvider;
-	private HelpChapter helpContent;
-	private Help help;
-	private JMenu helpMenu;
+	final WindowMenuOwner menuOwner;
+	private WindowMenuBar mainMenu;
+//	private JMenuBar mainMenu = new JMenuBar();
+//	private ArrayList editMenuItemNames;
+//	private JMenu editMenu;
+//	final JMenu undoMenu = new JMenu("Undo");
+	final DynamicWindowMenu undoMenu;
+//	final JCheckBoxMenuItem allowReactionPrompts = new JCheckBoxMenuItem("Prompt in Reaction to Input");
+	final WindowMenuCheckBox allowReactionPrompts;
+	final WindowMenuCheckBox showExpandedContextMenu;
+//	final WindowMenuCheckBox showContextMenuOnMouseRelese;
+//	private ArrayList toolsMenuItemNames;
+//	private JMenu toolsMenu;
+//	private int xmlWrapperFlags = (ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS | ImDocumentRoot.NORMALIZE_CHARACTERS);
+//	private LinkedHashSet documentDependentMenuItems = new LinkedHashSet();
+	final WindowMenuFunction editDisplayConfig;
+	final WindowMenuFunction resetDisplayConfig;
+	final WindowMenuFunction storeDisplayConfig;
+//	final WindowMenuFunction storeAnnotDisplayModes;
+	final WindowMenuFunction editXmlWrapperFlags;
+	final WindowMenuFunction clearXmlWrappers;
+//	
+//	private GoldenGatePluginDataProvider helpDataProvider;
+//	private HelpChapter helpContent;
+//	private Help help;
+//	private JMenu helpMenu;
+	final DocumentViewDisplayService viewDisplayService;
 	
 	private boolean performDocumentIO;
 	final JFileChooser fileChooser = new JFileChooser();
 	
-	final ViewControl viewControl = new ViewControl();
+	final ViewControl viewControl = new ViewControl(this);
 	private JTabbedPane docTabs = null;
 	private ImageDocumentEditorTab docTab = null;
 	
@@ -171,8 +176,8 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 	 * @param doc the document to display (null activates multi-document mode)
 	 * @param docName the name of the document to display
 	 */
-	protected ImageDocumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName) {
-		this(ggImagine, ggiConfig, doc, docName, false);
+	protected ImageDocumentMarkupUI(GoldenGateImagine ggImagine, ImDocument doc, String docName) {
+		this(ggImagine, doc, docName, false);
 	}
 	
 	/** Constructor
@@ -182,11 +187,101 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 	 * @param docName the name of the document to display
 	 * @param isSubDocument is the document a sub document of another one (setting to true hides 'File' and 'Export' menu)
 	 */
-	protected ImageDocumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName, boolean isSubDocument) {
+	protected ImageDocumentMarkupUI(GoldenGateImagine ggImagine, ImDocument doc, String docName, boolean isSubDocument) {
 		super(new BorderLayout(), true);
+		this.goldenGate = ggImagine.getGoldenGATE();
 		this.ggImagine = ggImagine;
-		this.ggiConfig = ggiConfig;
-		this.ggiInMasterConfiguration = LOCAL_MASTER_CONFIG_NAME.equals(this.ggImagine.getConfigurationName());
+		this.ggiInMasterConfiguration = this.goldenGate.getConfiguration().isMasterConfiguration();
+		
+		//	initialize fixed parts of main menu
+		this.menuOwner = new WindowMenuOwner(this) {
+			public WindowMenuElement[] getMenuElements() {
+				return getWindowMenuElements();
+			}
+		};
+		int dwmFlags = 0;
+		dwmFlags |= WindowMenuElement.PROPERTY_AVAILABLE_BOTH;
+		dwmFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		this.undoMenu = new DynamicWindowMenu("ggImagine", WindowMenuBar.UNDO_MENU_NAME, "Undo", "Revert latest modifications made to the document", dwmFlags, this.menuOwner, true);
+		
+		int wmeFlags = 0;
+		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_BOTH;
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		wmeFlags = WindowMenu.encodePreferredMenuName(WindowMenuBar.EDIT_MENU_NAME, wmeFlags);
+		this.allowReactionPrompts = new WindowMenuCheckBox("ggImagine", "allowReactionPrompt", "Prompt in Reaction to Input", "Allow opening input dialogs in reaction to basic operations?", wmeFlags, true);
+//		this.showContextMenuOnMouseRelese = new WindowMenuCheckBox("ggImagine", "instantContextMenu", "Context Menu on Mouse Release", "Show context menu immediately when mouse selection completed?", wmeFlags, true) {
+//			public void setSelected(boolean selected) {
+//				super.setSelected(selected);
+//				XmlDocumentEditorTab idet = getActiveDocument();
+//				if (idet != null)
+//					idet.xdmp.setShowContextMenuOnMouseRelease(this.isSelected());
+//			}
+//		};
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_MAIN_WINDOW;
+		this.showExpandedContextMenu = new WindowMenuCheckBox("ggImagine", "expandContextMenu", "Show Expanded Context Menu", "Show context menu in expanded ytle (takes more space, but might be easier to read)?", wmeFlags, UserInterfaceUtils.stylesExpandedContextMenu()) {
+			public void setSelected(boolean selected) {
+				super.setSelected(selected);
+				UserInterfaceUtils.setStyleExpandedContextMenu(selected);
+			}
+		};
+		
+		wmeFlags = 0;
+		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		wmeFlags = WindowMenu.encodePreferredMenuName(WindowMenuBar.VIEW_MENU_NAME, wmeFlags);
+		this.editDisplayConfig = new WindowMenuFunction("ggImagine", "editDisplayConfig", "Configure Display", "Configure the document display, i.e., the appearance of selection tools", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to configure
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				editDisplayConfig();
+			}
+		};
+		this.resetDisplayConfig = new WindowMenuFunction("ggImagine", "resetDisplayConfig", "Reset Display", "Reset the configuration of the document display to the default state", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to reset
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				resetDisplayConfig();
+			}
+		};
+		this.storeDisplayConfig = new WindowMenuFunction("ggImagine", "storeDisplayConfig", "Set Display Defaults", "Set the current configuration of the document display as the default", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to take config from
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				storeDisplayConfig();
+			}
+		};
+//		this.storeAnnotDisplayModes = new WindowMenuFunction("ggImagine", "storeAnnotDisplayModes", "Store Annotation Display Modes", "Store the display modes of currently visible annotations as the defaults", wmeFlags) {
+//			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+//				return (display != null); // we do need a display to take modes from
+//			}
+//			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+//				storeAnnotDisplayModes();
+//			}
+//		};
+		this.editXmlWrapperFlags = new WindowMenuFunction("ggImagine", "editXmlWrapperFlags", "Edit Generic XML Flags", "Configure how the current document converts into generic XML", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to take modes from
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				editXmlWrapperFlags();
+			}
+		};
+		this.clearXmlWrappers = new WindowMenuFunction("ggImagine", "clearXmlWrappes", "Clear Generic XML Views", "Clear the generic XML views of all currently open documents, e.g. to free up memory", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to take modes from
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				clearXmlWrappers();
+			}
+		};
+		
+		//	create document view display service
+		this.viewDisplayService = new ImageDocumentViewDisplayService(this);
+		
+		//	finalize setup
 		this.performDocumentIO = ((doc == null) || !isSubDocument);
 		this.init((doc == null) ? null : new ImageDocumentEditorTab(this, doc, docName));
 	}
@@ -196,8 +291,8 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 	 * @param ggiConfig the GoldenGATE Imagine configuration
 	 * @param docTab the document tab to display (null activates multi-document mode)
 	 */
-	protected ImageDocumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab) {
-		this(ggImagine, ggiConfig, docTab, false);
+	protected ImageDocumentMarkupUI(GoldenGateImagine ggImagine, ImageDocumentEditorTab docTab) {
+		this(ggImagine, docTab, false);
 	}
 	
 	/** Constructor
@@ -206,15 +301,241 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 	 * @param docTab the document tab to display (null activates multi-document mode)
 	 * @param isSubDocument is the document a sub document of another one (setting to true hides 'File' and 'Export' menu)
 	 */
-	protected ImageDocumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab, boolean isSubDocument) {
+	protected ImageDocumentMarkupUI(GoldenGateImagine ggImagine, ImageDocumentEditorTab docTab, boolean isSubDocument) {
 		super(new BorderLayout(), true);
+		this.goldenGate = ggImagine.getGoldenGATE();
 		this.ggImagine = ggImagine;
-		this.ggiConfig = ggiConfig;
-		this.ggiInMasterConfiguration = LOCAL_MASTER_CONFIG_NAME.equals(this.ggImagine.getConfigurationName());
+		this.ggiInMasterConfiguration = this.goldenGate.getConfiguration().isMasterConfiguration();
+		
+		//	initialize fixed parts of main menu
+		this.menuOwner = new WindowMenuOwner(this) {
+			public WindowMenuElement[] getMenuElements() {
+				return getWindowMenuElements();
+			}
+		};
+		int dwmFlags = 0;
+		dwmFlags |= WindowMenuElement.PROPERTY_AVAILABLE_BOTH;
+		dwmFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		this.undoMenu = new DynamicWindowMenu("ggImagine", WindowMenuBar.UNDO_MENU_NAME, "Undo", "Revert latest modifications made to the document", dwmFlags, this.menuOwner, true);
+		
+		int wmeFlags = 0;
+		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_BOTH;
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		wmeFlags = WindowMenu.encodePreferredMenuName(WindowMenuBar.EDIT_MENU_NAME, wmeFlags);
+		this.allowReactionPrompts = new WindowMenuCheckBox("ggImagine", "allowReactionPrompt", "Prompt in Reaction to Input", "Allow opening input dialogs in reaction to basic operations?", wmeFlags, true);
+//		this.showContextMenuOnMouseRelese = new WindowMenuCheckBox("ggImagine", "instantContextMenu", "Context Menu on Mouse Release", "Show context menu immediately when mouse selection completed?", wmeFlags, true) {
+//			public void setSelected(boolean selected) {
+//				super.setSelected(selected);
+//				XmlDocumentEditorTab idet = getActiveDocument();
+//				if (idet != null)
+//					idet.xdmp.setShowContextMenuOnMouseRelease(this.isSelected());
+//			}
+//		};
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_MAIN_WINDOW;
+		this.showExpandedContextMenu = new WindowMenuCheckBox("ggImagine", "expandContextMenu", "Show Expanded Context Menu", "Show context menu in expanded ytle (takes more space, but might be easier to read)?", wmeFlags, UserInterfaceUtils.stylesExpandedContextMenu()) {
+			public void setSelected(boolean selected) {
+				super.setSelected(selected);
+				UserInterfaceUtils.setStyleExpandedContextMenu(selected);
+			}
+		};
+		
+		wmeFlags = 0;
+		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		wmeFlags = WindowMenu.encodePreferredMenuName(WindowMenuBar.VIEW_MENU_NAME, wmeFlags);
+		this.editDisplayConfig = new WindowMenuFunction("ggImagine", "editDisplayConfig", "Configure Display", "Configure the document display, i.e., the appearance of selection tools", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to configure
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				editDisplayConfig();
+			}
+		};
+		this.resetDisplayConfig = new WindowMenuFunction("ggImagine", "resetDisplayConfig", "Reset Display", "Reset the configuration of the document display to the default state", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to reset
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				resetDisplayConfig();
+			}
+		};
+		this.storeDisplayConfig = new WindowMenuFunction("ggImagine", "storeDisplayConfig", "Set Display Defaults", "Set the current configuration of the document display as the default", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to take config from
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				storeDisplayConfig();
+			}
+		};
+//		this.storeAnnotDisplayModes = new WindowMenuFunction("ggImagine", "storeAnnotDisplayModes", "Store Annotation Display Modes", "Store the display modes of currently visible annotations as the defaults", wmeFlags) {
+//			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+//				return (display != null); // we do need a display to take modes from
+//			}
+//			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+//				storeAnnotDisplayModes();
+//			}
+//		};
+		this.editXmlWrapperFlags = new WindowMenuFunction("ggImagine", "editXmlWrapperFlags", "Edit Generic XML Flags", "Configure how the current document converts into generic XML", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to take modes from
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				editXmlWrapperFlags();
+			}
+		};
+		this.clearXmlWrappers = new WindowMenuFunction("ggImagine", "clearXmlWrappes", "Clear Generic XML Views", "Clear the generic XML views of all currently open documents, e.g. to free up memory", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display != null); // we do need a display to take modes from
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				clearXmlWrappers();
+			}
+		};
+		
+		//	create document view display service
+		this.viewDisplayService = new ImageDocumentViewDisplayService(this);
+		
+		//	finalize setup
 		if (docTab != null)
 			docTab.setParent(this);
 		this.performDocumentIO = ((docTab == null) || !isSubDocument);
 		this.init(docTab);
+	}
+	
+	private static class ImageDocumentViewDisplayService extends DesktopDocumentViewDisplayService {
+		private ImageDocumentMarkupUI parent;
+		ImageDocumentViewDisplayService(ImageDocumentMarkupUI parent) {
+			super(parent.goldenGate);
+			this.parent = parent;
+		}
+		protected DocumentViewAdapter getRootDocumentViewAdapter(DocumentDisplay display, final DocumentViewInstance viewInstance) {
+			final ImageDocumentEditorTab idet;
+			int dvaModeFlags = 0;
+			if (display == this.parent.getActiveDocument()) {
+				idet = ((ImageDocumentEditorTab) display);
+				if (viewInstance.areAnotationsEditable() && idet.areAnnotationsEditable())
+					dvaModeFlags |= DocumentViewInstance.MODE_ANNOTATIONS_EDITABLE;
+//				if (viewInstance.areTokensEditable() && idet.areTokensEditable())
+//					dvaModeFlags |= DocumentViewInstance.MODE_TOKENS_EDITABLE; // no editing words or tokens in GAMTA based views
+				if (viewInstance.isDirectWriteThrough())
+					dvaModeFlags |= DocumentViewInstance.MODE_DIRECT_WRITE_THROUGH;
+			}
+			else return null;
+			
+			//	set up wrapper for full document or annotation
+			final ImAnnotation scopeAnnot;
+			final int scopeDocFlags;
+//			final XmDocumentRoot[] scopeDoc = {null};
+//			final MutableAnnotation[] scopeDoc = {null};
+			final LazyMutableAnnotation scopeDoc;
+			if (viewInstance instanceof ImageDocumentViewInstance) {
+				ImageDocumentViewInstance imageViewInstance = ((ImageDocumentViewInstance) viewInstance);
+				if (imageViewInstance.imScope == null)
+					scopeAnnot = null;
+				else if (imageViewInstance.imScope.getDocument() == null) // detached, add temporary view scope annotation to document
+					scopeAnnot = idet.idmp.document.addAnnotation(imageViewInstance.imScope.getFirstWord(), imageViewInstance.imScope.getLastWord(), VIEW_SCOPE_DOCUMENT_ANNOTATION_TYPE);
+				else scopeAnnot = imageViewInstance.imScope;
+//				if (xmlViewInstance.xmlWrapperFlags == -1)
+//					scopeDocFlags = idet.getXmlWrapperFlags();
+//				else scopeDocFlags = xmlViewInstance.xmlWrapperFlags;
+				scopeDocFlags = imageViewInstance.xmlWrapperFlags;
+			}
+			else {
+				if (viewInstance.scope == null)
+					scopeAnnot = null;
+				else {
+					ImObject scopeObj = idet.idmp.document.getObjectByUUID(viewInstance.scope.getAnnotationID());
+					scopeAnnot = ((scopeObj instanceof ImAnnotation) ? ((ImAnnotation) scopeObj) : null);
+				}
+//				scopeDocFlags = idet.getXmlWrapperFlags(); // use current flag if nothing else specified
+				scopeDocFlags = -1;
+			}
+//			scopeDoc[0] = ((scopeAnnot == null) ? new XmDocumentRoot(idet.xdmp.document, scopeDocFlags) : new XmDocumentRoot(scopeAnnot, scopeDocFlags));
+//			scopeDoc[0] = ((scopeAnnot == null) ? idet.getDocumentMutable() : new XmDocumentRoot(scopeAnnot, scopeDocFlags));
+			if (scopeAnnot != null)
+				scopeDoc = new LazyMutableAnnotation(scopeAnnot, ((scopeDocFlags == -1) ? idet.getXmlWrapperFlags() : scopeDocFlags));
+			else if (scopeDocFlags == -1)
+				scopeDoc = idet.getXmlWrapper(-1); // this will adapt to change of settings in main window in non-modal mode
+			else scopeDoc = new LazyMutableAnnotation(idet.getImDocument(), scopeDocFlags); // use own wrapper with fixed flags otherwise
+//			if (scopeDoc[0] == null)
+//				return null;
+			final DocumentViewAdapter docAdapter;
+			
+			//	set up test document
+			if (viewInstance.isTestInstance()) {
+				dvaModeFlags = DocumentViewInstance.MODE_TEST_DOCUMENT; // implies annotations and tokens editable, as well as modal
+				docAdapter = new DocumentViewAdapter(scopeDoc, dvaModeFlags) {
+					public void dispose() {
+						super.dispose();
+						if ((scopeAnnot != null) && (VIEW_SCOPE_DOCUMENT_ANNOTATION_TYPE.equals(scopeAnnot.getType())))
+							idet.idmp.document.removeAnnotation(scopeAnnot);
+					}
+				};
+			}
+			
+			//	set up direct write-through, with slide-of-hands updates for changes in parent adapter
+			else if (viewInstance.isDirectWriteThrough()) {
+				final AtomicActionListener[] docAdapterUpdater = {null};
+				final boolean[] dvaAtomicActionActive = {false};
+//				docAdapter = new DocumentViewAdapter(scopeDoc[0], dvaModeFlags) {
+				docAdapter = new DocumentViewAdapter(scopeDoc, dvaModeFlags) {
+					public void startModification(String label, long id) {
+						if (id < 1)
+							id = System.currentTimeMillis();
+						dvaAtomicActionActive[0] = true;
+						super.startModification(label, id); // need to do this in case there is listeners
+						//	TODO loop in annotation view document display method signature !!!
+						//	==> we cannot know that, this is coming from the view proper !!!
+//						idet.xdmp.startAtomicAction(id, label, null, ((viewInstance.scope == null) ? null : scopeDoc[0]), ProgressMonitor.dummy /* TODO do we need some splash screen ??? */);
+						idet.idmp.startAtomicAction(id, label, null, scopeAnnot, ProgressMonitor.dummy /* TODO do we need some splash screen ??? */);
+					}
+					public DocumentModification finishModification() {
+						idet.idmp.finishAtomicAction(ProgressMonitor.dummy /* TODO do we need some splash screen ??? */);
+						DocumentModification dm = super.finishModification(); // need to do this in case there is listeners
+						dvaAtomicActionActive[0] = false;
+						return dm;
+					}
+					public void dispose() {
+						super.dispose();
+						idet.idmp.removeAtomicActionListener(docAdapterUpdater[0]); // no need to react to scope document removal anymore
+						if ((scopeAnnot != null) && (VIEW_SCOPE_DOCUMENT_ANNOTATION_TYPE.equals(scopeAnnot.getType())))
+							idet.idmp.document.removeAnnotation(scopeAnnot);
+					}
+				};
+				docAdapterUpdater[0] = new AtomicActionListener() {
+					public void atomicActionStarted(long id, String label, ImageMarkupTool imt, ImAnnotation annot, ProgressMonitor pm) { /* no need to start anything on view adapter, we get the updates via slide-of-hands */ }
+					public void atomicActionFinishing(long id, ProgressMonitor pm) { /* we're not augmenting atomic actions */ }
+					public void atomicActionFinished(long id, ProgressMonitor pm) {
+						if (dvaAtomicActionActive[0])
+							return;
+						//	make changes in underlying document show in non-modal view
+//						if (scopeAnnot == null) // full-document view
+//							scopeDoc[0] = new XmDocumentRoot(idet.xdmp.document, scopeDocFlags);
+//							scopeDoc[0] = idet.getDocumentMutable();
+//						else if (scopeAnnot.getDocument() == null) // scope annotation proper has been detached, fall back on boundary tokens
+//							scopeDoc[0] = new XmDocumentRoot(scopeAnnot.getFirstToken(), scopeAnnot.getLastToken(), scopeDocFlags);
+//						else scopeDoc[0] = new XmDocumentRoot(scopeAnnot, scopeDocFlags); // scope annotation still good, reuse it
+						if (scopeDocFlags == -1)
+							scopeDoc.setFlags(idet.getXmlWrapperFlags()); // make sure to pass through any changes to flags
+						docAdapter.setSourceDocument(scopeDoc); // validates internally
+					}
+				};
+				idet.idmp.addAtomicActionListener(docAdapterUpdater[0]);
+			}
+			
+			//	set up working document based view adapter
+//			else docAdapter = new DocumentViewAdapter(scopeDoc[0], dvaModeFlags) {
+			else docAdapter = new DocumentViewAdapter(scopeDoc, (dvaModeFlags | DocumentViewAdapter.MODE_AGGREGATE_ANNOTATION_WRITE_THROUGH)) {
+				public void dispose() {
+					super.dispose();
+					if ((scopeAnnot != null) && (VIEW_SCOPE_DOCUMENT_ANNOTATION_TYPE.equals(scopeAnnot.getType())))
+						idet.idmp.document.removeAnnotation(scopeAnnot);
+				}
+			};
+			
+			//	finally ...
+			return docAdapter;
+		}
 	}
 	
 	private void init(ImageDocumentEditorTab docTab) {
@@ -223,102 +544,119 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		if (this.performDocumentIO) {
 			this.fileChooser.setMultiSelectionEnabled(false);
 			this.fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-			this.fileChooser.setSelectedFile(new File((this.ggiConfig.getSetting("lastDocFolder", (new File(".")).getAbsolutePath())), " ")); // we need this dummy file name so the folder is actually opened instead of being selected in its parent folder
+//			this.fileChooser.setSelectedFile(new File((this.ggiConfig.getSetting("lastDocFolder", (new File(".")).getAbsolutePath())), " ")); // we need this dummy file name so the folder is actually opened instead of being selected in its parent folder
+			Object lastDocFolder = UserInterfaceUtils.getDisplayProperty("lastDocFolder");
+			if (lastDocFolder instanceof String)
+				this.fileChooser.setSelectedFile(new File(lastDocFolder.toString(), " ")); // we need this dummy file name so the folder is actually opened instead of being selected in its parent folder
+			else this.fileChooser.setSelectedFile(new File((new File(".")).getAbsolutePath(), " ")); // we need this dummy file name so the folder is actually opened instead of being selected in its parent folder
 		}
 		
-		//	build help first, as entries in other menus have to link up to it
-		this.helpDataProvider = this.ggImagine.getHelpDataProvider();
-		this.helpContent = this.buildHelpContentRoot();
-		this.helpMenu = this.createHelpMenu();
+		//	read basic menu properties
+		Object windowMenuStyle = UserInterfaceUtils.getDisplayProperty("main.windowMenuStyle");
+		if (windowMenuStyle instanceof String)
+			UserInterfaceUtils.setStyleExpandedWindowMenu("expanded".equals(windowMenuStyle));
+		else UserInterfaceUtils.setDisplayProperty("main.windowMenuStyle", (UserInterfaceUtils.stylesExpandedWindowMenu() ? "expanded" : "classic"));
+		Object contextMenuStyle = UserInterfaceUtils.getDisplayProperty("main.contextMenuStyle");
+		if (contextMenuStyle instanceof String) {
+			UserInterfaceUtils.setStyleExpandedContextMenu("expanded".equals(contextMenuStyle));
+			this.showExpandedContextMenu.setSelected(UserInterfaceUtils.stylesExpandedContextMenu());
+		}
+		else UserInterfaceUtils.setDisplayProperty("main.contextMenuStyle", (UserInterfaceUtils.stylesExpandedContextMenu() ? "expanded" : "classic"));
+		Object menuBorderWidth = UserInterfaceUtils.getDisplayProperty("main.menuBorderWidth");
+		if (menuBorderWidth instanceof Number)
+			UserInterfaceUtils.setMenuItemBorderWidth(((Number) menuBorderWidth).intValue());
+		else UserInterfaceUtils.setDisplayProperty("main.menuBorderWidth", Integer.valueOf(UserInterfaceUtils.getMenuItemBorderWidth()));
+		Object menuColorAlpha = UserInterfaceUtils.getDisplayProperty("main.menuColorAlpha");
+		if (menuColorAlpha instanceof Number)
+			UserInterfaceUtils.setMenuItemBackgroundAlpha(((Number) menuColorAlpha).intValue());
+		else UserInterfaceUtils.setDisplayProperty("main.menuColorAlpha", Integer.valueOf(UserInterfaceUtils.getMenuItemBackgroundAlpha()));
+		Object menuColorBackground = UserInterfaceUtils.getDisplayProperty("main.menuColorBackground");
+		if (menuColorBackground instanceof Color)
+			UserInterfaceUtils.setMenuItemBackgroundBaseColor((Color) menuColorBackground);
+		else UserInterfaceUtils.setDisplayProperty("main.menuColorBackground", UserInterfaceUtils.getMenuItemBackgroundBaseColor());
+//		
+//		//	build help first, as entries in other menus have to link up to it
+//		this.helpDataProvider = this.ggImagine.getHelpDataProvider();
+//		this.helpContent = this.buildHelpContentRoot();
+//		this.helpMenu = this.createHelpMenu();
+//		
+//		//	read main menu layout settings
+//		ArrayList fileMenuItemNames = new ArrayList();
+//		ArrayList exportMenuItemNames = new ArrayList();
+//		ArrayList editMenuItemNames = new ArrayList();
+//		ArrayList toolsMenuItemNames = new ArrayList();
+//		try {
+//			ArrayList menuItemNames = null;
+//			BufferedReader mlIn;
+//			if (this.ggImagine.getConfiguration().isDataAvailable("GgImagine.menus.cnfg"))
+//				mlIn = new BufferedReader(new InputStreamReader(this.ggImagine.getConfiguration().getInputStream("GgImagine.menus.cnfg"), "UTF-8"));
+//			else mlIn = new BufferedReader(new InputStreamReader(new FileInputStream(new File("./GgImagine.menus.cnfg")), "UTF-8"));
+//			for (String mll; (mll = mlIn.readLine()) != null;) {
+//				mll = mll.trim();
+//				if ((mll.length() == 0) || mll.startsWith("//"))
+//					continue;
+//				if ("FILE-MENU".equals(mll))
+//					menuItemNames = fileMenuItemNames;
+//				else if ("EXPORT-MENU".equals(mll))
+//					menuItemNames = exportMenuItemNames;
+//				else if ("EDIT-MENU".equals(mll))
+//					menuItemNames = editMenuItemNames;
+//				else if ("TOOLS-MENU".equals(mll))
+//					menuItemNames = toolsMenuItemNames;
+//				else if (menuItemNames != null)
+//					menuItemNames.add(mll);
+//			}
+//			mlIn.close();
+//		}
+//		catch (IOException ioe) {
+//			System.out.println("Error reading menu layout: " + ioe.getMessage());
+//			ioe.printStackTrace(System.out);
+//		}
 		
 		//	read main menu layout settings
-		ArrayList fileMenuItemNames = new ArrayList();
-		ArrayList exportMenuItemNames = new ArrayList();
-		ArrayList editMenuItemNames = new ArrayList();
-		ArrayList toolsMenuItemNames = new ArrayList();
+		LayoutMenu[] layoutMenus;
 		try {
-			ArrayList menuItemNames = null;
-			BufferedReader mlIn;
-			if (this.ggImagine.getConfiguration().isDataAvailable("GgImagine.menus.cnfg"))
-				mlIn = new BufferedReader(new InputStreamReader(this.ggImagine.getConfiguration().getInputStream("GgImagine.menus.cnfg"), "UTF-8"));
-			else mlIn = new BufferedReader(new InputStreamReader(new FileInputStream(new File("./GgImagine.menus.cnfg")), "UTF-8"));
-			for (String mll; (mll = mlIn.readLine()) != null;) {
-				mll = mll.trim();
-				if ((mll.length() == 0) || mll.startsWith("//"))
-					continue;
-				if ("FILE-MENU".equals(mll))
-					menuItemNames = fileMenuItemNames;
-				else if ("EXPORT-MENU".equals(mll))
-					menuItemNames = exportMenuItemNames;
-				else if ("EDIT-MENU".equals(mll))
-					menuItemNames = editMenuItemNames;
-				else if ("TOOLS-MENU".equals(mll))
-					menuItemNames = toolsMenuItemNames;
-				else if (menuItemNames != null)
-					menuItemNames.add(mll);
-			}
-			mlIn.close();
+//			BufferedReader lmBr;
+//			if (this.ggImagine.getConfiguration().isDataAvailable("GgEditor.menus.cnfg"))
+//				lmBr = new BufferedReader(new InputStreamReader(this.ggImagine.getConfiguration().getInputStream("GgEditor.menus.cnfg"), "UTF-8"));
+//			else lmBr = new BufferedReader(new InputStreamReader(new FileInputStream(new File("./GgEditor.menus.cnfg")), "UTF-8"));
+			//	going for configuration provided menu layout makes little sense, as both come from same exact file in exporting GG installation
+			BufferedReader lmBr = this.goldenGate.getApplicationConfigReader("GgImagine.menus");
+			layoutMenus = UserInterfaceUtils.loadLayoutMenu(lmBr, this.ggiInMasterConfiguration);
+			lmBr.close();
 		}
 		catch (IOException ioe) {
 			System.out.println("Error reading menu layout: " + ioe.getMessage());
 			ioe.printStackTrace(System.out);
+			layoutMenus = new LayoutMenu[0];
 		}
-		
-		//	initially disable UNDO menu (need something to happen before that thing has any content)
-		this.undoMenu.setEnabled(false);
 		
 		//	build main menu
-		if (this.performDocumentIO) {
-			this.addFileMenu(fileMenuItemNames, this.documentDependentMenuItems);
-			this.addExportMenu(exportMenuItemNames, this.documentDependentMenuItems);
-		}
-		this.addEditMenu(editMenuItemNames, this.documentDependentMenuItems);
-		if (this.ggiInMasterConfiguration)
-			this.editMenuItemNames = editMenuItemNames;
-		this.addMenu(this.undoMenu);
-		this.addToolsMenu(toolsMenuItemNames, this.documentDependentMenuItems);
-		if (this.ggiInMasterConfiguration)
-			this.toolsMenuItemNames = toolsMenuItemNames;
-		
-		//	make 'Plugins' menu available (Analyzer hot reload, etc.) ==> simplifies testing
-		if (this.ggiInMasterConfiguration) {
-			this.addPluginsMenu(this.documentDependentMenuItems);
-			Gamta.addTestDocumentProvider(new TestDocumentProvider() {
-				ImageDocumentEditorTab docTab = null;
-				QueriableAnnotation doc = null;
-				public QueriableAnnotation getTestDocument() {
-					ImageDocumentEditorTab idet = getActiveDocument();
-					if (idet == null)
-						return null;
-					if (idet == this.docTab)
-						return this.doc;
-					this.docTab = idet;
-					this.doc = new ReadOnlyDocument(new ImDocumentRoot(this.docTab.getMarkupPanel().document, xmlWrapperFlags), "Modifications are not allowed in test documents.");
-					return this.doc;
-				}
-			});
-		}
+		this.mainMenu = UserInterfaceUtils.createWindowMenu(layoutMenus, this.getWindowMenuElements(), true, this.menuOwner, "ggImagine");
+		System.out.println("Got menu bar with " + this.mainMenu.menuCount() + " menus");
+		JMenuBar mainMenu = UserInterfaceUtils.createDesktopWindowMenu(this.mainMenu);
+		System.out.println("Got Swing menu bar with " + mainMenu.getMenuCount() + " menus");
+		this.menuOwner.updateMenu();
 		
 		//	keep 'Edit' and 'Tools' menus updated on edits
 		if (this.ggiInMasterConfiguration) {
-			this.ggImagine.addResourceObserver(new ResourceObserver() {
-				public void resourcesChanged(String resourceProviderClassName) { /* legacy, not used for notifications */ }
+			this.goldenGate.registerResourceListener(new ResourceListener() {
 				public void resourceUpdated(String resourceProviderClassName, String resourceName) {
-					checkUpdateImageMarkupToolMenus(resourceProviderClassName);
+					menuOwner.refreshMenu();
 				}
 				public void resourceDeleted(String resourceProviderClassName, String resourceName) {
-					checkUpdateImageMarkupToolMenus(resourceProviderClassName);
+					menuOwner.refreshMenu();
 				}
 			});
 		}
-		
-		//	finish help
-		this.finishHelpMenu();
-		this.help = new Help("GoldenGATE Imagine", this.helpContent, this.ggImagine.getGoldenGateIcon());
+//		
+//		//	finish help
+//		this.finishHelpMenu();
+//		this.help = new Help("GoldenGATE Imagine", this.helpContent, this.ggImagine.getGoldenGateIcon());
 		
 		//	build menu panel
 		JPanel menuPanel = new JPanel(new BorderLayout(), true);
-		menuPanel.add(this.mainMenu, BorderLayout.CENTER);
+		menuPanel.add(mainMenu, BorderLayout.CENTER);
 		menuPanel.add(this.viewControl, BorderLayout.EAST);
 		
 		//	build drop target
@@ -346,17 +684,29 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 					if (idet == null)
 						return;
 					idet.updateUndoMenu();
-					ImageDocumentMarkupUI.this.ggImagine.notifyDocumentSelected(idet.getMarkupPanel().document);
+					ImageDocumentMarkupUI.this.ggImagine.notifyDocumentSelected(idet.getImDocumentPanel().document);
 				}
 			});
 			
-			//	deactivate document dependent menu items initially (will be activated once document opened)
-			this.setDocumentDependentMenuItemsEnabled(false);
+			//	set up context menu control
+//			this.showContextMenuOnMouseRelese.setSelected(false);
+//			this.documentDependentMenuItems.add(this.showContextMenuOnMouseRelese);
+//			this.showContextMenuOnMouseRelese.addItemListener(new ItemListener() {
+//				public void itemStateChanged(ItemEvent ie) {
+//					XmlDocumentEditorTab idet = getActiveDocument();
+//					if (idet != null)
+//						idet.xdmp.setShowContextMenuOnMouseRelease(showContextMenuOnMouseRelese.isSelected());
+//				}
+//			});
+//			
+//			//	deactivate document dependent menu items initially (will be activated once document opened)
+//			this.setDocumentDependentMenuItemsEnabled(false);
 		}
 		
 		//	we're in single-document mode, show document right away
 		else {
 			this.docTab = docTab;
+//			this.showContextMenuOnMouseRelese.setSelected(this.docTab.idmp.isShowingContextMenuOnMouseRelease());
 			docComp = this.docTab;
 		}
 		
@@ -400,8 +750,8 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		//	trigger UNDO on Ctrl-Z
 		this.mapKeyStroke(docComp, KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.CTRL_DOWN_MASK), "docUndo", new AbstractAction() {
 			public void actionPerformed(ActionEvent ae) {
-				if (undoMenu.getMenuComponentCount() != 0) {
-					JMenuItem mi = ((JMenuItem) undoMenu.getMenuComponent(0));
+				if (undoMenu.itemCount() != 0) {
+					JMenuItem mi = ((JMenuItem) undoMenu.getDesktopElement(0, menuOwner));
 					ActionListener[] miAls = mi.getActionListeners();
 					for (int l = 0; l < miAls.length; l++)
 						miAls[l].actionPerformed(ae);
@@ -441,7 +791,9 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		});
 		
 		//	initialize most recently used symbols
-		SymbolTable.setMostRecentlyUsedSymbols(this.ggiConfig.getSetting("mostRecentlyUsedSymbols", ""));
+		Object mostRecentSymbols = UserInterfaceUtils.getDisplayProperty("mostRecentlyUsedSymbols");
+		if (mostRecentSymbols instanceof CharSequence)
+			SymbolTable.setMostRecentlyUsedSymbols(mostRecentSymbols.toString());
 		
 		//	assemble major parts
 		this.add(menuPanel, BorderLayout.NORTH);
@@ -460,182 +812,437 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			this.viewControl.layoutSelector.getActionMap().put(ak, aa);
 		}
 	}
+//	
+//	void checkUpdateImageMarkupToolMenus(String resourceProviderClassName) {
+//		GoldenGatePlugin rpp = this.ggImagine.getPlugin(resourceProviderClassName);
+//		if (rpp instanceof ImageMarkupToolProvider) {
+//			String[] emimtns = ((ImageMarkupToolProvider) rpp).getEditMenuItemNames();
+//			if ((emimtns != null) && (emimtns.length != 0))
+//				this.refreshEditMenu();
+//			String[] tmimtns = ((ImageMarkupToolProvider) rpp).getToolsMenuItemNames();
+//			if ((tmimtns != null) && (tmimtns.length != 0))
+//				this.refreshToolsMenu();
+//		}
+//	}
+//	
+//	private void addFileMenu(ArrayList itemNames, LinkedHashSet documentDependentMenuItems) {
+//		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'File'", this.helpDataProvider, "GgImagine.FileMenu.html");
+//		this.helpContent.addSubChapter(menuHelp);
+//		JMenuItem helpMi = new JMenuItem("Menu 'File'");
+//		helpMi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				showHelp("Menu 'File'");
+//			}
+//		});
+//		this.helpMenu.add(helpMi);
+//		
+//		if (this.ggiInMasterConfiguration)
+//			System.out.println("FILE-MENU");
+//		HashMap items = new LinkedHashMap() {
+//			public Object put(Object key, Object value) {
+//				if (ggiInMasterConfiguration)
+//					System.out.println(key);
+//				return super.put(key, value);
+//			}
+//		};
+//		JMenuItem mi;
+//		
+//		//	add built-in saving options
+//		mi = new JMenuItem("Save Document");
+//		mi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ImageDocumentEditorTab idet = getActiveDocument();
+//				if (idet != null)
+//					idet.save();
+//			}
+//		});
+//		items.put(mi.getText(), mi);
+//		documentDependentMenuItems.add(mi);
+//		
+//		mi = new JMenuItem("Close Document");
+//		mi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ImageDocumentEditorTab idet = getActiveDocument();
+//				if (idet != null)
+//					closeDocument(idet);
+//			}
+//		});
+//		items.put(mi.getText(), mi);
+//		documentDependentMenuItems.add(mi);
+//		
+//		//	offer selecting visible pages
+//		mi = new JMenuItem("Select Pages");
+//		mi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ImageDocumentEditorTab idet = getActiveDocument();
+//				if (idet != null)
+//					idet.selectVisiblePages();
+//			}
+//		});
+//		items.put(mi.getText(), mi);
+//		documentDependentMenuItems.add(mi);
+//		
+//		//	add custom items
+//		FileMenuItem[] fmis = this.getFileMenuItems();
+//		for (int i = 0; i < fmis.length; i++) {
+//			items.put(fmis[i].getText(), fmis[i]);
+//			if (fmis[i].usesActiveDocument)
+//				documentDependentMenuItems.add(fmis[i]);
+//		}
+//		
+//		//	finally ...
+//		this.addMenu("File", itemNames, items);
+//	}
+//	
+//	/**
+//	 * Provide custom options for the 'File' menu. By default, the 'File' menu
+//	 * only contains three options, namely "Save Document", "Close Document",
+//	 * and "Select Pages". The former two delegating to the respective methods
+//	 * of this class with the selected document tab as the argument, the last
+//	 * delegates to the respective method of the displaying document. This
+//	 * default implementation returns an empty array, sub classes are welcome
+//	 * to overwrite it as needed.
+//	 * @return an array holding the menu items
+//	 */
+//	protected FileMenuItem[] getFileMenuItems() {
+//		return new FileMenuItem[0];
+//	}
+//	
+//	/**
+//	 * Specialized item for use in the 'File' menu of an Image Document Markup
+//	 * UI, providing an indication whether or not it requires an open document
+//	 * to have any effect.
+//	 * 
+//	 * @author sautter
+//	 */
+//	public static class FileMenuItem extends JMenuItem {
+//		final boolean usesActiveDocument;
+//		
+//		/** Constructor
+//		 * @param text the text to show on the menu item
+//		 * @param icon an icon to show next to the text
+//		 * @param usesActiveDocument does the action accessible through the
+//		 *        menu item require an open document to take any effect?
+//		 */
+//		public FileMenuItem(String text, Icon icon, boolean usesActiveDocument) {
+//			super(text, icon);
+//			this.usesActiveDocument = usesActiveDocument;
+//		}
+//		
+//		/** Constructor
+//		 * @param text the text to show on the menu item
+//		 * @param mnemonic the mnemonic key code to use for the menu item
+//		 * @param usesActiveDocument does the action accessible through the
+//		 *        menu item require an open document to take any effect?
+//		 */
+//		public FileMenuItem(String text, int mnemonic, boolean usesActiveDocument) {
+//			super(text, mnemonic);
+//			this.usesActiveDocument = usesActiveDocument;
+//		}
+//		
+//		/** Constructor
+//		 * @param text the text to show on the menu item
+//		 * @param usesActiveDocument does the action accessible through the
+//		 *        menu item require an open document to take any effect?
+//		 */
+//		public FileMenuItem(String text, boolean usesActiveDocument) {
+//			super(text);
+//			this.usesActiveDocument = usesActiveDocument;
+//		}
+//	}
 	
-	void checkUpdateImageMarkupToolMenus(String resourceProviderClassName) {
-		GoldenGatePlugin rpp = this.ggImagine.getPlugin(resourceProviderClassName);
-		if (rpp instanceof ImageMarkupToolProvider) {
-			String[] emimtns = ((ImageMarkupToolProvider) rpp).getEditMenuItemNames();
-			if ((emimtns != null) && (emimtns.length != 0))
-				this.refreshEditMenu();
-			String[] tmimtns = ((ImageMarkupToolProvider) rpp).getToolsMenuItemNames();
-			if ((tmimtns != null) && (tmimtns.length != 0))
-				this.refreshToolsMenu();
+	/* (non-Javadoc)
+	 * @see java.awt.event.WindowFocusListener#windowGainedFocus(java.awt.event.WindowEvent)
+	 */
+	public void windowGainedFocus(WindowEvent we) {
+		this.mainMenu.setActive();
+	}
+	
+	/* (non-Javadoc)
+	 * @see java.awt.event.WindowFocusListener#windowLostFocus(java.awt.event.WindowEvent)
+	 */
+	public void windowLostFocus(WindowEvent we) { /* we're only interested in becoming active window within the application */ }
+	
+	WindowMenuElement[] getWindowMenuElements() {
+		ArrayList wmes = new ArrayList();
+		System.out.println("GgImagineUI: collecting window menu elements");
+		
+		//	collect main menu items
+		if (this.performDocumentIO) {
+			this.addFileMenuElements(wmes);
+			this.addExportMenuElements(wmes);
+			System.out.println(" ==> file and export menus added, got " + wmes.size() + " elements");
+		}
+		
+		WindowMenuElement[] vmes = UserInterfaceUtils.getDefaultViewMenuElements(this.goldenGate, this, null, ImDocument.class);
+		if (vmes != null)
+			wmes.addAll(Arrays.asList(vmes));
+		wmes.add(this.editDisplayConfig);
+		wmes.add(this.resetDisplayConfig);
+		wmes.add(this.storeDisplayConfig);
+//		wmes.add(this.storeAnnotDisplayModes);
+		wmes.add(this.editXmlWrapperFlags);
+		wmes.add(this.clearXmlWrappers);
+		this.addPageSelectionElements(wmes);
+		System.out.println(" ==> view menu added (+5 internal), got " + wmes.size() + " elements");
+		
+		wmes.add(this.allowReactionPrompts);
+		wmes.add(this.showExpandedContextMenu);
+//		wmes.add(this.showContextMenuOnMouseRelese);
+		WindowMenuElement[] dfmes = UserInterfaceUtils.getDefaultDocumentFunctionMenuElements(this.goldenGate, ImDocument.class);
+		if (dfmes != null)
+			wmes.addAll(Arrays.asList(dfmes));
+		System.out.println(" ==> edit/tools menus added (+3 internal), got " + wmes.size() + " elements");
+		
+		wmes.add(this.undoMenu);
+		System.out.println(" ==> undo menu added (+1 internal), got " + wmes.size() + " elements");
+		
+		//	make 'Plugins' menu available (Analyzer hot reload, etc.) ==> simplifies testing
+		WindowMenuElement[] pmes = UserInterfaceUtils.getDefaultPluginsMenuElements(this.goldenGate, ImDocument.class, true);
+		if ((pmes != null) && (pmes.length != 0)) {
+			wmes.addAll(Arrays.asList(pmes));
+			System.out.println(" ==> plug-ins menu added, got " + wmes.size() + " elements");
+			int wmeFlags = 0;
+			wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+			wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_MAIN_WINDOW;
+//			wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_MASTER_MODE;
+			wmeFlags = WindowMenuElement.encodePreferredMenuName(WindowMenuBar.WINDOW_MENU_NAME, wmeFlags);
+			wmes.add(new WindowMenuFunction("ggImagine", "printMenuXml", "Print Current Menu", "Print the current status of the main menu to the log file", wmeFlags) {
+				public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+					return true;
+				}
+				public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+					menuOwner.printLayoutXml();
+				}
+			});
+		}
+//		if (this.ggiInMasterConfiguration) {
+//			WindowMenuElement[] pmes = UserInterfaceUtils.getDefaultPluginsMenuElements(this.goldenGate, ImDocument.class, true);
+//			if (pmes != null)
+//				wmes.addAll(Arrays.asList(pmes));
+//			System.out.println(" ==> plug-ins menu added, got " + wmes.size() + " elements");
+//			int wmeFlags = 0;
+//			wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+//			wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_MAIN_WINDOW;
+//			wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_MASTER_MODE;
+//			wmeFlags = WindowMenuElement.encodePreferredMenuName(WindowMenuBar.WINDOW_MENU_NAME, wmeFlags);
+//			wmes.add(new WindowMenuFunction("ggImagine", "printMenuXml", "Print Current Menu", "Print the current status of the main menu to the log file", wmeFlags) {
+//				public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+//					return true;
+//				}
+//				public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+//					menuOwner.printLayoutXml();
+//				}
+//			});
+//		}
+		
+		//	add window menu ('about', 'README', etc.)
+		WindowMenuElement[] ggWmes = this.goldenGate.getWindowMenuElements(true);
+		if (ggWmes != null)
+			wmes.addAll(Arrays.asList(ggWmes));
+		System.out.println(" ==> GG core window menu added, got " + wmes.size() + " elements");
+		WindowMenuElement[] ggcWmes = this.goldenGate.getConfiguration().getWindowMenuElements(true);
+		if (ggcWmes != null)
+			wmes.addAll(Arrays.asList(ggcWmes));
+		System.out.println(" ==> configuration window menu added, got " + wmes.size() + " elements");
+//		WindowMenuElement keWme = ImageUserInterfaceUtils.getDefaultKeystrokeExplanationMenuElement(this.ggImagine, "List Keyboard Actions", "Show a list of the keyboard actions available in the GoldenGATE Imagine main window", "Key Combination Overview for GoldenGATE Imagine Main Window");
+//		if (keWme != null)
+//			wmes.add(keWme);
+//		System.out.println(" ==> keyboard action overview added, got " + wmes.size() + " elements");
+		int wmeFlags = 0;
+		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_MAIN_WINDOW;
+		wmeFlags = WindowMenuElement.encodePreferredMenuName(WindowMenuBar.WINDOW_MENU_NAME, wmeFlags);
+		wmes.add(new WindowMenuFunction("ggImagine", "configureStorageFlags", "Configure Storage Options", "Configure the storage options to use for persisting Image Markup documents on the local file system", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return true;
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				long imfStorageFlags = ImageUserInterfaceUtils.configureImfStorageFlags(ggImagine.getImfStorageFlags(), this.getItemLabel(menuOwner));
+				if (imfStorageFlags < 0)
+					return; // input dialog canceled
+				ggImagine.setImfStorageFlags(imfStorageFlags);
+			}
+		});
+		System.out.println(" ==> IMF configuration panel added, got " + wmes.size() + " elements");
+//		
+//		//	finish help
+//		this.finishHelpMenu();
+//		this.help = new Help("GoldenGATE Editor", this.helpContent, this.ggImagine.getGoldenGateIcon());
+		
+		//	finally ...
+		return ((WindowMenuElement[]) wmes.toArray(new WindowMenuElement[wmes.size()]));
+	}
+	
+	void editDisplayConfig() {
+		ImageDocumentEditorTab idet = this.getActiveDocument();
+		if (idet == null)
+			return;
+		ImageUserInterfaceUtils.configureDisplay(idet.idmp, "Adjust Display Configuration");
+	}
+	
+	void resetDisplayConfig() {
+		ImageDocumentEditorTab idet = this.getActiveDocument();
+		if (idet == null)
+			return;
+		for (int p = 0; p < ImDocumentMarkupPanel.displayPropertyNames.length; p++) {
+			Object value = UserInterfaceUtils.getDisplayProperty(ImDocumentMarkupPanel.displayPropertyNames[p]);
+			try {
+				idet.idmp.setDisplayProperty(ImDocumentMarkupPanel.displayPropertyNames[p], value);
+			}
+			catch (RuntimeException re) {
+				System.out.println("Failed to reset property '" + ImDocumentMarkupPanel.displayPropertyNames[p] + "' to default: " + re.getMessage());
+			}
 		}
 	}
 	
-	private void addFileMenu(ArrayList itemNames, LinkedHashSet documentDependentMenuItems) {
-		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'File'", this.helpDataProvider, "GgImagine.FileMenu.html");
-		this.helpContent.addSubChapter(menuHelp);
-		JMenuItem helpMi = new JMenuItem("Menu 'File'");
-		helpMi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				showHelp("Menu 'File'");
+	void storeDisplayConfig() {
+		ImageDocumentEditorTab idet = this.getActiveDocument();
+		if (idet == null)
+			return;
+		for (int p = 0; p < ImDocumentMarkupPanel.displayPropertyNames.length; p++) {
+			Object value = idet.idmp.getDisplayProperty(ImDocumentMarkupPanel.displayPropertyNames[p]);
+			if (value == null)
+				continue;
+			Object defValue = ImDocumentMarkupPanel.getDisplayPropertyDefault(ImDocumentMarkupPanel.displayPropertyNames[p]);
+			if (UserInterfaceUtils.equals(value, defValue))
+				value = null; // erase custom property setting if value reset to default
+			try {
+				UserInterfaceUtils.setDisplayProperty(ImDocumentMarkupPanel.displayPropertyNames[p], value);
 			}
-		});
-		this.helpMenu.add(helpMi);
+			catch (RuntimeException re) {
+				System.out.println("Failed to store property '" + ImDocumentMarkupPanel.displayPropertyNames[p] + "' as default: " + re.getMessage());
+			}
+		}
+	}
+	
+	void editXmlWrapperFlags() {
+		ImageDocumentEditorTab idet = this.getActiveDocument();
+		if (idet == null)
+			return;
+		ImDocumentRootOptionPanel idrop = new ImDocumentRootOptionPanel(idet.getXmlWrapperFlags());
+		int choice = DialogFactory.confirm(idrop, "Edit Generix XML Flags", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+		if (choice == JOptionPane.OK_OPTION)
+			idet.setXmlWrapperFlags(idrop.getFlags());
+	}
+	
+	void clearXmlWrappers() {
+		if (this.docTab != null)
+			this.docTab.invalidateXmlWrappers();
+		else if (this.docTabs != null) {
+			for (int t = 0; t < this.docTabs.getTabCount(); t++) {
+				Component comp = this.docTabs.getComponentAt(t);
+				if (comp instanceof ImageDocumentEditorTab)
+					((ImageDocumentEditorTab) comp).invalidateXmlWrappers();
+			}
+		}
+	}
+	
+	private void addFileMenuElements(ArrayList wmes) {
+//		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'File'", this.helpDataProvider, "GgEditor.FileMenu.html");
+//		this.helpContent.addSubChapter(menuHelp);
+//		JMenuItem helpMi = new JMenuItem("Menu 'File'");
+//		helpMi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				showHelp("Menu 'File'");
+//			}
+//		});
+//		this.helpMenu.add(helpMi);
 		
-		if (this.ggiInMasterConfiguration)
-			System.out.println("FILE-MENU");
-		HashMap items = new LinkedHashMap() {
-			public Object put(Object key, Object value) {
-				if (ggiInMasterConfiguration)
-					System.out.println(key);
-				return super.put(key, value);
-			}
-		};
-		JMenuItem mi;
+		//	set up flags
+		int wmeFlags = 0; // TODO populate flags
+		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+//		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_ONLINE; // TODO for real ??? might be something for web UI only
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		wmeFlags = WindowMenuElement.encodePreferredMenuName(WindowMenuBar.FILE_MENU_NAME, wmeFlags);
 		
 		//	add built-in saving options
-		mi = new JMenuItem("Save Document");
-		mi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ImageDocumentEditorTab idet = getActiveDocument();
-				if (idet != null)
-					idet.save();
+		wmes.add(new WindowMenuFunction("ggImagine", "saveDoc", "Save Document", "Save the currently selected document back to where it was loaded from", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display instanceof ImageDocumentEditorTab);
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				if (display instanceof ImageDocumentEditorTab)
+					((ImageDocumentEditorTab) display).save();
 			}
 		});
-		items.put(mi.getText(), mi);
-		documentDependentMenuItems.add(mi);
 		
-		mi = new JMenuItem("Close Document");
-		mi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ImageDocumentEditorTab idet = getActiveDocument();
-				if (idet != null)
-					closeDocument(idet);
+		//	add closing option
+		wmes.add(new WindowMenuFunction("ggImagine", "closeDoc", "Close Document", "Close the currently selected document", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display instanceof ImageDocumentEditorTab);
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				if (display instanceof ImageDocumentEditorTab)
+					closeDocument((ImageDocumentEditorTab) display);
 			}
 		});
-		items.put(mi.getText(), mi);
-		documentDependentMenuItems.add(mi);
-		
-		//	offer selecting visible pages
-		mi = new JMenuItem("Select Pages");
-		mi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ImageDocumentEditorTab idet = getActiveDocument();
-				if (idet != null)
-					idet.selectVisiblePages();
-			}
-		});
-		items.put(mi.getText(), mi);
-		documentDependentMenuItems.add(mi);
 		
 		//	add custom items
-		FileMenuItem[] fmis = this.getFileMenuItems();
-		for (int i = 0; i < fmis.length; i++) {
-			items.put(fmis[i].getText(), fmis[i]);
-			if (fmis[i].usesActiveDocument)
-				documentDependentMenuItems.add(fmis[i]);
-		}
-		
-		//	finally ...
-		this.addMenu("File", itemNames, items);
+		WindowMenuElement[] fmes = this.getFileMenuElements();
+		if (fmes != null)
+			wmes.addAll(Arrays.asList(fmes));
 	}
 	
 	/**
 	 * Provide custom options for the 'File' menu. By default, the 'File' menu
-	 * only contains three options, namely "Save Document", "Close Document",
-	 * and "Select Pages". The former two delegating to the respective methods
-	 * of this class with the selected document tab as the argument, the last
-	 * delegates to the respective method of the displaying document. This
-	 * default implementation returns an empty array, sub classes are welcome
-	 * to overwrite it as needed.
-	 * @return an array holding the menu items
+	 * only contains two options, namely "Save Document" and "Close Document".
+	 * They delegate to the respective methods of this class with the selected
+	 * document tab as the argument. This default implementation returns an
+	 * empty array, sub classes are welcome to overwrite it as needed.
+	 * @return an array holding the menu elements
 	 */
-	protected FileMenuItem[] getFileMenuItems() {
-		return new FileMenuItem[0];
+	protected WindowMenuElement[] getFileMenuElements() {
+		return new WindowMenuElement[0];
 	}
 	
-	/**
-	 * Specialized item for use in the 'File' menu of an Image Document Markup
-	 * UI, providing an indication whether or not it requires an open document
-	 * to have any effect.
-	 * 
-	 * @author sautter
-	 */
-	public static class FileMenuItem extends JMenuItem {
-		final boolean usesActiveDocument;
+	private void addExportMenuElements(ArrayList wmes) {
+//		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'Export'", this.helpDataProvider, "GgEditor.ExportMenu.html");
+//		this.helpContent.addSubChapter(menuHelp);
+//		JMenuItem helpMi = new JMenuItem("Menu 'Export'");
+//		helpMi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				showHelp("Menu 'Export'");
+//			}
+//		});
+//		this.helpMenu.add(helpMi);
+//		
+//		if (this.ggeInMasterConfiguration)
+//			System.out.println("EXPORT-MENU");
+//		HashMap items = new LinkedHashMap() {
+//			public Object put(Object key, Object value) {
+//				if (ggeInMasterConfiguration)
+//					System.out.println(key);
+//				return super.put(key, value);
+//			}
+//		};
+//		JMenuItem mi;
 		
-		/** Constructor
-		 * @param text the text to show on the menu item
-		 * @param icon an icon to show next to the text
-		 * @param usesActiveDocument does the action accessible through the
-		 *        menu item require an open document to take any effect?
-		 */
-		public FileMenuItem(String text, Icon icon, boolean usesActiveDocument) {
-			super(text, icon);
-			this.usesActiveDocument = usesActiveDocument;
-		}
+		//	set up flags
+		int wmeFlags = 0; // TODO populate flags
+		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+//		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_ONLINE; // TODO for real ??? might be something for web UI only
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		wmeFlags = WindowMenuElement.encodePreferredMenuName(WindowMenuBar.EXPORT_MENU_NAME, wmeFlags);
 		
-		/** Constructor
-		 * @param text the text to show on the menu item
-		 * @param mnemonic the mnemonic key code to use for the menu item
-		 * @param usesActiveDocument does the action accessible through the
-		 *        menu item require an open document to take any effect?
-		 */
-		public FileMenuItem(String text, int mnemonic, boolean usesActiveDocument) {
-			super(text, mnemonic);
-			this.usesActiveDocument = usesActiveDocument;
-		}
-		
-		/** Constructor
-		 * @param text the text to show on the menu item
-		 * @param usesActiveDocument does the action accessible through the
-		 *        menu item require an open document to take any effect?
-		 */
-		public FileMenuItem(String text, boolean usesActiveDocument) {
-			super(text);
-			this.usesActiveDocument = usesActiveDocument;
-		}
-	}
-	
-	private void addExportMenu(ArrayList itemNames, LinkedHashSet documentDependentMenuItems) {
-		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'Export'", this.helpDataProvider, "GgImagine.ExportMenu.html");
-		this.helpContent.addSubChapter(menuHelp);
-		JMenuItem helpMi = new JMenuItem("Menu 'Export'");
-		helpMi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				showHelp("Menu 'Export'");
-			}
-		});
-		this.helpMenu.add(helpMi);
-		
-		if (this.ggiInMasterConfiguration)
-			System.out.println("EXPORT-MENU");
-		HashMap items = new LinkedHashMap() {
-			public Object put(Object key, Object value) {
-				if (ggiInMasterConfiguration)
-					System.out.println(key);
-				return super.put(key, value);
-			}
-		};
-		JMenuItem mi;
-		
-		mi = new JMenuItem("Export XML");
-		mi.addActionListener(new ActionListener() {
-			private int xmlWrapperFlags = (ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS | ImDocumentRoot.NORMALIZE_CHARACTERS);
+		//	add export as plain XML
+		wmes.add(new WindowMenuFunction("ggImagine", "exportXml", "Export XML", "Export the currently selected document as regular XML", wmeFlags) {
 			private boolean exportIDs = false;
-			public void actionPerformed(ActionEvent ae) {
-				ImageDocumentEditorTab idet = getActiveDocument();
-				if (idet == null)
-					return;
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display instanceof ImageDocumentEditorTab);
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				ImageDocumentEditorTab idet;
+				if (display instanceof ImageDocumentEditorTab)
+					idet = ((ImageDocumentEditorTab) display);
+				else return;
 				clearFileFilters(fileChooser);
 				fileChooser.addChoosableFileFilter(xmlFileFilter);
 				File likelyDest = getLikelyExportDestination(idet);
 				if (likelyDest != null)
 					fileChooser.setSelectedFile(likelyDest);
 				
-				ImDocumentRootOptionPanel idrop = new ImDocumentRootOptionPanel(this.xmlWrapperFlags);
+				ImDocumentRootOptionPanel idrop = new ImDocumentRootOptionPanel(idet.getXmlWrapperFlags());
 				JCheckBox exportIDs = new JCheckBox("Export Annotation IDs", this.exportIDs);
 				idrop.add(exportIDs);
 				JPanel idropPosPanel = new JPanel(new BorderLayout());
@@ -646,13 +1253,15 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 				fileChooser.setAccessory(null);
 				if (choice != JFileChooser.APPROVE_OPTION)
 					return;
-				this.xmlWrapperFlags = idrop.getFlags();
+//				this.xmlWrapperFlags = idrop.getFlags();
+				int xmlWrapperFlags = idrop.getFlags();
+				idet.setXmlWrapperFlags(xmlWrapperFlags);
 				this.exportIDs = exportIDs.isSelected();
 				File file = fileChooser.getSelectedFile();
 				if (file.isDirectory())
 					return;
 				try {
-					exportXml(idet.getMarkupPanel().document, file, this.xmlWrapperFlags, this.exportIDs);
+					exportXml(idet.getImDocument(), file, xmlWrapperFlags, this.exportIDs);
 				}
 				catch (IOException ioe) {
 					JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document to '" + file.getAbsolutePath() + "':\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
@@ -660,14 +1269,17 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 				}
 			}
 		});
-		items.put(mi.getText(), mi);
 		
-		mi = new JMenuItem("Export GAMTA XML");
-		mi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ImageDocumentEditorTab idet = getActiveDocument();
-				if (idet == null)
-					return;
+		//	add export as GAMTA XML stream
+		wmes.add(new WindowMenuFunction("ggImagine", "exportGamtaXml", "Export GAMTA XML", "Export the currently selected document as a GAMTA XML stream", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display instanceof ImageDocumentEditorTab);
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				ImageDocumentEditorTab idet;
+				if (display instanceof ImageDocumentEditorTab)
+					idet = ((ImageDocumentEditorTab) display);
+				else return;
 				clearFileFilters(fileChooser);
 				fileChooser.addChoosableFileFilter(xmlFileFilter);
 				File likelyDest = getLikelyExportDestination(idet);
@@ -693,9 +1305,9 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 					}
 					
 					//	export document
-					ImDocumentRoot doc = new ImDocumentRoot(idet.getMarkupPanel().document, (ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS | ImDocumentRoot.SHOW_TOKENS_AS_WORD_ANNOTATIONS));
 					Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
-					GenericGamtaXML.storeDocument(doc, out);
+					ImDocumentRoot gamtaDoc = new ImDocumentRoot(idet.idmp.document, idet.getXmlWrapperFlags());
+					GenericGamtaXML.storeDocument(gamtaDoc, out);
 					out.close();
 				}
 				catch (IOException ioe) {
@@ -704,67 +1316,237 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 				}
 			}
 		});
-		items.put(mi.getText(), mi);
-		
-		//	add document exports from configuration
-		DocumentSaver[] docSavers = this.ggImagine.getDocumentSavers();
-		if (docSavers.length != 0) {
-			for (int s = 0; s < docSavers.length; s++) {
-				final DocumentSaver docSaver = docSavers[s];
-				JMenuItem dsmi = docSavers[s].getSaveDocumentMenuItem();
-				mi = new JMenuItem(dsmi.getText().replaceAll("Save", "Export"));
-				mi.addActionListener(new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
-						ImageDocumentEditorTab idet = getActiveDocument();
-						if (idet == null)
-							return;
-						try {
-							exportDocument(idet.getMarkupPanel().document, docSaver, idet.docName);
-						}
-						catch (IOException ioe) {
-							JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document via " + ((GoldenGatePlugin) docSaver).getPluginName() + ":\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
-							ioe.printStackTrace(System.out);
-						}
-					}
-				});
-				items.put(mi.getText(), mi);
-				
-				//	add plugin specific help chapter if available
-				HelpChapter docSaverHelp = ((GoldenGatePlugin) docSavers[s]).getHelp();
-				if (docSaverHelp != null)
-					menuHelp.addSubChapter(docSaverHelp);
-			}
-		}
+//		
+//		//	add document exports from configuration
+//		//	TODO re-activate this once GG Editor fully implements upon GG Core
+//		XmlDocumentSaver[] docSavers = this.ggImagine.getDocumentSavers();
+//		if (docSavers.length != 0) {
+//			for (int s = 0; s < docSavers.length; s++) {
+//				final DocumentSaver docSaver = docSavers[s];
+//				JMenuItem dsmi = docSavers[s].getSaveDocumentMenuItem();
+//				mi = new JMenuItem(dsmi.getText().replaceAll("Save", "Export"));
+//				mi.addActionListener(new ActionListener() {
+//					public void actionPerformed(ActionEvent ae) {
+//						ImageDocumentEditorTab idet = getActiveDocument();
+//						if (idet == null)
+//							return;
+//						try {
+//							exportDocument(idet.getMarkupPanel().document, docSaver, idet.docName);
+//						}
+//						catch (IOException ioe) {
+//							JOptionPane.showMessageDialog(XmlDocumentMarkupUI.this, ("An error occurred while exporting the document via " + ((GoldenGatePlugin) docSaver).getPluginName() + ":\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
+//							ioe.printStackTrace(System.out);
+//						}
+//					}
+//				});
+//				items.put(mi.getText(), mi);
+////				
+////				//	add plugin specific help chapter if available
+////				HelpChapter docSaverHelp = ((GoldenGatePlugin) docSavers[s]).getHelp();
+////				if (docSaverHelp != null)
+////					menuHelp.addSubChapter(docSaverHelp);
+//			}
+//		}
 		
 		//	add dedicated exporters
-		ImageDocumentExporter[] ides = this.ggImagine.getDocumentExporters();
-		if (ides.length != 0) {
-			for (int e = 0; e < ides.length; e++) {
-				final ImageDocumentExporter ide = ides[e];
-				mi = new JMenuItem(ide.getExportMenuLabel());
-				mi.setToolTipText(ide.getExportMenuTooltip());
-				mi.addActionListener(new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
-						ImageDocumentEditorTab idet = getActiveDocument();
-						if (idet == null)
-							return;
-						File likelyDest = ((ide instanceof ImageDocumentFileExporter) ? getLikelyExportDestination(idet) : null);
-						exportDocument(likelyDest, idet.getMarkupPanel().document, ide);
+		ImageDocumentExporter[] des = this.ggImagine.getDocumentExporters();
+		for (int e = 0; e < des.length; e++) {
+			final ImageDocumentExporter de = des[e];
+			wmeFlags = 0; // TODO populate flags
+			wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+//			wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_ONLINE; // TODO for real ??? might be something for web UI only
+			wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+			wmeFlags = WindowMenuElement.encodePreferredMenuName(WindowMenuBar.EXPORT_MENU_NAME, wmeFlags);
+			wmes.add(new WindowMenuFunction(des[e], "export", de.getExportMenuLabel(), de.getExportMenuTooltip(), wmeFlags) {
+				public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+					return (display instanceof ImageDocumentEditorTab);
+				}
+				public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+					if (display instanceof ImageDocumentEditorTab) {
+						ImageDocumentEditorTab idet = ((ImageDocumentEditorTab) display);
+						File likelyDest = ((de instanceof ImageDocumentFileExporter) ? getLikelyExportDestination(idet) : null);
+						exportDocument(likelyDest, idet.idmp.document, de);
 					}
-				});
-				items.put(mi.getText(), mi);
-				
-				//	add exporter specific help chapter if available
-				HelpChapter ideHelp = ((GoldenGatePlugin) ides[e]).getHelp();
-				if (ideHelp != null)
-					menuHelp.addSubChapter(ideHelp);
-			}
+				}
+			});
+//			
+//			//	add exporter specific help chapter if available
+//			HelpChapter ideHelp = ((GoldenGatePlugin) ides[e]).getHelp();
+//			if (ideHelp != null)
+//				menuHelp.addSubChapter(ideHelp);
 		}
-		
-		//	finally ...
-		JMenu exportMenu = this.addMenu("Export", itemNames, items);
-		documentDependentMenuItems.add(exportMenu);
+//		
+//		//	finally ...
+//		JMenu exportMenu = this.addMenu("Export", itemNames, items);
+//		documentDependentMenuItems.add(exportMenu);
 	}
+//	
+//	private void addExportMenu(ArrayList itemNames, LinkedHashSet documentDependentMenuItems) {
+//		HelpChapter menuHelp = new HelpChapterDataProviderBased("Menu 'Export'", this.helpDataProvider, "GgImagine.ExportMenu.html");
+//		this.helpContent.addSubChapter(menuHelp);
+//		JMenuItem helpMi = new JMenuItem("Menu 'Export'");
+//		helpMi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				showHelp("Menu 'Export'");
+//			}
+//		});
+//		this.helpMenu.add(helpMi);
+//		
+//		if (this.ggiInMasterConfiguration)
+//			System.out.println("EXPORT-MENU");
+//		HashMap items = new LinkedHashMap() {
+//			public Object put(Object key, Object value) {
+//				if (ggiInMasterConfiguration)
+//					System.out.println(key);
+//				return super.put(key, value);
+//			}
+//		};
+//		JMenuItem mi;
+//		
+//		mi = new JMenuItem("Export XML");
+//		mi.addActionListener(new ActionListener() {
+//			private int xmlWrapperFlags = (ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS | ImDocumentRoot.NORMALIZE_CHARACTERS);
+//			private boolean exportIDs = false;
+//			public void actionPerformed(ActionEvent ae) {
+//				ImageDocumentEditorTab idet = getActiveDocument();
+//				if (idet == null)
+//					return;
+//				clearFileFilters(fileChooser);
+//				fileChooser.addChoosableFileFilter(xmlFileFilter);
+//				File likelyDest = getLikelyExportDestination(idet);
+//				if (likelyDest != null)
+//					fileChooser.setSelectedFile(likelyDest);
+//				
+//				ImDocumentRootOptionPanel idrop = new ImDocumentRootOptionPanel(this.xmlWrapperFlags);
+//				JCheckBox exportIDs = new JCheckBox("Export Annotation IDs", this.exportIDs);
+//				idrop.add(exportIDs);
+//				JPanel idropPosPanel = new JPanel(new BorderLayout());
+//				idropPosPanel.add(idrop, BorderLayout.SOUTH);
+//				fileChooser.setAccessory(idropPosPanel);
+//				
+//				int choice = fileChooser.showSaveDialog(ImageDocumentMarkupUI.this);
+//				fileChooser.setAccessory(null);
+//				if (choice != JFileChooser.APPROVE_OPTION)
+//					return;
+//				this.xmlWrapperFlags = idrop.getFlags();
+//				this.exportIDs = exportIDs.isSelected();
+//				File file = fileChooser.getSelectedFile();
+//				if (file.isDirectory())
+//					return;
+//				try {
+//					exportXml(idet.getImDocumentPanel().document, file, this.xmlWrapperFlags, this.exportIDs);
+//				}
+//				catch (IOException ioe) {
+//					JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document to '" + file.getAbsolutePath() + "':\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
+//					ioe.printStackTrace(System.out);
+//				}
+//			}
+//		});
+//		items.put(mi.getText(), mi);
+//		
+//		mi = new JMenuItem("Export GAMTA XML");
+//		mi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ImageDocumentEditorTab idet = getActiveDocument();
+//				if (idet == null)
+//					return;
+//				clearFileFilters(fileChooser);
+//				fileChooser.addChoosableFileFilter(xmlFileFilter);
+//				File likelyDest = getLikelyExportDestination(idet);
+//				if (likelyDest != null)
+//					fileChooser.setSelectedFile(likelyDest);
+//				if (fileChooser.showSaveDialog(ImageDocumentMarkupUI.this) != JFileChooser.APPROVE_OPTION)
+//					return;
+//				File file = fileChooser.getSelectedFile();
+//				if (file.isDirectory())
+//					return;
+//				try {
+//					
+//					//	make sure file has appropriate extension
+//					if (!file.getName().toLowerCase().endsWith(".xml"))
+//						file = new File(file.toString() + ".xml");
+//					
+//					//	make way
+//					if (file.exists()) {
+//						String fileName = file.toString();
+//						File oldFile = new File(fileName + "." + System.currentTimeMillis() + ".old");
+//						file.renameTo(oldFile);
+//						file = new File(fileName);
+//					}
+//					
+//					//	export document
+//					ImDocumentRoot doc = new ImDocumentRoot(idet.getImDocumentPanel().document, (ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS | ImDocumentRoot.SHOW_TOKENS_AS_WORD_ANNOTATIONS));
+//					Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
+//					GenericGamtaXML.storeDocument(doc, out);
+//					out.close();
+//				}
+//				catch (IOException ioe) {
+//					JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document to '" + file.getAbsolutePath() + "':\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
+//					ioe.printStackTrace(System.out);
+//				}
+//			}
+//		});
+//		items.put(mi.getText(), mi);
+//		
+//		//	add document exports from configuration
+//		DocumentSaver[] docSavers = this.ggImagine.getDocumentSavers();
+//		if (docSavers.length != 0) {
+//			for (int s = 0; s < docSavers.length; s++) {
+//				final DocumentSaver docSaver = docSavers[s];
+//				JMenuItem dsmi = docSavers[s].getSaveDocumentMenuItem();
+//				mi = new JMenuItem(dsmi.getText().replaceAll("Save", "Export"));
+//				mi.addActionListener(new ActionListener() {
+//					public void actionPerformed(ActionEvent ae) {
+//						ImageDocumentEditorTab idet = getActiveDocument();
+//						if (idet == null)
+//							return;
+//						try {
+//							exportDocument(idet.getImDocumentPanel().document, docSaver, idet.docName);
+//						}
+//						catch (IOException ioe) {
+//							JOptionPane.showMessageDialog(ImageDocumentMarkupUI.this, ("An error occurred while exporting the document via " + ((GoldenGatePlugin) docSaver).getPluginName() + ":\n" + ioe.getMessage()), "Error Exporting Document", JOptionPane.ERROR_MESSAGE);
+//							ioe.printStackTrace(System.out);
+//						}
+//					}
+//				});
+//				items.put(mi.getText(), mi);
+//				
+//				//	add plugin specific help chapter if available
+//				HelpChapter docSaverHelp = ((GoldenGatePlugin) docSavers[s]).getHelp();
+//				if (docSaverHelp != null)
+//					menuHelp.addSubChapter(docSaverHelp);
+//			}
+//		}
+//		
+//		//	add dedicated exporters
+//		ImageDocumentExporter[] ides = this.ggImagine.getDocumentExporters();
+//		if (ides.length != 0) {
+//			for (int e = 0; e < ides.length; e++) {
+//				final ImageDocumentExporter ide = ides[e];
+//				mi = new JMenuItem(ide.getExportMenuLabel());
+//				mi.setToolTipText(ide.getExportMenuTooltip());
+//				mi.addActionListener(new ActionListener() {
+//					public void actionPerformed(ActionEvent ae) {
+//						ImageDocumentEditorTab idet = getActiveDocument();
+//						if (idet == null)
+//							return;
+//						File likelyDest = ((ide instanceof ImageDocumentFileExporter) ? getLikelyExportDestination(idet) : null);
+//						exportDocument(likelyDest, idet.getImDocumentPanel().document, ide);
+//					}
+//				});
+//				items.put(mi.getText(), mi);
+//				
+//				//	add exporter specific help chapter if available
+//				HelpChapter ideHelp = ((GoldenGatePlugin) ides[e]).getHelp();
+//				if (ideHelp != null)
+//					menuHelp.addSubChapter(ideHelp);
+//			}
+//		}
+//		
+//		//	finally ...
+//		JMenu exportMenu = this.addMenu("Export", itemNames, items);
+//		documentDependentMenuItems.add(exportMenu);
+//	}
 	
 	void exportDocument(final File likelyDest, final ImDocument doc, final ImageDocumentExporter ide) {
 		
@@ -828,387 +1610,433 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		out.flush();
 		out.close();
 	}
+//	
+//	void exportDocument(ImDocument doc, DocumentSaver docSaver, String docName) throws IOException {
+//		
+//		//	obtain document save operation
+//		DocumentSaveOperation dso = docSaver.getSaveOperation(docName, null);
+//		if (dso == null)
+//			return;
+//		
+//		//	export file
+//		ImDocumentRoot xmlDoc = new ImDocumentRoot(doc, ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS);
+//		xmlDoc.setShowTokensAsWordsAnnotations(true);
+//		dso.saveDocument(xmlDoc);
+//	}
 	
-	void exportDocument(ImDocument doc, DocumentSaver docSaver, String docName) throws IOException {
+	private void addPageSelectionElements(ArrayList wmes) {
 		
-		//	obtain document save operation
-		DocumentSaveOperation dso = docSaver.getSaveOperation(docName, null);
-		if (dso == null)
-			return;
+		//	set up flags
+		int wmeFlags = 0; // TODO populate flags
+		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_DESKTOP;
+//		wmeFlags |= WindowMenuElement.PROPERTY_AVAILABLE_ONLINE; // TODO for real ??? might be something for web UI only
+		wmeFlags |= WindowMenuElement.PROPERTY_REQUIRES_DOCUMENT;
+		wmeFlags = WindowMenuElement.encodePreferredMenuName(WindowMenuBar.VIEW_MENU_NAME, wmeFlags);
 		
-		//	export file
-		ImDocumentRoot xmlDoc = new ImDocumentRoot(doc, ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS);
-		xmlDoc.setShowTokensAsWordsAnnotations(true);
-		dso.saveDocument(xmlDoc);
-	}
-	
-	private void addEditMenu(ArrayList itemNames, LinkedHashSet documentDependentMenuItems) {
-		HashMap items = this.indexEditMenuItems(true);
-		this.editMenu = this.addMenu("Edit", itemNames, items);
-		documentDependentMenuItems.add(this.editMenu);
-	}
-	private void refreshEditMenu() {
-		HashMap items = this.indexEditMenuItems(false);
-		this.editMenu.removeAll();
-		MenuBuilder.fillMenu(this.editMenu, this.editMenuItemNames, items, this.ggiInMasterConfiguration);
-	}
-	private HashMap indexEditMenuItems(boolean addHelp) {
-		HelpChapter menuHelp = null;
-		if (addHelp) {
-			menuHelp = new HelpChapterDataProviderBased("Menu 'Edit'", this.helpDataProvider, "GgImagine.EditMenu.html");
-			this.helpContent.addSubChapter(menuHelp);
-			JMenuItem helpMi = new JMenuItem("Menu 'Edit'");
-			helpMi.addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent ae) {
-					showHelp("Menu 'Edit'");
-				}
-			});
-			this.helpMenu.add(helpMi);
-		}
-		
-		if (this.ggiInMasterConfiguration)
-			System.out.println("EDIT-MENU");
-		HashMap items = new LinkedHashMap() {
-			public Object put(Object key, Object value) {
-				if (ggiInMasterConfiguration)
-					System.out.println(key);
-				return super.put(key, value);
+		//	offer selecting visible pages
+		wmes.add(new WindowMenuFunction("ggImagine", "selectVisiblePages", "Select Pages", "Select the pages of the document to show in full, and which to reduce to thumbnails", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display instanceof ImageDocumentEditorTab);
 			}
-		};
-		
-		items.put(this.allowReactionPrompts.getText(), this.allowReactionPrompts);
-		
-		JMenuItem mi;
-		ImageMarkupToolProvider[] imtps = this.ggImagine.getImageMarkupToolProviders();
-		for (int p = 0; p < imtps.length; p++) {
-			String[] emImtNames = imtps[p].getEditMenuItemNames();
-			if ((emImtNames == null) || (emImtNames.length == 0))
-				continue;
-			for (int n = 0; n < emImtNames.length; n++) {
-				final ImageMarkupTool emImt = imtps[p].getImageMarkupTool(emImtNames[n]);
-				mi = new JMenuItem(emImt.getLabel());
-				mi.setToolTipText(emImt.getTooltip());
-				mi.addActionListener(new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
-						ImageDocumentEditorTab idet = getActiveDocument();
-						if (idet != null)
-							idet.getMarkupPanel().applyMarkupTool(emImt, null);
-					}
-				});
-				items.put(mi.getText(), mi);
-				
-				//	add help chapter if available
-				if (menuHelp != null) {
-					String imtHelpText = emImt.getHelpText();
-					menuHelp.addSubChapter(new HelpChapter(emImt.getLabel(), ((imtHelpText == null) ? "Help is coming soon." : imtHelpText)));
-				}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				ImageDocumentEditorTab idet = getActiveDocument();
+				if (idet != null)
+					idet.selectVisiblePages();
 			}
-		}
+		});
 		
-		//	finally ...
-		return items;
-	}
-	
-	private void addToolsMenu(ArrayList itemNames, LinkedHashSet documentDependentMenuItems) {
-		HashMap items = this.indexToolsMenuItems(true);
-		this.toolsMenu = this.addMenu("Tools", itemNames, items);
-		documentDependentMenuItems.add(this.toolsMenu);
-	}
-	private void refreshToolsMenu() {
-		HashMap items = this.indexToolsMenuItems(false);
-		this.toolsMenu.removeAll();
-		MenuBuilder.fillMenu(this.toolsMenu, this.toolsMenuItemNames, items, this.ggiInMasterConfiguration);
-	}
-	private HashMap indexToolsMenuItems(boolean addHelp) {
-		HelpChapter menuHelp = null;
-		if (addHelp) {
-			menuHelp = new HelpChapterDataProviderBased("Menu 'Tools'", this.helpDataProvider, "GgImagine.ToolsMenu.html");
-			this.helpContent.addSubChapter(menuHelp);
-			JMenuItem helpMi = new JMenuItem("Menu 'Tools'");
-			helpMi.addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent ae) {
-					showHelp("Menu 'Tools'");
-				}
-			});
-			this.helpMenu.add(helpMi);
-		}
-		JMenuItem helpMi = null; // set to null to mark first entry of custom tool section
-		
-		if (this.ggiInMasterConfiguration)
-			System.out.println("TOOLS-MENU");
-		HashMap items = new LinkedHashMap() {
-			public Object put(Object key, Object value) {
-				if (ggiInMasterConfiguration)
-					System.out.println(key);
-				return super.put(key, value);
+		//	offer hiding all pages without main text
+		wmes.add(new WindowMenuFunction("ggImagine", "showMainTextPages", "Show Main Text Pages", "Show all pages in full that contain main text, and reduce all others to thumbnails", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display instanceof ImageDocumentEditorTab);
 			}
-		};
-		JMenuItem mi;
-		
-		ImageMarkupToolProvider[] imtps = this.ggImagine.getImageMarkupToolProviders();
-		for (int p = 0; p < imtps.length; p++) {
-			String[] tmImtNames = imtps[p].getToolsMenuItemNames();
-			if ((tmImtNames == null) || (tmImtNames.length == 0))
-				continue;
-			for (int n = 0; n < tmImtNames.length; n++) {
-				final ImageMarkupTool tmImt = imtps[p].getImageMarkupTool(tmImtNames[n]);
-				mi = new JMenuItem(tmImt.getLabel());
-				mi.setToolTipText(tmImt.getTooltip());
-				mi.addActionListener(new ActionListener() {
-					public void actionPerformed(ActionEvent ae) {
-						ImageDocumentEditorTab idet = getActiveDocument();
-						if (idet != null)
-							idet.getMarkupPanel().applyMarkupTool(tmImt, null);
-					}
-				});
-				items.put(mi.getText(), mi);
-				
-				//	add help menu entry (with separator before first IMT specific entry)
-				if (menuHelp != null) {
-					if (helpMi == null)
-						this.helpMenu.addSeparator();
-					helpMi = new JMenuItem(tmImt.getLabel());
-					helpMi.addActionListener(new ActionListener() {
-						public void actionPerformed(ActionEvent ae) {
-							showHelp(tmImt.getLabel());
-						}
-					});
-					this.helpMenu.add(helpMi);
-					
-					//	add help chapter if available
-					String imtHelpText = tmImt.getHelpText();
-					menuHelp.addSubChapter(new HelpChapter(tmImt.getLabel(), ((imtHelpText == null) ? "Help is coming soon." : imtHelpText)));
-				}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				ImageDocumentEditorTab idet = getActiveDocument();
+				if (idet != null)
+					idet.showMainTextPages();
 			}
-		}
+		});
 		
-		//	add tools menu items for generic XML processors
-		if (this.ggiInMasterConfiguration) {
-			mi = new JMenuItem("Configure XML Wrapper");
-			mi.setToolTipText("Configure the XML wrapper document processors will work on");
-			mi.addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent ae) {
-					ImDocumentRootOptionPanel idrop = new ImDocumentRootOptionPanel(xmlWrapperFlags);
-					int choice = DialogFactory.confirm(idrop, "Configure XML Wrapper", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-					if (choice == JOptionPane.OK_OPTION)
-						xmlWrapperFlags = idrop.getFlags();
-				}
-			});
-			items.put(mi.getText(), mi);
-			
-			DocumentProcessorManager[] dpms = this.ggImagine.getDocumentProcessorProviders();
-			for (int m = 0; m < dpms.length; m++) {
-				if (dpms[m] instanceof ImageMarkupToolProvider)
-					continue; // we have handled the contributions from this one above
-				String toolsMenuLabel = dpms[m].getToolsMenuLabel();
-				if (toolsMenuLabel == null)
-					continue;
-				mi = this.createRunDocumentProcessorMenuItem(dpms[m], toolsMenuLabel);
-				items.put(mi.getText(), mi);
-//				
-//				//	add help chapter if available SKIP THOSE, TOO GENERIC (MOSTLY ADMIN DOCUMENTATION)
-//				if (menuHelp != null) {
-//					HelpChapter dpmHelp = dpms[m].getHelp();
-//					if (dpmHelp != null)
-//						menuHelp.addSubChapter(dpmHelp);
+		//	offer showing all pages
+		wmes.add(new WindowMenuFunction("ggImagine", "showAllPages", "Show All Pages", "Return all pages that are reduced to thumbnails back to full size", wmeFlags) {
+			public boolean checkAvailable(GoldenGateUI ggui, DocumentDisplay display) {
+				return (display instanceof ImageDocumentEditorTab);
+			}
+			public void execute(GoldenGateUI ggui, DocumentDisplay display) {
+				ImageDocumentEditorTab idet = getActiveDocument();
+				if (idet != null)
+					idet.showAllPages();
+			}
+		});
+	}
+//	
+//	private void addEditMenu(ArrayList itemNames, LinkedHashSet documentDependentMenuItems) {
+//		HashMap items = this.indexEditMenuItems(true);
+//		this.editMenu = this.addMenu("Edit", itemNames, items);
+//		documentDependentMenuItems.add(this.editMenu);
+//	}
+//	private void refreshEditMenu() {
+//		HashMap items = this.indexEditMenuItems(false);
+//		this.editMenu.removeAll();
+//		MenuBuilder.fillMenu(this.editMenu, this.editMenuItemNames, items, this.ggiInMasterConfiguration);
+//	}
+//	private HashMap indexEditMenuItems(boolean addHelp) {
+//		HelpChapter menuHelp = null;
+//		if (addHelp) {
+//			menuHelp = new HelpChapterDataProviderBased("Menu 'Edit'", this.helpDataProvider, "GgImagine.EditMenu.html");
+//			this.helpContent.addSubChapter(menuHelp);
+//			JMenuItem helpMi = new JMenuItem("Menu 'Edit'");
+//			helpMi.addActionListener(new ActionListener() {
+//				public void actionPerformed(ActionEvent ae) {
+//					showHelp("Menu 'Edit'");
 //				}
-			}
-		}
-		
-		//	finally ...
-		return items;
-	}
-	
-	private void addPluginsMenu(LinkedHashSet documentDependentMenuItems) {
-		JMenu pluginsMenu = new JMenu("Plugins");
-		JMenuItem mi = new JMenuItem("Configure XML Wrapper");
-		mi.setToolTipText("Configure the XML wrapper document processors will work on");
-		mi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ImDocumentRootOptionPanel idrop = new ImDocumentRootOptionPanel(xmlWrapperFlags);
-				int choice = DialogFactory.confirm(idrop, "Configure XML Wrapper", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-				if (choice == JOptionPane.OK_OPTION)
-					xmlWrapperFlags = idrop.getFlags();
-			}
-		});
-		pluginsMenu.add(mi);
-		pluginsMenu.addSeparator();
-		
-		//	add sub menus for individual plug-ins
-		GoldenGatePlugin[] plugins = this.ggImagine.getPlugins();
-		for (int p = 0; p < plugins.length; p++) /* try */ {
-			String pluginMenuTitle = plugins[p].getMainMenuTitle();
-			if (pluginMenuTitle == null)
-				continue;
-			JMenuItem[] pluginMenuItems = plugins[p].getMainMenuItems();
-			if ((pluginMenuItems == null) || (pluginMenuItems.length == 0))
-				continue;
-			JMenu pluginMenu = new JMenu(pluginMenuTitle);
-			boolean lastWasSeparator = true;
-			for (int m = 0; m < pluginMenuItems.length; m++) {
-				if (pluginMenuItems[m] == GoldenGateConstants.MENU_SEPARATOR_ITEM) {
-					if (pluginMenu.getItemCount() != 0)
-						pluginMenu.addSeparator();
-					lastWasSeparator = true;
-				}
-				else {
-					pluginMenu.add(pluginMenuItems[m]);
-					lastWasSeparator = false;
-				}
-			}
-			
-			//	add menu if not empty
-			if (pluginMenu.getItemCount() != 0)
-				pluginsMenu.add(pluginMenu);
-			
-			//	add tools menu entry for document processor and annotation source managers (duplicate or not ...)
-			JMenuItem rMi = null;
-			if (plugins[p] instanceof DocumentProcessorManager) {
-				String toolsMenuLabel = ((DocumentProcessorManager) plugins[p]).getToolsMenuLabel();
-				if (toolsMenuLabel != null)
-					rMi = this.createRunDocumentProcessorMenuItem(((DocumentProcessorManager) plugins[p]), toolsMenuLabel);
-			}
-			else if (plugins[p] instanceof AnnotationSourceManager) {
-				String toolsMenuLabel = ((AnnotationSourceManager) plugins[p]).getToolsMenuLabel();
-				if (toolsMenuLabel != null)
-					rMi = this.createApplyAnnotationSourceMenuItem(((AnnotationSourceManager) plugins[p]), toolsMenuLabel);
-			}
-			
-			//	add resource menu item
-			if (rMi != null) {
-				if (!lastWasSeparator)
-					pluginMenu.addSeparator();
-				pluginMenu.add(rMi);
-				documentDependentMenuItems.add(rMi);
-			}
-		}
-		
-		//	finally ...
-		this.addMenu(pluginsMenu);
-	}
-	private JMenuItem createRunDocumentProcessorMenuItem(final DocumentProcessorManager dpm, final String toolsMenuLabel) {
-		JMenuItem mi = new JMenuItem(toolsMenuLabel + " " + dpm.getResourceTypeLabel());
-		mi.setToolTipText(toolsMenuLabel + " a " + dpm.getResourceTypeLabel() + " " + ("Run".equals(toolsMenuLabel) ? "on" : "to") + " the document");
-		mi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ImageDocumentEditorTab idet = getActiveDocument();
-				if (idet == null)
-					return;
-				ResourceDialog rd = ResourceDialog.getResourceDialog(dpm, ("Select " + dpm.getResourceTypeLabel() + " To " + toolsMenuLabel), toolsMenuLabel);
-				rd.setVisible(true);
-				final String dpName = rd.getSelectedResourceName();
-				if (dpName == null)
-					return;
-				idet.getMarkupPanel().applyMarkupTool(new ImageMarkupTool() {
-					public String getLabel() {
-						return (dpm.getResourceTypeLabel() + " '" + dpName + "'");
-					}
-					public String getTooltip() {
-						return null; // no need for a tooltip here
-					}
-					public String getHelpText() {
-						return null; // no need for a help text here
-					}
-					public void process(ImDocument doc, ImAnnotation annot, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
-						
-						//	wrap document (or annotation)
-						if (pm != null)
-							pm.setStep("Wrapping document");
-						ImDocumentRoot wrappedDoc = new ImDocumentRoot(doc, xmlWrapperFlags);
-						
-						//	get document processor from manager
-						if (pm != null)
-							pm.setStep("Loading document processor");
-						DocumentProcessor dp = dpm.getDocumentProcessor(dpName);
-						
-						//	create parameters
-						Properties parameters = new Properties();
-						parameters.setProperty(DocumentProcessor.INTERACTIVE_PARAMETER, DocumentProcessor.INTERACTIVE_PARAMETER);
-						
-						//	process document (or annotation)
-						if (pm != null)
-							pm.setStep("Processing document");
-						if (dp instanceof MonitorableDocumentProcessor)
-							((MonitorableDocumentProcessor) dp).process(wrappedDoc, parameters, pm);
-						else dp.process(wrappedDoc, parameters);
-					}
-				}, null);
-			}
-		});
-		return mi;
-	}
-	private JMenuItem createApplyAnnotationSourceMenuItem(final AnnotationSourceManager asm, final String toolsMenuLabel) {
-		JMenuItem mi = new JMenuItem(toolsMenuLabel + " " + asm.getResourceTypeLabel());
-		mi.setToolTipText(toolsMenuLabel + " a " + asm.getResourceTypeLabel() + " " + ("Run".equals(toolsMenuLabel) ? "on" : "to") + " the document");
-		mi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ImageDocumentEditorTab idet = getActiveDocument();
-				if (idet == null)
-					return;
-				final AnnotationSourceParameterPanel aspp = asm.getAnnotatorParameterPanel();
-				ResourceDialog rd = ResourceDialog.getResourceDialog(asm, ("Select " + asm.getResourceTypeLabel() + " To " + toolsMenuLabel), toolsMenuLabel, aspp);
-				rd.setVisible(true);
-				final String asName = rd.getSelectedResourceName();
-				if (asName == null)
-					return;
-				final Settings asParams = ((aspp == null) ? null : aspp.getSettings());
-				idet.getMarkupPanel().applyMarkupTool(new ImageMarkupTool() {
-					public String getLabel() {
-						return (asm.getResourceTypeLabel() + " '" + asName + "'");
-					}
-					public String getTooltip() {
-						return null; // no need for a tooltip here
-					}
-					public String getHelpText() {
-						return null; // no need for a help text here
-					}
-					public void process(ImDocument doc, ImAnnotation annot, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
-						
-						//	wrap document (or annotation)
-						if (pm != null)
-							pm.setStep("Wrapping document");
-						ImDocumentRoot wrappedDoc = new ImDocumentRoot(doc, xmlWrapperFlags);
-						
-						//	get document processor from manager
-						if (pm != null)
-							pm.setStep("Loading annotation source");
-						AnnotationSource as = asm.getAnnotationSource(asName);
-						
-						//	create parameters
-						Properties parameters = new Properties(asParams.toProperties());
-						
-						//	process document (or annotation)
-						if (pm != null)
-							pm.setStep("Processing document");
-						Annotation[] annots = as.annotate(wrappedDoc, parameters);
-						if ((annots == null) || (annots.length == 0))
-							return;
-						
-						//	prompt to have user select annotations to add and enter annotation type (in ONE dialog !!!)
-						AnnotationSelectorPanel asp = new AnnotationSelectorPanel(annots, true);
-						AnnotationTypePanel atp = new AnnotationTypePanel(doc.getAnnotationTypes());
-						atp.setBorder(BorderFactory.createEtchedBorder());
-						asp.add(atp, BorderLayout.SOUTH);
-						if (!asp.showDialog(((pm instanceof JComponent) ? ((JComponent) pm) : null), "Select Annotations to Add", "Add Annotations"))
-							return;
-						
-						//	add selected annotations to wrapped document ...
-						//	... and also copy attributes (annotation patterns, for one, do generate attributes)
-						Annotation[] addAnnots = asp.getSelectedAnnotations();
-						if ((addAnnots == null) || (addAnnots.length == 0))
-							return;
-						String annotType = atp.getAnnotationType();
-						for (int a = 0; a < addAnnots.length; a++) {
-							Annotation addAnnot = wrappedDoc.addAnnotation(annotType, addAnnots[a].getStartIndex(), addAnnots[a].size());
-							if (addAnnot != null) // might be crossing text stream boundary ...
-								addAnnot.copyAttributes(addAnnots[a]);
-						}
-					}
-				}, null);
-			}
-		});
-		return mi;
-	}
+//			});
+//			this.helpMenu.add(helpMi);
+//		}
+//		
+//		if (this.ggiInMasterConfiguration)
+//			System.out.println("EDIT-MENU");
+//		HashMap items = new LinkedHashMap() {
+//			public Object put(Object key, Object value) {
+//				if (ggiInMasterConfiguration)
+//					System.out.println(key);
+//				return super.put(key, value);
+//			}
+//		};
+//		
+//		items.put(this.allowReactionPrompts.getText(), this.allowReactionPrompts);
+//		
+//		JMenuItem mi;
+//		ImageMarkupToolProvider[] imtps = this.ggImagine.getImageMarkupToolProviders();
+//		for (int p = 0; p < imtps.length; p++) {
+//			String[] emImtNames = imtps[p].getEditMenuItemNames();
+//			if ((emImtNames == null) || (emImtNames.length == 0))
+//				continue;
+//			for (int n = 0; n < emImtNames.length; n++) {
+//				final ImageMarkupTool emImt = imtps[p].getImageMarkupTool(emImtNames[n]);
+//				mi = new JMenuItem(emImt.getLabel());
+//				mi.setToolTipText(emImt.getTooltip());
+//				mi.addActionListener(new ActionListener() {
+//					public void actionPerformed(ActionEvent ae) {
+//						ImageDocumentEditorTab idet = getActiveDocument();
+//						if (idet != null)
+//							idet.getImDocumentPanel().applyMarkupTool(emImt, null);
+//					}
+//				});
+//				items.put(mi.getText(), mi);
+//				
+//				//	add help chapter if available
+//				if (menuHelp != null) {
+//					String imtHelpText = emImt.getHelpText();
+//					menuHelp.addSubChapter(new HelpChapter(emImt.getLabel(), ((imtHelpText == null) ? "Help is coming soon." : imtHelpText)));
+//				}
+//			}
+//		}
+//		
+//		//	finally ...
+//		return items;
+//	}
+//	
+//	private void addToolsMenu(ArrayList itemNames, LinkedHashSet documentDependentMenuItems) {
+//		HashMap items = this.indexToolsMenuItems(true);
+//		this.toolsMenu = this.addMenu("Tools", itemNames, items);
+//		documentDependentMenuItems.add(this.toolsMenu);
+//	}
+//	private void refreshToolsMenu() {
+//		HashMap items = this.indexToolsMenuItems(false);
+//		this.toolsMenu.removeAll();
+//		MenuBuilder.fillMenu(this.toolsMenu, this.toolsMenuItemNames, items, this.ggiInMasterConfiguration);
+//	}
+//	private HashMap indexToolsMenuItems(boolean addHelp) {
+//		HelpChapter menuHelp = null;
+//		if (addHelp) {
+//			menuHelp = new HelpChapterDataProviderBased("Menu 'Tools'", this.helpDataProvider, "GgImagine.ToolsMenu.html");
+//			this.helpContent.addSubChapter(menuHelp);
+//			JMenuItem helpMi = new JMenuItem("Menu 'Tools'");
+//			helpMi.addActionListener(new ActionListener() {
+//				public void actionPerformed(ActionEvent ae) {
+//					showHelp("Menu 'Tools'");
+//				}
+//			});
+//			this.helpMenu.add(helpMi);
+//		}
+//		JMenuItem helpMi = null; // set to null to mark first entry of custom tool section
+//		
+//		if (this.ggiInMasterConfiguration)
+//			System.out.println("TOOLS-MENU");
+//		HashMap items = new LinkedHashMap() {
+//			public Object put(Object key, Object value) {
+//				if (ggiInMasterConfiguration)
+//					System.out.println(key);
+//				return super.put(key, value);
+//			}
+//		};
+//		JMenuItem mi;
+//		
+//		ImageMarkupToolProvider[] imtps = this.ggImagine.getImageMarkupToolProviders();
+//		for (int p = 0; p < imtps.length; p++) {
+//			String[] tmImtNames = imtps[p].getToolsMenuItemNames();
+//			if ((tmImtNames == null) || (tmImtNames.length == 0))
+//				continue;
+//			for (int n = 0; n < tmImtNames.length; n++) {
+//				final ImageMarkupTool tmImt = imtps[p].getImageMarkupTool(tmImtNames[n]);
+//				mi = new JMenuItem(tmImt.getLabel());
+//				mi.setToolTipText(tmImt.getTooltip());
+//				mi.addActionListener(new ActionListener() {
+//					public void actionPerformed(ActionEvent ae) {
+//						ImageDocumentEditorTab idet = getActiveDocument();
+//						if (idet != null)
+//							idet.getImDocumentPanel().applyMarkupTool(tmImt, null);
+//					}
+//				});
+//				items.put(mi.getText(), mi);
+//				
+//				//	add help menu entry (with separator before first IMT specific entry)
+//				if (menuHelp != null) {
+//					if (helpMi == null)
+//						this.helpMenu.addSeparator();
+//					helpMi = new JMenuItem(tmImt.getLabel());
+//					helpMi.addActionListener(new ActionListener() {
+//						public void actionPerformed(ActionEvent ae) {
+//							showHelp(tmImt.getLabel());
+//						}
+//					});
+//					this.helpMenu.add(helpMi);
+//					
+//					//	add help chapter if available
+//					String imtHelpText = tmImt.getHelpText();
+//					menuHelp.addSubChapter(new HelpChapter(tmImt.getLabel(), ((imtHelpText == null) ? "Help is coming soon." : imtHelpText)));
+//				}
+//			}
+//		}
+//		
+//		//	add tools menu items for generic XML processors
+//		if (this.ggiInMasterConfiguration) {
+//			mi = new JMenuItem("Configure XML Wrapper");
+//			mi.setToolTipText("Configure the XML wrapper document processors will work on");
+//			mi.addActionListener(new ActionListener() {
+//				public void actionPerformed(ActionEvent ae) {
+//					ImDocumentRootOptionPanel idrop = new ImDocumentRootOptionPanel(xmlWrapperFlags);
+//					int choice = DialogFactory.confirm(idrop, "Configure XML Wrapper", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+//					if (choice == JOptionPane.OK_OPTION)
+//						xmlWrapperFlags = idrop.getFlags();
+//				}
+//			});
+//			items.put(mi.getText(), mi);
+//			
+//			DocumentProcessorManager[] dpms = this.ggImagine.getDocumentProcessorProviders();
+//			for (int m = 0; m < dpms.length; m++) {
+//				if (dpms[m] instanceof ImageMarkupToolProvider)
+//					continue; // we have handled the contributions from this one above
+//				String toolsMenuLabel = dpms[m].getToolsMenuLabel();
+//				if (toolsMenuLabel == null)
+//					continue;
+//				mi = this.createRunDocumentProcessorMenuItem(dpms[m], toolsMenuLabel);
+//				items.put(mi.getText(), mi);
+////				
+////				//	add help chapter if available SKIP THOSE, TOO GENERIC (MOSTLY ADMIN DOCUMENTATION)
+////				if (menuHelp != null) {
+////					HelpChapter dpmHelp = dpms[m].getHelp();
+////					if (dpmHelp != null)
+////						menuHelp.addSubChapter(dpmHelp);
+////				}
+//			}
+//		}
+//		
+//		//	finally ...
+//		return items;
+//	}
+//	
+//	private void addPluginsMenu(LinkedHashSet documentDependentMenuItems) {
+//		JMenu pluginsMenu = new JMenu("Plugins");
+//		JMenuItem mi = new JMenuItem("Configure XML Wrapper");
+//		mi.setToolTipText("Configure the XML wrapper document processors will work on");
+//		mi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ImDocumentRootOptionPanel idrop = new ImDocumentRootOptionPanel(xmlWrapperFlags);
+//				int choice = DialogFactory.confirm(idrop, "Configure XML Wrapper", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+//				if (choice == JOptionPane.OK_OPTION)
+//					xmlWrapperFlags = idrop.getFlags();
+//			}
+//		});
+//		pluginsMenu.add(mi);
+//		pluginsMenu.addSeparator();
+//		
+//		//	add sub menus for individual plug-ins
+//		GoldenGatePlugin[] plugins = this.ggImagine.getPlugins();
+//		for (int p = 0; p < plugins.length; p++) /* try */ {
+//			String pluginMenuTitle = plugins[p].getMainMenuTitle();
+//			if (pluginMenuTitle == null)
+//				continue;
+//			JMenuItem[] pluginMenuItems = plugins[p].getMainMenuItems();
+//			if ((pluginMenuItems == null) || (pluginMenuItems.length == 0))
+//				continue;
+//			JMenu pluginMenu = new JMenu(pluginMenuTitle);
+//			boolean lastWasSeparator = true;
+//			for (int m = 0; m < pluginMenuItems.length; m++) {
+//				if (pluginMenuItems[m] == GoldenGateConstants.MENU_SEPARATOR_ITEM) {
+//					if (pluginMenu.getItemCount() != 0)
+//						pluginMenu.addSeparator();
+//					lastWasSeparator = true;
+//				}
+//				else {
+//					pluginMenu.add(pluginMenuItems[m]);
+//					lastWasSeparator = false;
+//				}
+//			}
+//			
+//			//	add menu if not empty
+//			if (pluginMenu.getItemCount() != 0)
+//				pluginsMenu.add(pluginMenu);
+//			
+//			//	add tools menu entry for document processor and annotation source managers (duplicate or not ...)
+//			JMenuItem rMi = null;
+//			if (plugins[p] instanceof DocumentProcessorManager) {
+//				String toolsMenuLabel = ((DocumentProcessorManager) plugins[p]).getToolsMenuLabel();
+//				if (toolsMenuLabel != null)
+//					rMi = this.createRunDocumentProcessorMenuItem(((DocumentProcessorManager) plugins[p]), toolsMenuLabel);
+//			}
+//			else if (plugins[p] instanceof AnnotationSourceManager) {
+//				String toolsMenuLabel = ((AnnotationSourceManager) plugins[p]).getToolsMenuLabel();
+//				if (toolsMenuLabel != null)
+//					rMi = this.createApplyAnnotationSourceMenuItem(((AnnotationSourceManager) plugins[p]), toolsMenuLabel);
+//			}
+//			
+//			//	add resource menu item
+//			if (rMi != null) {
+//				if (!lastWasSeparator)
+//					pluginMenu.addSeparator();
+//				pluginMenu.add(rMi);
+//				documentDependentMenuItems.add(rMi);
+//			}
+//		}
+//		
+//		//	finally ...
+//		this.addMenu(pluginsMenu);
+//	}
+//	private JMenuItem createRunDocumentProcessorMenuItem(final DocumentProcessorManager dpm, final String toolsMenuLabel) {
+//		JMenuItem mi = new JMenuItem(toolsMenuLabel + " " + dpm.getResourceTypeLabel());
+//		mi.setToolTipText(toolsMenuLabel + " a " + dpm.getResourceTypeLabel() + " " + ("Run".equals(toolsMenuLabel) ? "on" : "to") + " the document");
+//		mi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ImageDocumentEditorTab idet = getActiveDocument();
+//				if (idet == null)
+//					return;
+//				ResourceDialog rd = ResourceDialog.getResourceDialog(dpm, ("Select " + dpm.getResourceTypeLabel() + " To " + toolsMenuLabel), toolsMenuLabel);
+//				rd.setVisible(true);
+//				final String dpName = rd.getSelectedResourceName();
+//				if (dpName == null)
+//					return;
+//				idet.getImDocumentPanel().applyMarkupTool(new ImageMarkupTool() {
+//					public String getLabel() {
+//						return (dpm.getResourceTypeLabel() + " '" + dpName + "'");
+//					}
+//					public String getTooltip() {
+//						return null; // no need for a tooltip here
+//					}
+//					public String getHelpText() {
+//						return null; // no need for a help text here
+//					}
+//					public void process(ImDocument doc, ImAnnotation annot, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
+//						
+//						//	wrap document (or annotation)
+//						if (pm != null)
+//							pm.setStep("Wrapping document");
+//						ImDocumentRoot wrappedDoc = new ImDocumentRoot(doc, xmlWrapperFlags);
+//						
+//						//	get document processor from manager
+//						if (pm != null)
+//							pm.setStep("Loading document processor");
+//						DocumentProcessor dp = dpm.getDocumentProcessor(dpName);
+//						
+//						//	create parameters
+//						Properties parameters = new Properties();
+//						parameters.setProperty(DocumentProcessor.INTERACTIVE_PARAMETER, DocumentProcessor.INTERACTIVE_PARAMETER);
+//						
+//						//	process document (or annotation)
+//						if (pm != null)
+//							pm.setStep("Processing document");
+//						if (dp instanceof MonitorableDocumentProcessor)
+//							((MonitorableDocumentProcessor) dp).process(wrappedDoc, parameters, pm);
+//						else dp.process(wrappedDoc, parameters);
+//					}
+//				}, null);
+//			}
+//		});
+//		return mi;
+//	}
+//	private JMenuItem createApplyAnnotationSourceMenuItem(final AnnotationSourceManager asm, final String toolsMenuLabel) {
+//		JMenuItem mi = new JMenuItem(toolsMenuLabel + " " + asm.getResourceTypeLabel());
+//		mi.setToolTipText(toolsMenuLabel + " a " + asm.getResourceTypeLabel() + " " + ("Run".equals(toolsMenuLabel) ? "on" : "to") + " the document");
+//		mi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ImageDocumentEditorTab idet = getActiveDocument();
+//				if (idet == null)
+//					return;
+//				final AnnotationSourceParameterPanel aspp = asm.getAnnotatorParameterPanel();
+//				ResourceDialog rd = ResourceDialog.getResourceDialog(asm, ("Select " + asm.getResourceTypeLabel() + " To " + toolsMenuLabel), toolsMenuLabel, aspp);
+//				rd.setVisible(true);
+//				final String asName = rd.getSelectedResourceName();
+//				if (asName == null)
+//					return;
+//				final Settings asParams = ((aspp == null) ? null : aspp.getSettings());
+//				idet.getImDocumentPanel().applyMarkupTool(new ImageMarkupTool() {
+//					public String getLabel() {
+//						return (asm.getResourceTypeLabel() + " '" + asName + "'");
+//					}
+//					public String getTooltip() {
+//						return null; // no need for a tooltip here
+//					}
+//					public String getHelpText() {
+//						return null; // no need for a help text here
+//					}
+//					public void process(ImDocument doc, ImAnnotation annot, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
+//						
+//						//	wrap document (or annotation)
+//						if (pm != null)
+//							pm.setStep("Wrapping document");
+//						ImDocumentRoot wrappedDoc = new ImDocumentRoot(doc, xmlWrapperFlags);
+//						
+//						//	get document processor from manager
+//						if (pm != null)
+//							pm.setStep("Loading annotation source");
+//						AnnotationSource as = asm.getAnnotationSource(asName);
+//						
+//						//	create parameters
+//						Properties parameters = new Properties(asParams.toProperties());
+//						
+//						//	process document (or annotation)
+//						if (pm != null)
+//							pm.setStep("Processing document");
+//						Annotation[] annots = as.annotate(wrappedDoc, parameters);
+//						if ((annots == null) || (annots.length == 0))
+//							return;
+//						
+//						//	prompt to have user select annotations to add and enter annotation type (in ONE dialog !!!)
+//						AnnotationSelectorPanel asp = new AnnotationSelectorPanel(annots, true);
+//						AnnotationTypePanel atp = new AnnotationTypePanel(doc.getAnnotationTypes());
+//						atp.setBorder(BorderFactory.createEtchedBorder());
+//						asp.add(atp, BorderLayout.SOUTH);
+//						if (!asp.showDialog(((pm instanceof JComponent) ? ((JComponent) pm) : null), "Select Annotations to Add", "Add Annotations"))
+//							return;
+//						
+//						//	add selected annotations to wrapped document ...
+//						//	... and also copy attributes (annotation patterns, for one, do generate attributes)
+//						Annotation[] addAnnots = asp.getSelectedAnnotations();
+//						if ((addAnnots == null) || (addAnnots.length == 0))
+//							return;
+//						String annotType = atp.getAnnotationType();
+//						for (int a = 0; a < addAnnots.length; a++) {
+//							Annotation addAnnot = wrappedDoc.addAnnotation(annotType, addAnnots[a].getStartIndex(), addAnnots[a].size());
+//							if (addAnnot != null) // might be crossing text stream boundary ...
+//								addAnnot.copyAttributes(addAnnots[a]);
+//						}
+//					}
+//				}, null);
+//			}
+//		});
+//		return mi;
+//	}
 	private static class AnnotationTypePanel extends JPanel implements AnnotationSelectorAccessory {
 		private JComboBox annotTypeField;
 		AnnotationTypePanel(String[] annotTypes) {
@@ -1233,102 +2061,104 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			return true;
 		}
 	}
+//	
+//	void setDocumentDependentMenuItemsEnabled(boolean enabled) {
+//		for (Iterator miit = this.documentDependentMenuItems.iterator(); miit.hasNext();)
+//			((JMenuItem) miit.next()).setEnabled(enabled);
+//	}
+//	
+//	private HelpChapter buildHelpContentRoot() {
+//		HelpChapter helpRoot = new HelpChapterDataProviderBased("GoldenGATE Imagine", this.helpDataProvider, "GgImagine.html");
+//		helpRoot.addSubChapter(new HelpChapterDataProviderBased("Glossary", this.helpDataProvider, "GgImagine.Glossary.html"));
+//		
+//		HelpChapter editorHelp = new HelpChapterDataProviderBased("Editor", this.helpDataProvider, "GgImagine.Editor.html");
+//		helpRoot.addSubChapter(editorHelp);
+//		SelectionActionProvider[] saps = this.ggImagine.getSelectionActionProviders();
+//		for (int p = 0; p < saps.length; p++) {
+//			HelpChapter sapHelp = saps[p].getHelp();
+//			if (sapHelp != null)
+//				editorHelp.addSubChapter(sapHelp);
+//		}
+//		
+//		ImageDocumentDropHandler[] dropHandlers = this.ggImagine.getDropHandlers();
+//		if (dropHandlers.length != 0) {
+//			HelpChapter dragDropHelp = new HelpChapterDataProviderBased("Drag & Drop", this.helpDataProvider, "GgImagine.DragDrop.html");
+//			helpRoot.addSubChapter(dragDropHelp);
+//			for (int h = 0; h < dropHandlers.length; h++) {
+//				HelpChapter dhHelp = dropHandlers[h].getHelp();
+//				if (dhHelp != null)
+//					dragDropHelp.addSubChapter(dhHelp);
+//			}
+//		}
+//		
+//		HelpChapter pageImageHelp = new HelpChapterDataProviderBased("Page Image Editing", this.helpDataProvider, "GgImagine.PageImageEditing.html");
+//		helpRoot.addSubChapter(pageImageHelp);
+//		ImageEditToolProvider[] ietps = this.ggImagine.getImageEditToolProviders();
+//		for (int p = 0; p < ietps.length; p++) {
+//			HelpChapter ietpHelp = ietps[p].getHelp();
+//			if (ietpHelp != null)
+//				pageImageHelp.addSubChapter(ietpHelp);
+//		}
+//		
+//		return helpRoot;
+//	}
+//	
+//	private JMenu createHelpMenu() {
+//		JMenu helpMenu = new JMenu("Help");
+//		
+//		JMenuItem mi = new JMenuItem("Help");
+//		mi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				showHelp(null);
+//			}
+//		});
+//		helpMenu.add(mi);
+//		
+//		helpMenu.addSeparator();
+//		
+//		return helpMenu;
+//	}
+//	
+//	private void finishHelpMenu() {
+//		this.helpMenu.addSeparator();
+//		
+//		JMenuItem ami = new JMenuItem("About");
+//		ami.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ggImagine.showAbout();
+//			}
+//		});
+//		this.helpMenu.add(ami);
+//		
+//		JMenuItem rmi = new JMenuItem("View Readme");
+//		rmi.addActionListener(new ActionListener() {
+//			public void actionPerformed(ActionEvent ae) {
+//				ggImagine.showReadme();
+//			}
+//		});
+//		this.helpMenu.add(rmi);
+//		
+//		this.addMenu(this.helpMenu);
+//	}
+//	
+//	/**
+//	 * Show some help information.
+//	 * @param on the subject of the desired help information
+//	 */
+//	public void showHelp(String on) {
+//		if (this.help != null)
+//			this.help.showHelp(on);
+//	}
 	
-	void setDocumentDependentMenuItemsEnabled(boolean enabled) {
-		for (Iterator miit = this.documentDependentMenuItems.iterator(); miit.hasNext();)
-			((JMenuItem) miit.next()).setEnabled(enabled);
-	}
-	
-	private HelpChapter buildHelpContentRoot() {
-		HelpChapter helpRoot = new HelpChapterDataProviderBased("GoldenGATE Imagine", this.helpDataProvider, "GgImagine.html");
-		helpRoot.addSubChapter(new HelpChapterDataProviderBased("Glossary", this.helpDataProvider, "GgImagine.Glossary.html"));
-		
-		HelpChapter editorHelp = new HelpChapterDataProviderBased("Editor", this.helpDataProvider, "GgImagine.Editor.html");
-		helpRoot.addSubChapter(editorHelp);
-		SelectionActionProvider[] saps = this.ggImagine.getSelectionActionProviders();
-		for (int p = 0; p < saps.length; p++) {
-			HelpChapter sapHelp = saps[p].getHelp();
-			if (sapHelp != null)
-				editorHelp.addSubChapter(sapHelp);
-		}
-		
-		ImageDocumentDropHandler[] dropHandlers = this.ggImagine.getDropHandlers();
-		if (dropHandlers.length != 0) {
-			HelpChapter dragDropHelp = new HelpChapterDataProviderBased("Drag & Drop", this.helpDataProvider, "GgImagine.DragDrop.html");
-			helpRoot.addSubChapter(dragDropHelp);
-			for (int h = 0; h < dropHandlers.length; h++) {
-				HelpChapter dhHelp = dropHandlers[h].getHelp();
-				if (dhHelp != null)
-					dragDropHelp.addSubChapter(dhHelp);
-			}
-		}
-		
-		HelpChapter pageImageHelp = new HelpChapterDataProviderBased("Page Image Editing", this.helpDataProvider, "GgImagine.PageImageEditing.html");
-		helpRoot.addSubChapter(pageImageHelp);
-		ImageEditToolProvider[] ietps = this.ggImagine.getImageEditToolProviders();
-		for (int p = 0; p < ietps.length; p++) {
-			HelpChapter ietpHelp = ietps[p].getHelp();
-			if (ietpHelp != null)
-				pageImageHelp.addSubChapter(ietpHelp);
-		}
-		
-		return helpRoot;
-	}
-	
-	private JMenu createHelpMenu() {
-		JMenu helpMenu = new JMenu("Help");
-		
-		JMenuItem mi = new JMenuItem("Help");
-		mi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				showHelp(null);
-			}
-		});
-		helpMenu.add(mi);
-		
-		helpMenu.addSeparator();
-		
-		return helpMenu;
-	}
-	
-	private void finishHelpMenu() {
-		this.helpMenu.addSeparator();
-		
-		JMenuItem ami = new JMenuItem("About");
-		ami.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ggImagine.showAbout();
-			}
-		});
-		this.helpMenu.add(ami);
-		
-		JMenuItem rmi = new JMenuItem("View Readme");
-		rmi.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				ggImagine.showReadme();
-			}
-		});
-		this.helpMenu.add(rmi);
-		
-		this.addMenu(this.helpMenu);
-	}
-	
-	/**
-	 * Show some help information.
-	 * @param on the subject of the desired help information
-	 */
-	public void showHelp(String on) {
-		if (this.help != null)
-			this.help.showHelp(on);
-	}
-	
-	class ViewControl extends JPanel {
+	static class ViewControl extends JPanel {
+		private ImageDocumentMarkupUI parent;
 		private JLabel scrollPosition = new JLabel("Page 0 of 0", JLabel.CENTER);
 		private int pageImageDpi = ImDocumentMarkupPanel.DEFAULT_RENDERING_DPI;
 		private JComboBox zoomSelector = new JComboBox();
 		private JComboBox layoutSelector = new JComboBox();
-		ViewControl() {
+		ViewControl(ImageDocumentMarkupUI parent) {
 			super(new GridLayout(1, 0), true);
+			this.parent = parent;
 			
 			this.scrollPosition.setOpaque(true);
 			this.scrollPosition.setBackground(Color.WHITE);
@@ -1380,7 +2210,7 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		void zoomChanged() {
 			if (this.inUpdate)
 				return;
-			ImageDocumentEditorTab idet = getActiveDocument();
+			ImageDocumentEditorTab idet = this.parent.getActiveDocument();
 			if (idet == null)
 				return;
 			ZoomLevel zl = ((ZoomLevel) this.zoomSelector.getSelectedItem());
@@ -1401,7 +2231,7 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		void layoutChanged() {
 			if (this.inUpdate)
 				return;
-			ImageDocumentEditorTab idet = getActiveDocument();
+			ImageDocumentEditorTab idet = this.parent.getActiveDocument();
 			if (idet == null)
 				return;
 			this.inNotification = true;
@@ -1423,14 +2253,14 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 				this.scrollPosition.setText("Page 0 of 0");
 			else {
 				idet.updateScrollPosition();
-				this.pageImageDpi = idet.getMarkupPanel().getMaxPageImageDpi();
-				this.zoomSelector.setSelectedItem(new ZoomLevel(idet.getMarkupPanel().getRenderingDpi()));
-				this.layoutSelector.setSelectedItem((idet.getMarkupPanel().getSideBySidePages() == 1) ? "Pages Top-Down" : "Pages Left-Right");
+				this.pageImageDpi = idet.getImDocumentPanel().getMaxPageImageDpi();
+				this.zoomSelector.setSelectedItem(new ZoomLevel(idet.getImDocumentPanel().getRenderingDpi()));
+				this.layoutSelector.setSelectedItem((idet.getImDocumentPanel().getSideBySidePages() == 1) ? "Pages Top-Down" : "Pages Left-Right");
 			}
 			this.inUpdate = false;
 		}
 		
-		private class ZoomLevel {
+		private static class ZoomLevel {
 			final int dpi;
 			ZoomLevel(int dpi) {
 				this.dpi = dpi;
@@ -1445,16 +2275,16 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			}
 		}
 	}
-	
-	private JMenu addMenu(String name, ArrayList itemNames, HashMap itemsByName) {
-		JMenu menu = MenuBuilder.buildMenu(name, itemNames, itemsByName, this.ggiInMasterConfiguration);
-		this.addMenu(menu);
-		return menu;
-	}
-	
-	void addMenu(JMenu menu) {
-		this.mainMenu.add(menu);
-	}
+//	
+//	private JMenu addMenu(String name, ArrayList itemNames, HashMap itemsByName) {
+//		JMenu menu = MenuBuilder.buildMenu(name, itemNames, itemsByName, this.ggiInMasterConfiguration);
+//		this.addMenu(menu);
+//		return menu;
+//	}
+//	
+//	void addMenu(JMenu menu) {
+//		this.mainMenu.add(menu);
+//	}
 	
 	/* TODO add page navigator to editor tabs
 	 * - represent pages a thumbnails
@@ -1474,6 +2304,83 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 	 * - JavaDoc: "if an instance of this class sits inside a JScrollPane, this method can be overwritten to trigger a scroll" 
 	 */
 	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#updateMenus()
+	 */
+	public void updateMenus() {
+		this.menuOwner.updateMenu();
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#getActiveDocumentDisplay()
+	 */
+	public DocumentDisplay getActiveDocumentDisplay() {
+		return this.getActiveDocument();
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#getActiveDocumentReadOnly()
+	 */
+	public QueriableAnnotation getActiveDocumentReadOnly() {
+		ImageDocumentEditorTab idet = this.getActiveDocument();
+		return ((idet == null) ? null : idet.getDocumentReadOnly());
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#getActiveDocumentId()
+	 */
+	public String getActiveDocumentId() {
+		ImageDocumentEditorTab idet = this.getActiveDocument();
+		return ((idet == null) ? null : idet.getDocumentId());
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#getDocumentCount()
+	 */
+	public int getDocumentCount() {
+		return ((this.docTabs == null) ? 1 : this.docTabs.getTabCount());
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#getDocumentDisplays()
+	 */
+	public DocumentDisplay[] getDocumentDisplays() {
+		if (this.docTab == null) {
+			DocumentDisplay[] dds = new DocumentDisplay[this.docTabs.getTabCount()];
+			for (int t = 0; t < this.docTabs.getTabCount(); t++)
+				dds[t] = ((DocumentDisplay) this.docTabs.getComponentAt(t));
+			return dds;
+		}
+		else {
+			DocumentDisplay[] dds = {
+				this.docTab
+			};
+			return dds;
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#getDefaultAnnotationColor(java.lang.String)
+	 */
+	public Color getDefaultAnnotationColor(String type) {
+		return UserInterfaceUtils.getAnnotationColor(type);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#setDefaultAnnotationColor(java.lang.String, java.awt.Color)
+	 */
+	public void setDefaultAnnotationColor(String type, Color color) {
+		if (color != null)
+			UserInterfaceUtils.setAnnotationColor(type, color);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI#getKnownAnnotationTypes()
+	 */
+	public String[] getKnownAnnotationTypes() {
+		return UserInterfaceUtils.getKnownAnnotationTypes();
+	}
+	
 	/**
 	 * Display tab for a single document in the markup UI.
 	 * 
@@ -1488,8 +2395,10 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		 * @param ggImagine the GoldenGATE Imagine instance to use
 		 * @param ggiConfig the configuration of the GoldenGATE Imagine instance to use
 		 */
-		protected ImageDocumentEditorTab(ImDocument doc, String docName, GoldenGateImagine ggImagine, Settings ggiConfig) {
-			super(doc, ggImagine, ggiConfig);
+//		protected ImageDocumentEditorTab(ImDocument doc, String docName, GoldenGateImagine ggImagine, Settings ggiConfig) {
+		protected ImageDocumentEditorTab(ImDocument doc, String docName, GoldenGateImagine ggImagine) {
+//			super(doc, ggImagine, ggiConfig);
+			super(doc, ggImagine);
 			this.docName = docName;
 		}
 		
@@ -1499,9 +2408,17 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		 * @param docName the name of the document
 		 */
 		protected ImageDocumentEditorTab(ImageDocumentMarkupUI parent, ImDocument doc, String docName) {
-			super(doc, parent.ggImagine, parent.ggiConfig);
+//			super(doc, parent.ggImagine, parent.ggiConfig);
+			super(doc, parent.ggImagine);
 			this.docName = docName;
 			this.setParent(parent);
+		}
+		
+		/* (non-Javadoc)
+		 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getMenuOwner()
+		 */
+		public WindowMenuOwner getMenuOwner() {
+			return ((this.parent == null) ? null : this.parent.menuOwner);
 		}
 		
 		/* (non-Javadoc)
@@ -1521,10 +2438,77 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		}
 		
 		/* (non-Javadoc)
+		 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getDocumentViews(de.uka.ipd.idaho.gamta.Annotation[], de.uka.ipd.idaho.gamta.QueriableAnnotation, int, java.lang.Class)
+		 */
+		public DocumentViewInstance[] getDocumentViews(Annotation[] annotations, QueriableAnnotation doc, int modeFlags, Class providerClass) {
+			ArrayList dvis = new ArrayList();
+			int docFlags = 0;
+			if (this.areAnnotationsEditable())
+				docFlags |= DocumentViewInstance.MODE_ANNOTATIONS_EDITABLE;
+			if (this.areTokensEditable())
+				docFlags |= DocumentViewInstance.MODE_TOKENS_EDITABLE;
+			DocumentViewProvider[] dvps = this.parent.goldenGate.getDocumentViewProviders();
+			for (int p = 0; p < dvps.length; p++) {
+				DocumentViewInstance[] pDvis = dvps[p].getDocumentViews(this, this.idmp.document, annotations, doc, docFlags, modeFlags);
+				if (pDvis != null)
+					dvis.addAll(Arrays.asList(pDvis));
+			}
+			return ((DocumentViewInstance[]) dvis.toArray(new DocumentViewInstance[dvis.size()]));
+		}
+		
+		/* (non-Javadoc)
+		 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#showDocumentView(de.uka.ipd.idaho.goldenGate.ui.DocumentView, de.uka.ipd.idaho.goldenGate.ui.DialogMainButton[], de.uka.ipd.idaho.goldenGate.ui.DocumentView.DocumentViewAugmenter)
+		 */
+		public DialogMainButton showDocumentView(DocumentViewInstance viewInstance, DialogMainButton[] mainButtons, DocumentViewAugmenter augmenter) {
+			boolean handleAtomicAction;
+			if (viewInstance.isDirectWriteThrough())
+				handleAtomicAction = false; // in direct write-through, actions in view start atomic actions
+			else if (this.idmp.isAtomicActionRunning())
+				handleAtomicAction = false; // atomic action started externally
+			else handleAtomicAction = true;
+			try {
+				if (handleAtomicAction) {
+					ImAnnotation aaAnnot; // get underlying annotation
+					if (viewInstance instanceof ImageDocumentViewInstance)
+						aaAnnot = ((ImageDocumentViewInstance) viewInstance).imScope;
+					else if (viewInstance.scope == null)
+						aaAnnot = null;
+					else {
+						ImObject imObj = this.idmp.document.getObjectByUUID(viewInstance.scope.getAnnotationID());
+						aaAnnot = ((imObj instanceof ImAnnotation) ? ((ImAnnotation) imObj) : null);
+					}
+					this.idmp.startAtomicAction(viewInstance.label, null, aaAnnot, ProgressMonitor.dummy);
+				}
+				return this.parent.viewDisplayService.showDocumentView(this, viewInstance, mainButtons, augmenter, null /* TODO do we need to listen for anything ??? */);
+			}
+			finally {
+				if (handleAtomicAction)
+					this.idmp.finishAtomicAction(ProgressMonitor.dummy);
+			}
+		}
+		
+		/* (non-Javadoc)
+		 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getActiveDocumentViews()
+		 */
+		public DocumentViewInstance[] getActiveDocumentViews() {
+			return this.parent.viewDisplayService.getActiveDocumentViews(this);
+		}
+		
+		/* (non-Javadoc)
 		 * @see de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupPanel#getUndoMenu()
 		 */
-		protected JMenu getUndoMenu() {
+//		protected JMenu getUndoMenu() {
+//			return this.parent.undoMenu;
+//		}
+		protected DynamicWindowMenu getUndoMenu() {
 			return this.parent.undoMenu;
+		}
+		
+		/* (non-Javadoc)
+		 * @see de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupPanel#getUndoMenuOwner()
+		 */
+		protected WindowMenuOwner getUndoMenuOwner() {
+			return this.parent.menuOwner;
 		}
 		
 		/* (non-Javadoc)
@@ -1605,13 +2589,13 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 		idet.setParent(this);
 		this.docTabs.addTab(idet.getDocName(), idet);
 		this.docTabs.setSelectedComponent(idet);
-		this.setDocumentDependentMenuItemsEnabled(true);
+//		this.setDocumentDependentMenuItemsEnabled(true);
 	}
 	
 	void removeDocument(ImageDocumentEditorTab idet) {
 		if (this.docTabs != null) {
 			this.docTabs.remove(idet);
-			this.setDocumentDependentMenuItemsEnabled(this.docTabs.getTabCount() != 0);
+//			this.setDocumentDependentMenuItemsEnabled(this.docTabs.getTabCount() != 0);
 		}
 		else if (idet == this.docTab)
 			this.docTab = null;
@@ -1651,7 +2635,15 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 					return false;
 			}
 		}
+		
+		//	close any non-modal views still left open
+		this.viewDisplayService.closeActiveDocumentViews(idet);
+		
+		//	close document tab proper
 		idet.dispose(true);
+		
+		//	might have been last document, need to adjust menu
+		this.menuOwner.updateMenu();
 		
 		//	finally ...
 		return true;
@@ -1668,7 +2660,8 @@ public abstract class ImageDocumentMarkupUI extends JPanel implements ImagingCon
 			if (!this.closeDocument(this.getActiveDocument()))
 				return false;
 		}
-		this.ggiConfig.setSetting("mostRecentlyUsedSymbols", SymbolTable.getMostRecentlyUsedSymbols());
+//		this.ggiConfig.setSetting("mostRecentlyUsedSymbols", SymbolTable.getMostRecentlyUsedSymbols());
+		UserInterfaceUtils.setDisplayProperty("mostRecentlyUsedSymbols", SymbolTable.getMostRecentlyUsedSymbols());
 		return true;
 	}
 	

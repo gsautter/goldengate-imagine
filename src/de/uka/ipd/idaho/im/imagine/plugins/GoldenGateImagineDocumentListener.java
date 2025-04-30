@@ -48,11 +48,26 @@ public interface GoldenGateImagineDocumentListener extends GoldenGateImaginePlug
 	 */
 	public static class CancelSavingException extends IllegalStateException {
 		
+		/** is the cancellation in response to a choice at the hands of the
+		 * user? If this flag is set to <code>true</code>, there should be no
+		 * additional prompt about the error in a UI */
+		public final boolean isUserDecision;
+		
 		/** Constructor
 		 * @param reason the reason for the cancellation of the saving process
 		 */
 		public CancelSavingException(String reason) {
+			this(reason, false);
+		}
+		
+		/** Constructor
+		 * @param reason the reason for the cancellation of the saving process
+		 * @param isUserDecision is the cancellation in response to a choice at
+		 *        the hands of the user?
+		 */
+		public CancelSavingException(String reason, boolean isUserDecision) {
 			super(reason);
+			this.isUserDecision = isUserDecision;
 		}
 	}
 	

@@ -25,28 +25,20 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package de.uka.ipd.idaho.im.imagine.plugins;
+package de.uka.ipd.idaho.im.imagine.batch.starter;
 
+import java.io.File;
+
+import de.uka.ipd.idaho.goldenGate.applications.ApplicationRuntimeUtils;
 
 /**
+ * Starter for GoldenGATE Imagine Batch, downloading updates, etc. before
+ * starting actual application.
+ * 
  * @author sautter
  */
-public abstract class AbstractImageMarkupToolProvider extends AbstractGoldenGateImaginePlugin implements ImageMarkupToolProvider {
-	
-	/** zero-argument constructor for class loading */
-	protected AbstractImageMarkupToolProvider() {}
-//	
-//	/* (non-Javadoc)
-//	 * @see de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider#getEditMenuItemNames()
-//	 */
-//	public String[] getEditMenuItemNames() {
-//		return null;
-//	}
-//	
-//	/* (non-Javadoc)
-//	 * @see de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider#getToolsMenuItemNames()
-//	 */
-//	public String[] getToolsMenuItemNames() {
-//		return null;
-//	}
+public class GoldenGateImagineBatchStarter {
+	public static void main(String[] args) throws Exception {
+		ApplicationRuntimeUtils.startApplication(new File("."), "GgImagine", "GgImagineBatch.ggApp.cnfg", args, false, true);
+	}
 }

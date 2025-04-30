@@ -25,28 +25,36 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package de.uka.ipd.idaho.im.imagine.plugins;
+package de.uka.ipd.idaho.im.imagine.ui;
 
+import de.uka.ipd.idaho.gamta.Annotation;
+import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePlugin;
+import de.uka.ipd.idaho.goldenGate.ui.DocumentFunction;
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI;
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay;
+import de.uka.ipd.idaho.im.ImDocument;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 
 /**
+ * Document function wrapper for XML markup tools to apply to a image markup
+ * document displaying in an image document display.
+ * 
  * @author sautter
  */
-public abstract class AbstractImageMarkupToolProvider extends AbstractGoldenGateImaginePlugin implements ImageMarkupToolProvider {
-	
-	/** zero-argument constructor for class loading */
-	protected AbstractImageMarkupToolProvider() {}
-//	
-//	/* (non-Javadoc)
-//	 * @see de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider#getEditMenuItemNames()
-//	 */
-//	public String[] getEditMenuItemNames() {
-//		return null;
-//	}
-//	
-//	/* (non-Javadoc)
-//	 * @see de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider#getToolsMenuItemNames()
-//	 */
-//	public String[] getToolsMenuItemNames() {
-//		return null;
-//	}
+public class ImageMarkupToolDocumentFunction extends DocumentFunction {
+	private ImageMarkupTool imt;
+	public ImageMarkupToolDocumentFunction(GoldenGatePlugin owner, String name, ImageMarkupTool imt, int flags) {
+		super(owner, name, imt.getLabel(), imt.getTooltip(), flags);
+		this.imt = imt;
+	}
+	public boolean isApplicableTo(Class docClass) {
+		return ImDocument.class.isAssignableFrom(docClass);
+	}
+	public boolean isApplicableTo(GoldenGateUI ggui, DocumentDisplay display, Annotation selection) {
+		return (super.isApplicableTo(ggui, display, selection) && (display instanceof ImageDocumentDisplay) && (selection == null) && display.areAnnotationsEditable());
+	}
+	public void applyTo(GoldenGateUI ggui, DocumentDisplay display, Annotation selection) {
+		if (display instanceof ImageDocumentDisplay)
+			((ImageDocumentDisplay) display).getImDocumentPanel().applyMarkupTool(this.imt, null);
+	}
 }

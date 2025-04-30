@@ -37,28 +37,39 @@ import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
  * @author sautter
  */
 public interface ImageMarkupToolProvider extends GoldenGateImaginePlugin {
-
-	/**
-	 * Retrieve the names of menu items to integrate functionality from this
-	 * plugin in the 'Edit' menu of a GoldenGATE Imagine user interface. The
-	 * labels and tooltips for names returned by this method will be retrieved
-	 * from the <code>getLabel()</code> and <code>getTooltip()</code> methods,
-	 * and the objects providing the actual functionality will be retrieved
-	 * from the <code>getImageMarkupTool()</code> method.
-	 * @return an array holding the names for entries in the 'Edit' menu
-	 */
-	public abstract String[] getEditMenuItemNames();
+//
+//	/**
+//	 * Retrieve the names of menu items to integrate functionality from this
+//	 * plugin in the 'Edit' menu of a GoldenGATE Imagine user interface. The
+//	 * labels and tooltips for names returned by this method will be retrieved
+//	 * from the <code>getLabel()</code> and <code>getTooltip()</code> methods,
+//	 * and the objects providing the actual functionality will be retrieved
+//	 * from the <code>getImageMarkupTool()</code> method.
+//	 * @return an array holding the names for entries in the 'Edit' menu
+//	 */
+//	public abstract String[] getEditMenuItemNames();
+//	
+//	/**
+//	 * Retrieve the names of menu items to integrate functionality from this
+//	 * plugin in the 'Tools' menu of a GoldenGATE Imagine user interface. The
+//	 * labels and tooltips for names returned by this method will be retrieved
+//	 * from the <code>getLabel()</code> and <code>getTooltip()</code> methods,
+//	 * and the objects providing the actual functionality will be retrieved
+//	 * from the <code>getImageMarkupTool()</code> method.
+//	 * @return an array holding the names for entries in the 'Tools' menu
+//	 */
+//	public abstract String[] getToolsMenuItemNames();
 	
 	/**
-	 * Retrieve the names of menu items to integrate functionality from this
-	 * plugin in the 'Tools' menu of a GoldenGATE Imagine user interface. The
-	 * labels and tooltips for names returned by this method will be retrieved
-	 * from the <code>getLabel()</code> and <code>getTooltip()</code> methods,
-	 * and the objects providing the actual functionality will be retrieved
-	 * from the <code>getImageMarkupTool()</code> method.
-	 * @return an array holding the names for entries in the 'Tools' menu
+	 * Retrieve the names of the provided image markup tools. The argument
+	 * boolean indicates whether or not to include names of interactive tools,
+	 * i.e., tools that requite a user interface. Such tools might not be
+	 * applicable in certain scenarios, like fully automated document
+	 * processing batches.
+	 * @param includeInteractive include names of interactive tools?
+	 * @return an array holding the names of the tools
 	 */
-	public abstract String[] getToolsMenuItemNames();
+	public abstract String[] getMarkupToolNames(boolean includeInteractive);
 	
 	/**
 	 * Retrieve a markup tool with a given name.

@@ -25,28 +25,52 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-package de.uka.ipd.idaho.im.imagine.plugins;
+package de.uka.ipd.idaho.im.imagine.ui;
 
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay;
+import de.uka.ipd.idaho.im.ImAnnotation;
+import de.uka.ipd.idaho.im.ImDocument;
+import de.uka.ipd.idaho.im.gamta.LazyMutableAnnotation;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 
 /**
  * @author sautter
  */
-public abstract class AbstractImageMarkupToolProvider extends AbstractGoldenGateImaginePlugin implements ImageMarkupToolProvider {
+public interface ImageDocumentDisplay extends DocumentDisplay {
 	
-	/** zero-argument constructor for class loading */
-	protected AbstractImageMarkupToolProvider() {}
-//	
-//	/* (non-Javadoc)
-//	 * @see de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider#getEditMenuItemNames()
-//	 */
-//	public String[] getEditMenuItemNames() {
-//		return null;
-//	}
-//	
-//	/* (non-Javadoc)
-//	 * @see de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider#getToolsMenuItemNames()
-//	 */
-//	public String[] getToolsMenuItemNames() {
-//		return null;
-//	}
+	/**
+	 * Retrieve the displaying document.
+	 * @return the displaying document
+	 */
+	public abstract ImDocument getImDocument();
+	
+	/**
+	 * Retrieve the markup panel actually displaying the document.
+	 * @return the markup panel
+	 */
+	public abstract ImDocumentMarkupPanel getImDocumentPanel();
+	
+	/**
+	 * Retrieve the current flags for the generic XML wrapper.
+	 * @return the wrapper flags
+	 */
+	public abstract int getXmlWrapperFlags();
+	
+	/**
+	 * Retrieve the current generic XML wrapper, allowing for reuse. If the
+	 * argument flag vector is -1, the current flags are used.
+	 * @param flags the required flags
+	 * @return the generic XML wrapper
+	 */
+	public abstract LazyMutableAnnotation getXmlWrapper(int flags);
+	
+	/**
+	 * Apply a generic XML based markup tool to the contained document. If the
+	 * argument annotation is null, the image markup tool is applied to the
+	 * whole image markup document.
+	 * @param imt the image markup tool to apply
+	 * @param annot the annotation to apply the XML markup tool to
+	 */
+	public void applyGenericXmlMarkupTool(ImageMarkupTool imt, ImAnnotation annot);
 }

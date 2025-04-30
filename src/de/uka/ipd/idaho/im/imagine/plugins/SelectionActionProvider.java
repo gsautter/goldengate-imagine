@@ -29,6 +29,7 @@ package de.uka.ipd.idaho.im.imagine.plugins;
 
 import java.awt.Point;
 
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay;
 import de.uka.ipd.idaho.im.ImPage;
 import de.uka.ipd.idaho.im.ImWord;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
@@ -48,9 +49,11 @@ public interface SelectionActionProvider extends GoldenGateImaginePlugin {
 	 * @param start the word where the selection started
 	 * @param end the point word the selection ended
 	 * @param idmp the document editor panel to display the actions in
+	 * @param display the document display the argument editor panel is a part
+	 *            of (for a wider context, may be null)
 	 * @return an array holding the actions
 	 */
-	public abstract SelectionAction[] getActions(ImWord start, ImWord end, ImDocumentMarkupPanel idmp);
+	public abstract SelectionAction[] getActions(ImWord start, ImWord end, ImDocumentMarkupPanel idmp, DocumentDisplay display);
 	
 	//	TODO consider adding spanning and overlapping annotations as arguments ... no use, or higher effort, computing them separately in every instance of this class
 	
@@ -63,7 +66,9 @@ public interface SelectionActionProvider extends GoldenGateImaginePlugin {
 	 *            the box
 	 * @param page the document page the selection belongs to
 	 * @param idmp the document editor panel to display the actions in
+	 * @param display the document display the argument editor panel is a part
+	 *            of (for a wider context, may be null)
 	 * @return an array holding the actions
 	 */
-	public abstract SelectionAction[] getActions(Point start, Point end, ImPage page, ImDocumentMarkupPanel idmp);
+	public abstract SelectionAction[] getActions(Point start, Point end, ImPage page, ImDocumentMarkupPanel idmp, DocumentDisplay display);
 }

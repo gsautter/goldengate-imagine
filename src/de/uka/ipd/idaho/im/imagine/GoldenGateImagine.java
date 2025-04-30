@@ -27,16 +27,7 @@
  */
 package de.uka.ipd.idaho.im.imagine;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.Image;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -44,23 +35,12 @@ import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import javax.swing.BorderFactory;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
 
 import de.uka.ipd.idaho.easyIO.settings.Settings;
 import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
@@ -68,30 +48,18 @@ import de.uka.ipd.idaho.gamta.util.imaging.PageImage;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImageInputStream;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImageStore;
 import de.uka.ipd.idaho.gamta.util.imaging.PageImageStore.AbstractPageImageStore;
-import de.uka.ipd.idaho.goldenGate.DocumentEditor;
 import de.uka.ipd.idaho.goldenGate.GoldenGATE;
 import de.uka.ipd.idaho.goldenGate.GoldenGateConfiguration;
 import de.uka.ipd.idaho.goldenGate.GoldenGateConstants;
-import de.uka.ipd.idaho.goldenGate.observers.ResourceObserver;
-import de.uka.ipd.idaho.goldenGate.plugins.AnnotationFilter;
-import de.uka.ipd.idaho.goldenGate.plugins.AnnotationFilterManager;
-import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSource;
-import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSourceManager;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentEditorExtension;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentFormat;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentFormatProvider;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessor;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessorManager;
-import de.uka.ipd.idaho.goldenGate.plugins.DocumentSaver;
 import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePlugin;
-import de.uka.ipd.idaho.goldenGate.plugins.GoldenGatePluginDataProvider;
-import de.uka.ipd.idaho.goldenGate.plugins.ResourceManager;
-import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
+import de.uka.ipd.idaho.goldenGate.ui.UserInterfaceUtils;
+import de.uka.ipd.idaho.im.ImAnnotation;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.ImSupplement;
 import de.uka.ipd.idaho.im.imagine.plugins.ClickActionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionListener;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionProvider;
+import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineAtomicActionListener;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineDocumentListener;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImagineDocumentListener.CancelSavingException;
 import de.uka.ipd.idaho.im.imagine.plugins.GoldenGateImaginePlugin;
@@ -104,79 +72,92 @@ import de.uka.ipd.idaho.im.imagine.plugins.ReactionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
 import de.uka.ipd.idaho.im.ocr.OcrEngine;
 import de.uka.ipd.idaho.im.pdf.PdfExtractor;
+import de.uka.ipd.idaho.im.util.ImDocumentIO;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImSupplementCache;
-import de.uka.ipd.idaho.stringUtils.StringVector;
 
 /**
  * @author sautter
  *
  */
 public class GoldenGateImagine implements GoldenGateConstants {
-	
-	private static final SimpleDateFormat yearTimestamper = new SimpleDateFormat("yyyy");
-	private static final String ABOUT_TEXT = 
-		"GoldenGATE Imagine " + VERSION_STRING + "\n" +
-		"The easy way to mark up Documents\n" +
-		"Version Date: " + VERSION_DATE + "\n" +
-		"\n" +
-		"\u00A9 by Guido Sautter 2006-" + yearTimestamper.format(new Date()) + "\n" +
-		"IPD Boehm\n" +
-		"Karlsruhe Institute of Technology (KIT)";
+//	
+//	private static final SimpleDateFormat yearTimestamper = new SimpleDateFormat("yyyy");
+//	private static final String ABOUT_TEXT = 
+//		"GoldenGATE Imagine " + VERSION_STRING + "\n" +
+//		"The easy way to mark up Documents\n" +
+//		"Version Date: " + VERSION_DATE + "\n" +
+//		"\n" +
+//		"\u00A9 by Guido Sautter 2006-" + yearTimestamper.format(new Date()) + "\n" +
+//		"IPD Boehm\n" +
+//		"Karlsruhe Institute of Technology (KIT)";
 	
 	private static final int maxInMemorySupplementBytes = (50 * 1024 * 1024); // 50 MB
 	
 	private GoldenGateConfiguration configuration;
 	private GoldenGATE goldenGate;
+	private Settings settings;
+	
+	private File rootFolder;
+	private File cacheRootFolder;
 	
 	private GgiPageImageStore pageImageStore;
 	private PdfExtractor pdfExtractor;
 	
-	private GoldenGateImagine(GoldenGateConfiguration configuration, GoldenGATE gg, File path) {
+	private long imfStorageFlags = ImDocumentIO.STORAGE_MODE_CSV; // use CSV by default (at least for now)
+	
+	private GoldenGateImagine(GoldenGateConfiguration configuration, GoldenGATE gg, File rootFolder) {
 		this.configuration = configuration;
 		this.goldenGate = gg;
+		this.rootFolder = rootFolder;
 		
 		//	get settings
-		Settings set = configuration.getSettings();
+		this.settings = this.goldenGate.getApplicationSettings("GgImagine.cnfg");
+		String[] setNames = this.settings.getKeys();
+		for (int n = 0; n < setNames.length; n++) try {
+			UserInterfaceUtils.decodeDisplayProperty(setNames[n], this.settings.getSetting(setNames[n]));
+		}
+		catch (RuntimeException re) {
+			System.out.println("Failed to initialize property '" + setNames[n] + "' from central GoldenGATE Imagine settings: " + re.getMessage());
+		}
+		
+		//	read IMF storage flags
+		Object imfStorageFlagObj = UserInterfaceUtils.getDisplayProperty("imfStorageFlags");
+		String imfStorageFlagStr = ((imfStorageFlagObj instanceof String) ? ((String) imfStorageFlagObj) : null);
+		if (imfStorageFlagStr != null) try {
+			this.imfStorageFlags = Long.parseLong(imfStorageFlagStr, 16);
+		}
+		catch (RuntimeException re) {
+			imfStorageFlagStr = null; // mark as invalid to hae replaced below
+		}
+		if (imfStorageFlagStr == null) // not a string, or failed to parse
+			UserInterfaceUtils.setDisplayProperty("imfStorageFlags", Long.toString(this.imfStorageFlags, 16).toUpperCase());
 		
 		//	read cache root path
-		String cacheRootPathName = set.getSetting("cacheRootFolder");
-		File cacheRootPath;
-		if (cacheRootPathName == null)
-			cacheRootPath = path;
+		String cacheRootFolderName = this.settings.getSetting("cacheRootFolder");
+		if (cacheRootFolderName == null)
+			this.cacheRootFolder = this.rootFolder;
 		else {
-			if (cacheRootPathName.startsWith("/") || (cacheRootPathName.indexOf(':') != -1))
-				cacheRootPath = new File(cacheRootPathName);
-			else cacheRootPath = new File(path, cacheRootPathName);
-			if (!cacheRootPath.exists())
-				cacheRootPath.mkdirs();
+			if (cacheRootFolderName.startsWith("/") || (cacheRootFolderName.indexOf(':') != -1))
+				this.cacheRootFolder = new File(cacheRootFolderName);
+			else this.cacheRootFolder = new File(this.rootFolder, cacheRootFolderName);
+			if (!this.cacheRootFolder.exists())
+				this.cacheRootFolder.mkdirs();
 		}
 		
 		//	create page image store
-		String pageImageFolderName = set.getSetting("pageImageFolder", "./PageImages");
+		String pageImageFolderName = this.settings.getSetting("pageImageFolder", "./PageImages");
 		File pageImageFolder;
 		if (pageImageFolderName.startsWith("/") || (pageImageFolderName.indexOf(':') != -1))
 			pageImageFolder = new File(pageImageFolderName);
 		else if (pageImageFolderName.startsWith("./"))
-			pageImageFolder = new File(path, pageImageFolderName.substring("./".length()));
-		else pageImageFolder = new File(cacheRootPath, pageImageFolderName);
+			pageImageFolder = new File(this.rootFolder, pageImageFolderName.substring("./".length()));
+		else pageImageFolder = new File(this.cacheRootFolder, pageImageFolderName);
 		if (!pageImageFolder.exists())
 			pageImageFolder.mkdirs();
 		this.pageImageStore = new GgiPageImageStore(pageImageFolder);
 		PageImage.addPageImageSource(this.pageImageStore);
-		
-		//	create PDF reader caching supplements on disc
-		String supplementFolderName = set.getSetting("supplementFolder", "./Supplements");
-		File supplementFolder;
-		if (supplementFolderName.startsWith("/") || (supplementFolderName.indexOf(':') != -1))
-			supplementFolder = new File(supplementFolderName);
-		else if (supplementFolderName.startsWith("./"))
-			supplementFolder = new File(path, supplementFolderName.substring("./".length()));
-		else supplementFolder = new File(cacheRootPath, supplementFolderName);
-		if (!supplementFolder.exists())
-			supplementFolder.mkdirs();
-		this.pdfExtractor = new GgiPdfExtractor(path, cacheRootPath, this.pageImageStore, true, supplementFolder);
 		
 		//	get and index applicable plugins (only now, as instance proper is fully initialized)
 		GoldenGatePlugin[] ggps = this.goldenGate.getPlugins();
@@ -210,6 +191,8 @@ public class GoldenGateImagine implements GoldenGateConstants {
 				this.registerDisplayExtensionProvider((DisplayExtensionProvider) ggps[p]);
 			if (ggps[p] instanceof GoldenGateImagineDocumentListener)
 				this.registerDocumentListener((GoldenGateImagineDocumentListener) ggps[p]);
+			if (ggps[p] instanceof GoldenGateImagineAtomicActionListener)
+				this.registerAtomicActionListener((GoldenGateImagineAtomicActionListener) ggps[p]);
 		}
 	}
 	
@@ -286,7 +269,6 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		}
 	}
 	
-	
 	private class GgiImDocument extends ImDocument {
 		private ImSupplementCache supplementCache;
 		GgiImDocument(String docId, File supplementFolder) {
@@ -303,11 +285,29 @@ public class GoldenGateImagine implements GoldenGateConstants {
 		}
 	}
 	
+	private void ensurePdfExtractor() {
+		if (this.pdfExtractor != null)
+			return;
+		
+		//	create PDF reader caching supplements on disc
+		String supplementFolderName = this.settings.getSetting("supplementFolder", "./Supplements");
+		File supplementFolder;
+		if (supplementFolderName.startsWith("/") || (supplementFolderName.indexOf(':') != -1))
+			supplementFolder = new File(supplementFolderName);
+		else if (supplementFolderName.startsWith("./"))
+			supplementFolder = new File(this.rootFolder, supplementFolderName.substring("./".length()));
+		else supplementFolder = new File(this.cacheRootFolder, supplementFolderName);
+		if (!supplementFolder.exists())
+			supplementFolder.mkdirs();
+		this.pdfExtractor = new GgiPdfExtractor(this.rootFolder, this.cacheRootFolder, this.pageImageStore, true, supplementFolder);
+	}
+	
 	/**
 	 * Retrieve the PDF Extractor embedded in this GoldenGATE Imagine instance.
 	 * @return the PDF Extractor
 	 */
 	public PdfExtractor getPdfExtractor() {
+		this.ensurePdfExtractor();
 		return this.pdfExtractor;
 	}
 	
@@ -316,7 +316,27 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	 * @return the OCR Engine
 	 */
 	public OcrEngine getOcrEngine() {
+		this.ensurePdfExtractor();
 		return this.pdfExtractor.getOcrEngine();
+	}
+	
+	/**
+	 * Retrieve the storage flags to use for persisting Image Markup documents
+	 * on the local file system.
+	 * @return the storage flag vector
+	 */
+	public long getImfStorageFlags() {
+		return this.imfStorageFlags;
+	}
+	
+	/**
+	 * Update the storage flags to use for persisting Image Markup documents on
+	 * the local file system.
+	 * @param isf the storage flag vector to set
+	 */
+	public void setImfStorageFlags(long isf) {
+		this.imfStorageFlags = isf;
+		UserInterfaceUtils.setDisplayProperty("imfStorageFlags", Long.toString(this.imfStorageFlags, 16).toUpperCase());
 	}
 	
 	/**
@@ -334,27 +354,10 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	}
 	
 	/**
-	 * @return the path of the configuration wrapped in this GoldenGATE Imagine instance,
-	 *         relative to the root path of the surrounding GoldenGATE
-	 *         installation
+	 * @return the enclosed GoldenGATE instance
 	 */
-	public String getConfigurationPath() {
-		return this.goldenGate.getConfigurationPath();
-	}
-	
-	/**
-	 * @return a data provider pointing to the help path of the configuration
-	 *         wrapped in this GoldenGATE instance
-	 */
-	public GoldenGatePluginDataProvider getHelpDataProvider() {
-		return this.configuration.getHelpDataProvider();
-	}
-	
-	/**
-	 * @return the configuration underlying this GoldenGATE instance
-	 */
-	public GoldenGateConfiguration getConfiguration() {
-		return this.configuration;
+	public GoldenGATE getGoldenGATE() {
+		return this.goldenGate;
 	}
 	
 	//	register and lookup method for drop handlers
@@ -645,23 +648,6 @@ public class GoldenGateImagine implements GoldenGateConstants {
 			this.displayExtensionListeners.remove(del);
 	}
 	
-	/**
-	 * Add a resource observer so it is notified when resources change.
-	 * @param ro the resource observer to add
-	 */
-	public void addResourceObserver(ResourceObserver ro) {
-		this.goldenGate.registerResourceObserver(ro);
-	}
-	
-	/**
-	 * Remove a resource observer so it is not notified any more when resources
-	 * change.
-	 * @param ro the resource observer to remove
-	 */
-	public void removeResourceObserver(ResourceObserver ro) {
-		this.goldenGate.unregisterResourceObserver(ro);
-	}
-	
 	//	register for document listeners
 	private ArrayList documentListeners = new ArrayList();
 	
@@ -755,7 +741,8 @@ public class GoldenGateImagine implements GoldenGateConstants {
 			((GoldenGateImagineDocumentListener) this.documentListeners.get(l)).documentClosed(docId);
 		
 		//	clean up page image cache
-		this.pageImageStore.cleanup(docId);
+		if (this.pageImageStore != null)
+			this.pageImageStore.cleanup(docId);
 		
 		//	clean up supplement cache folder
 		File docSupplementFolder = ((File) this.docSupplementFoldersById.get(docId));
@@ -769,6 +756,71 @@ public class GoldenGateImagine implements GoldenGateConstants {
 			System.out.println("Error cleaning up import supplement cache for document '" + docId + "': " + e.getMessage());
 			e.printStackTrace(System.out);
 		}
+	}
+	
+	//	register for atomic action listeners
+	private ArrayList atomicActionListeners = new ArrayList();
+	
+	private void registerAtomicActionListener(GoldenGateImagineAtomicActionListener ggiaal) {
+		if (ggiaal != null)
+			this.atomicActionListeners.add(ggiaal);
+	}
+	
+	/**
+	 * Get all document listeners that are currently available. This getter is
+	 * mainly intended for applications that prefer to implement their own
+	 * notification mechanisms instead of using the ones provided by this class.
+	 * @return an array holding all document listeners registered
+	 */
+	public GoldenGateImagineAtomicActionListener[] getAtomicActionListeners() {
+		return ((GoldenGateImagineAtomicActionListener[]) this.atomicActionListeners.toArray(new GoldenGateImagineAtomicActionListener[this.atomicActionListeners.size()]));
+	}
+	
+	/**
+	 * Notify all registered atomic action listeners that an atomic action is
+	 * starting on an Image Document markup panel in a UI application built
+	 * around this GoldenGATE Imagine core. This method should be called by
+	 * client UI code right after an atomic action has been started on an Image
+	 * Image Document markup panel.
+	 * @param id the unique ID of the started action
+	 * @param label the label of the action
+	 * @param imt the Image Markup Tool performing the action
+	 * @param annot the annotation being processed
+	 * @param idmp the document editor panel the atomic action is starting on
+	 * @param pm the progress monitor observing on the action (if any)
+	 */
+	public void notifyAtomicActionStarted(long id, String label, ImageMarkupTool imt, ImAnnotation annot, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
+		for (int l = 0; l < this.atomicActionListeners.size(); l++)
+			((GoldenGateImagineAtomicActionListener) this.atomicActionListeners.get(l)).atomicActionStarted(id, label, imt, annot, idmp, pm);
+	}
+	/**
+	 * Notify all registered atomic action listeners that the running atomic
+	 * action is finishing on an Image Document markup panel in a UI
+	 * application built around this GoldenGATE Imagine core. This method
+	 * should be called by client UI code when an atomic action is finishing
+	 * on an Image Document markup panel.
+	 * @param id the unique ID of the finishing action
+	 * @param idmp the document editor panel the atomic action is finishing on
+	 * @param pm the progress monitor observing on the action (if any)
+	 */
+	public void notifyAtomicActionFinishing(long id, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
+		for (int l = 0; l < this.atomicActionListeners.size(); l++)
+			((GoldenGateImagineAtomicActionListener) this.atomicActionListeners.get(l)).atomicActionFinishing(id, idmp, pm);
+	}
+	
+	/**
+	 * Notify all registered atomic action listeners that the running atomic
+	 * action has finished on an Image Document markup panel in a UI
+	 * application built around this GoldenGATE Imagine core. This method
+	 * should be called by client UI code when an atomic action has finished
+	 * on an Image Document markup panel.
+	 * @param id the unique ID of the finished action
+	 * @param idmp the document editor panel the atomic action was finished on
+	 * @param pm the progress monitor observing on the action (if any)
+	 */
+	public void notifyAtomicActionFinished(long id, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
+		for (int l = 0; l < this.atomicActionListeners.size(); l++)
+			((GoldenGateImagineAtomicActionListener) this.atomicActionListeners.get(l)).atomicActionFinished(id, idmp, pm);
 	}
 	
 	/**
@@ -788,467 +840,96 @@ public class GoldenGateImagine implements GoldenGateConstants {
 	}
 	
 	/**
-	 * Find a GoldenGatePlugin by its class name.
-	 * @param pluginClassName the class name of the desired GoldenGatePlugin
-	 * @return the GoldenGatePlugin with the specified class name
-	 */
-	public GoldenGatePlugin getPlugin(String pluginClassName) {
-		return this.goldenGate.getPlugin(pluginClassName);
-	}
-	
-	/**
-	 * Get all GoldenGatePlugins that are currently available.
-	 * @return an array holding all GoldenGatePlugins registered
-	 */
-	public GoldenGatePlugin[] getPlugins() {
-		return this.goldenGate.getPlugins();
-	}
-	
-	/**
-	 * Find a GoldenGatePlugin derived from a specific class.
-	 * @param cls the class whose implementation to find
-	 * @return the first GoldenGatePlugin derived from the argument class
-	 */
-	public GoldenGatePlugin getImplementingPlugin(Class cls) {
-		return this.goldenGate.getImplementingPlugin(cls);
-	}
-	
-	/**
-	 * Find all GoldenGatePlugins derived from a specific class.
-	 * @param cls the class whose implementations to find
-	 * @return an array holding the GoldenGatePlugins derived from the argument
-	 *            class
-	 */
-	public GoldenGatePlugin[] getImplementingPlugins(Class cls) {
-		return this.goldenGate.getImplementingPlugins(cls);
-	}
-	
-	/**
-	 * Find a DocumentEditorExtension by its class name.
-	 * @param extensionClassName the class name of the desired
-	 *            DocumentEditorExtension
-	 * @return the DocumentEditorExtension with the specified class name
-	 */
-	public DocumentEditorExtension getDocumentEditorExtension(String extensionClassName) {
-		return this.goldenGate.getDocumentEditorExtension(extensionClassName);
-	}
-	
-	/**
-	 * Get all DocumentEditorExtensions that are currently available.
-	 * @return an array holding all DocumentEditorExtensions registered
-	 */
-	public DocumentEditorExtension[] getDocumentEditorExtensions() {
-		return this.goldenGate.getDocumentEditorExtensions();
-	}
-	
-	/**
-	 * Find a ResourceManager by its class name (especially useful to find the
-	 * provider of a Resource).
-	 * @param providerClassName the class name of the desired ResourceProvider
-	 * @return the ResourceManager with the specified class name
-	 */
-	public ResourceManager getResourceProvider(String providerClassName) {
-		return this.goldenGate.getResourceProvider(providerClassName);
-	}
-	
-	/**
-	 * Get all ResourceManagers that are currently available.
-	 * @return an array holding all ResourceManager registered
-	 */
-	public ResourceManager[] getResourceProviders() {
-		return this.goldenGate.getResourceProviders();
-	}
-	
-	/**
-	 * Find a DocumentProcessorManager by its class name (especially useful to
-	 * find the provider of a DocumentProcessor).
-	 * @param providerClassName the class name of the desired
-	 *            DocumentProcessorProvider
-	 * @return the DocumentProcessorManager with the specified class name
-	 * @see de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessor#getProviderClassName()
-	 */
-	public DocumentProcessorManager getDocumentProcessorProvider(String providerClassName) {
-		return this.goldenGate.getDocumentProcessorProvider(providerClassName);
-	}
-	
-	/**
-	 * Get all DocumentProcessorManagers currently available.
-	 * @return an array holding all DocumentProcessorManagers registered
-	 */
-	public DocumentProcessorManager[] getDocumentProcessorProviders() {
-		return this.goldenGate.getDocumentProcessorProviders();
-	}
-	
-	/**
-	 * Retrieve a document processor by its name. The name may be fully
-	 * qualified, i.e., include the providerClassName, but need not. In the
-	 * latter case, all document processor managers will be asked for a document
-	 * processor with the specified name, and the first one found will be
-	 * returned.
-	 * @param name the name of the document processor
-	 * @return the document processor with the specified name, or null, if there
-	 *         is no such document processor
-	 */
-	public DocumentProcessor getDocumentProcessorForName(String name) {
-		return this.goldenGate.getDocumentProcessorForName(name);
-	}
-	
-	/**
-	 * Retrieve a document processor by its name. The providerClassName may be
-	 * null. In this latter case, all document processor managers will be asked
-	 * for a document processor with the specified name, and the first one found
-	 * will be returned.
-	 * @param name the name of the document processor
-	 * @param providerClassName the class name of the desired document processor
-	 *            manager to ask for the document processor
-	 * @return the document processor with the specified name, or null, if there
-	 *         is no such document processor
-	 */
-	public DocumentProcessor getDocumentProcessorForName(String name, String providerClassName) {
-		return this.goldenGate.getDocumentProcessorForName(name, providerClassName);
-	}
-	
-	/**
-	 * Find a AnnotationSourceManager by its class name (especially useful to
-	 * find the provider of a AnnotationSource).
-	 * @param providerClassName the class name of the desired
-	 *            AnnotationSourceProvider
-	 * @return the AnnotationSourceManager with the specified class name
-	 * @see de.uka.ipd.idaho.goldenGate.plugins.AnnotationSource#getProviderClassName()
-	 */
-	public AnnotationSourceManager getAnnotationSourceProvider(String providerClassName) {
-		return this.goldenGate.getAnnotationSourceProvider(providerClassName);
-	}
-	
-	/**
-	 * Get all AnnotationSourceManagers currently available.
-	 * @return an array holding all AnnotationSourceManagers registered
-	 */
-	public AnnotationSourceManager[] getAnnotationSourceProviders() {
-		return this.goldenGate.getAnnotationSourceProviders();
-	}
-	
-	/**
-	 * Retrieve an annotation source by its name. The name may be fully
-	 * qualified, i.e., include the providerClassName, but need not. In the
-	 * latter case, all annotation source managers will be asked for a
-	 * annotation source with the specified name, and the first one found will
-	 * be returned.
-	 * @param name the name of the annotation source
-	 * @return the annotation source with the specified name, or null, if there
-	 *         is no such annotation source
-	 */
-	public AnnotationSource getAnnotationSourceForName(String name) {
-		return this.goldenGate.getAnnotationSourceForName(name);
-	}
-	
-	/**
-	 * Retrieve a annotation source by its name. The providerClassName may be
-	 * null. In this latter case, all annotation source managers will be asked
-	 * for a annotation source with the specified name, and the first one found
-	 * will be returned.
-	 * @param name the name of the annotation source
-	 * @param providerClassName the class name of the desired annotation source
-	 *            manager to ask for the annotation source
-	 * @return the annotation source with the specified name, or null, if there
-	 *         is no such annotation source
-	 */
-	public AnnotationSource getAnnotationSourceForName(String name, String providerClassName) {
-		return this.goldenGate.getAnnotationSourceForName(name, providerClassName);
-	}
-	
-	/**
-	 * Find a AnnotationFilterManager by its class name (especially useful to
-	 * find the provider of a AnnotationFilters).
-	 * @param providerClassName the class name of the desired
-	 *            AnnotationFilterManager
-	 * @return the AnnotationFilterManager with the specified class name
-	 * @see de.uka.ipd.idaho.goldenGate.plugins.AnnotationSource#getProviderClassName()
-	 */
-	public AnnotationFilterManager getAnnotationFilterProvider(String providerClassName) {
-		return this.goldenGate.getAnnotationFilterProvider(providerClassName);
-	}
-	
-	/**
-	 * Get all AnnotationFilterManagers currently available.
-	 * @return an array holding all AnnotationFilterManagers registered
-	 */
-	public AnnotationFilterManager[] getAnnotationFilterProviders() {
-		return this.goldenGate.getAnnotationFilterProviders();
-	}
-	
-	/**
-	 * Retrieve an annotation filter by its name. The name may be fully
-	 * qualified, i.e., include the providerClassName, but need not. In the
-	 * latter case, all annotation filter managers will be asked for a
-	 * annotation filter with the specified name, and the first one found will
-	 * be returned.
-	 * @param name the name of the annotation filter
-	 * @return the annotation filter with the specified name, or null, if there
-	 *         is no such annotation filter
-	 */
-	public AnnotationFilter getAnnotationFilterForName(String name) {
-		return this.goldenGate.getAnnotationFilterForName(name);
-	}
-	
-	/**
-	 * Retrieve a annotation filter by its name. The providerClassName may be
-	 * null. In this latter case, all annotation filter managers will be asked
-	 * for a annotation filter with the specified name, and the first one found
-	 * will be returned.
-	 * @param name the name of the annotation filter
-	 * @param providerClassName the class name of the desired annotation source
-	 *            manager to ask for the annotation filter
-	 * @return the annotation filter with the specified name, or null, if there
-	 *         is no such annotation filter
-	 */
-	public AnnotationFilter getAnnotationFilterForName(String name, String providerClassName) {
-		return this.goldenGate.getAnnotationFilterForName(name, providerClassName);
-	}
-	
-	/**
-	 * Find a DocumentSaver by its class name (especially useful to find a
-	 * DocumentSaver).
-	 * @param saverClassName the class name of the desired DocumentSaver
-	 * @return the DocumentSaver with the specified class name
-	 */
-	public DocumentSaver getDocumentSaver(String saverClassName) {
-		return this.goldenGate.getDocumentSaver(saverClassName);
-	}
-	
-	/**
-	 * Get all DocumentSaver currently available.
-	 * @return an array holding all DocumentSavers registered
-	 */
-	public DocumentSaver[] getDocumentSavers() {
-		return this.goldenGate.getDocumentSavers();
-	}
-	
-	/**
-	 * Find a DocumentFormatProvider by its class name (especially useful to
-	 * find a DocumentFormatProvider).
-	 * @param formatterClassName the class name of the desired
-	 *            DocumentFormatProvider
-	 * @return the DocumentFormatProvider with the specified class name
-	 */
-	public DocumentFormatProvider getDocumentFormatProvider(String formatterClassName) {
-		return this.goldenGate.getDocumentFormatProvider(formatterClassName);
-	}
-	
-	/**
-	 * Get all DocumentFormatProvider currently available.
-	 * @return an array holding all DocumentFormatProviders registered
-	 */
-	public DocumentFormatProvider[] getDocumentFormatProviders() {
-		return this.goldenGate.getDocumentFormatProviders();
-	}
-	
-	/**
-	 * Obtain the format for some specific file extension (search all available
-	 * DocumentFormatProviders).
-	 * @param fileExtension the file extension to obtain the DocumentFormat for
-	 * @return the DocumentFormat for the specified file extension, or null, if
-	 *         this DocumentFormatProvider does not provide a format for the
-	 *         specified file extension
-	 * @see de.uka.ipd.idaho.goldenGate.plugins.DocumentFormatProvider#getFormatForFileExtension(java.lang.String)
-	 */
-	public DocumentFormat getDocumentFormatForFileExtension(String fileExtension) {
-		return this.goldenGate.getDocumentFormatForFileExtension(fileExtension);
-	}
-	
-	/**
-	 * Obtain a DocumentFormat by its name. The name may be fully
-	 * qualified, i.e., include the providerClassName, but need not. In the
-	 * latter case, all document format providers will be asked for a
-	 * document format with the specified name, and the first one found will
-	 * be returned.
-	 * @param formatName the name of the desired DocumentFormat
-	 * @return the DocumentFormat with the specified name, or null, if there is
-	 *         no such DocumentFormat
-	 * @see de.uka.ipd.idaho.goldenGate.plugins.DocumentFormatProvider#getFormatForName(java.lang.String)
-	 */
-	public DocumentFormat getDocumentFormatForName(String formatName) {
-		return this.goldenGate.getDocumentFormatForName(formatName);
-	}
-	
-	/**
-	 * Obtain a DocumentFormat by its name. The providerClassName may be
-	 * null. In this latter case, all document format providers will be asked for a
-	 * document format with the specified name, and the first one found will
-	 * be returned.
-	 * @param formatName the name of the desired DocumentFormat
-	 * @param providerClassName the class name of the desired document format provider to ask for the document format
-	 * @return the document format with the specified name, or null, if there
-	 *         is no such document format
-	 */
-	public DocumentFormat getDocumentFormatForName(String formatName, String providerClassName) {
-		return this.goldenGate.getDocumentFormatForName(formatName, providerClassName);
-	}
-	
-	/**
 	 * Shut down the GoldenGATE Imagine instance.
+	 * @param pm a progress monitor receiving information on the shutdown
+	 *            process
 	 */
-	public void exit() {
-		this.goldenGate.exitShutdown();
-		this.pdfExtractor.shutdown();
-		PageImage.removePageImageStore(this.pageImageStore);
-	}
-	
-	/**
-	 * Display an 'About' info box.
-	 */
-	public void showAbout() {
-		StringVector aboutExtensions = new StringVector();
-		GoldenGatePlugin[] plugins = this.getPlugins();
-		for (int p = 0; p < plugins.length; p++)
-			if (plugins[p] instanceof GoldenGateImaginePlugin) {
-				String aboutPlugin = plugins[p].getAboutBoxExtension();
-				if (aboutPlugin == null)
+	public void exit(ProgressMonitor pm) {
+		
+		//	gather and store settings
+		if (this.configuration.isDataEditable()) {
+			String[] dpNames = UserInterfaceUtils.getDisplayPropertyNames();
+			for (int n = 0; n < dpNames.length; n++) {
+//				if (dpNames[n].startsWith("annot.") && dpNames[n].endsWith(".color"))
+//					continue; // annotation colors are stored in core
+//				else if (dpNames[n].startsWith("core."))
+//					continue; // something else labeled as core setting
+				if (GoldenGATE.isCoreDisplayProperty(dpNames[n]))
 					continue;
-				aboutPlugin = aboutPlugin.trim();
-				if (aboutPlugin.length() == 0)
-					continue;
-				aboutExtensions.addElement("\n-------- " + plugins[p].getPluginName() + " --------");
-				aboutExtensions.addElement(aboutPlugin);
+				this.settings.setSetting(dpNames[n], UserInterfaceUtils.encodeDisplayProperty(dpNames[n]));
 			}
-		aboutExtensions.addElement("\n-------- PDF and Page Image Handling --------");
-		aboutExtensions.addElement("IcePDF is open source software by Icesoft Technologies Inc.\n" +
-			"The Tesseract OCR engine is open source software by Google Inc.\n" +
-			"   formerly by Hewlett-Packard Company\n" +
-			"ImageMagick is open source software by ImageMagick Studio LLC");
-		JOptionPane.showMessageDialog(DialogPanel.getTopWindow(), (ABOUT_TEXT + (aboutExtensions.isEmpty() ? "" : ("\n" + aboutExtensions.concatStrings("\n")))), "About GoldenGATE Imagine", JOptionPane.INFORMATION_MESSAGE, new ImageIcon(this.getGoldenGateIcon()));
-	}
-	
-	/**
-	 * Display the 'README.txt' of the current configuration.
-	 */
-	public void showReadme() {
-		StringVector readme;
-		try {
-			InputStream ris = this.configuration.getInputStream(README_FILE_NAME);
-			readme = StringVector.loadList(ris);
-			ris.close();
-		}
-		catch (IOException ioe) {
-			readme = new StringVector();
-			readme.addElement("An error occurred loading the readme file: " + ioe.getMessage());
-			StackTraceElement[] stes = ioe.getStackTrace();
-			for (int s = 0; s < stes.length; s++)
-				readme.addElement(stes[s].toString());
+			try {
+				this.goldenGate.storeApplicationSettings("GgImagine.cnfg", this.settings);
+			}
+			catch (IOException ioe) {
+				System.out.println("Failed to store central GoldenGATE Imagine settings; " + ioe.getMessage());
+				ioe.printStackTrace(System.out);
+			}
 		}
 		
-		final DialogPanel readmeDialog = new DialogPanel(("GoldenGATE Imagine - " + this.getConfigurationName() + " - " + README_FILE_NAME), true);
-		
-		final JTextArea readmeDisplay = new JTextArea();
-		readmeDisplay.setEditable(false);
-		readmeDisplay.setLineWrap(true);
-		readmeDisplay.setWrapStyleWord(true);
-		readmeDisplay.setFont(new Font(DocumentEditor.getDefaultTextFontName(), Font.PLAIN, DocumentEditor.getDefaultTextFontSize()));
-		readmeDisplay.setText(readme.concatStrings("\n"));
-		
-		final JScrollPane readmeDisplayBox = new JScrollPane(readmeDisplay);
-		
-		JButton okButton = new JButton("OK");
-		okButton.setBorder(BorderFactory.createRaisedBevelBorder());
-		okButton.setPreferredSize(new Dimension(70, 21));
-		okButton.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent ae) {
-				readmeDialog.dispose();
-			}
-		});
-		JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-		buttonPanel.add(okButton);
-		
-		readmeDialog.add(readmeDisplayBox, BorderLayout.CENTER);
-		readmeDialog.add(buttonPanel, BorderLayout.SOUTH);
-		
-		readmeDialog.setSize(800, 600);
-		readmeDialog.setLocationRelativeTo(readmeDialog.getOwner());
-		readmeDialog.setResizable(true);
-		
-		readmeDialog.getDialog().addWindowListener(new WindowAdapter() {
-			public void windowOpened(WindowEvent we) {
-				readmeDisplayBox.getVerticalScrollBar().setValue(0);
-			}
-		});
-		
-		readmeDialog.setVisible(true);
+		//	shut down underlying GoldenGATE core
+		this.goldenGate.exit(pm);
+		if (this.pdfExtractor != null)
+			this.pdfExtractor.shutdown();
+		if (this.pageImageStore != null)
+			PageImage.removePageImageStore(this.pageImageStore);
 	}
+//	
+//	/**
+//	 * Retrieve the current status of local application settings for
+//	 * GoldenGATE Editor, i.e., the contents of the local version of
+//	 * <code>GgImagine.cnfg</code> if the application was to exit right now.
+//	 * Because this method is exclusively intended for exporting user
+//	 * configurations, it only works in local master mode.
+//	 * @return the contents of the local version of the settings file
+//	 */
+//	public Settings getLocalApplicationSettings() {
+//		if (!this.configuration.isMasterConfiguration())
+//			throw new IllegalStateException("Local settings can be accessed only in local master mode");
+//		Settings set = new Settings();
+//		String[] dpNames = UserInterfaceUtils.getDisplayPropertyNames();
+//		for (int n = 0; n < dpNames.length; n++) {
+//			if (dpNames[n].startsWith("annot.") && dpNames[n].endsWith(".color"))
+//				continue; // annotation colors are stored in core
+//			else if (dpNames[n].startsWith("core."))
+//				continue; // something else labeled as core setting
+//			set.setSetting(dpNames[n], UserInterfaceUtils.encodeDisplayProperty(dpNames[n]));
+//		}
+//		return this.goldenGate.getLocalApplicationSettings("GgImagine.cnfg", set);
+//	}
+	/*
+DO NOT DO THIS, using local settings makes preciously little sense (display preferences of exporting user ... might be color blind or like their dark mode or something)
+- instead, add support for 'GgImagine.<configName>.cnfg' (to be held in data folder of configuration manager) ...
+- ... as well as for export dedicated 'GgImagine.cnfg' (to be held in data folder of configuration manager)
+==> 'GgImagine.cnfg' and 'GgImagine.local.cnfg' still belong to installation (use might be color blind or like their dark mode or something) ...
+==> ... so those local settings need to prevail (and do, with new defaulting approach)
+==> 'GgImagine.cnfg' from configuration provides means to inject configuration specific additions over installed defaults ...
+==> ... e.g. special annotation types or attribute suggestions
+	 */
 	
 	/**
 	 * Create an instance of the GoldenGATE Imagine core with a specific
 	 * configuration.
-	 * @param configuration the GoldenGateConfiguration to use
 	 * @param path the base path of the GoldenGATE Imagine installation
-	 * @param showStatus use a splash screen for monitoring startup status? If
-	 *            set to false, or if the JVM is headless, the status
-	 *            information will go to System.out instead.
+	 * @param configuration the GoldenGateConfiguration to use
+	 * @param pm a progress monitor receiving information on the startup
+	 *            process
 	 * @return a new GoldenGATE Imagine instance to work with the specified
 	 *         configuration
 	 */
-	public static synchronized GoldenGateImagine openGoldenGATE(GoldenGateConfiguration configuration, File path, boolean showStatus) throws IOException {
-		return new GoldenGateImagine(configuration, GoldenGATE.openGoldenGATE(configuration, false, showStatus), path);
+	public static synchronized GoldenGateImagine openGoldenGATE(File path, GoldenGateConfiguration configuration, ProgressMonitor pm) throws IOException {
+		return new GoldenGateImagine(configuration, GoldenGATE.openGoldenGATE(path, configuration, pm), path);
 	}
 	
 	/**
-	 * Encode a color in its hexadecimal RGB representation.
-	 * @param color the color to encode
-	 * @return the hexadecimal RGB representation of the argument color
+	 * Create an instance of the GoldenGATE Imagine core with a GoldenGATE core
+	 * wrapping a specific configuration.
+	 * @param path the base path of the GoldenGATE Imagine installation
+	 * @param goldenGate the GoldenGATE core to use
+	 * @return a new GoldenGATE Imagine instance to work with the specified
+	 *         configuration
 	 */
-	public static String getHex(Color color) {
-		return ("" +
-				getHex(color.getRed()) + 
-				getHex(color.getGreen()) +
-				getHex(color.getBlue()) +
-				"");
-	}
-	
-	private static final String getHex(int i) {
-		int high = (i >>> 4) & 15;
-		int low = i & 15;
-		String hex = "";
-		if (high < 10) hex += ("" + high);
-		else hex += ("" + ((char) ('A' + (high - 10))));
-		if (low < 10) hex += ("" + low);
-		else hex += ("" +  ((char) ('A' + (low - 10))));
-		return hex;
-	}
-	
-	/**
-	 * Decode a color from its hexadecimal RGB representation.
-	 * @param rgb the hexadecimal RGB representation to decode
-	 * @return the color corresponding to the argument hexadecimal RGB
-	 *         representation
-	 */
-	public static Color getColor(String rgb) {
-		if (rgb.length() == 3) return readHexRGB(rgb.substring(0, 1), rgb.substring(1, 2), rgb.substring(2, 3));
-		else if (rgb.length() == 6) return readHexRGB(rgb.substring(0, 2), rgb.substring(2, 4), rgb.substring(4, 6));
-		else return null;
-	}
-	
-	private static final Color readHexRGB(String red, String green, String blue) {
-		return new Color(
-				translateString(red),
-				translateString(green),
-				translateString(blue)
-			);
-	}
-	
-	private static final int translateString(String s) {
-		if (s.length() == 0)
-			return 0;
-		
-		int v = 0;
-		v += translateChar(s.charAt(0));
-		v <<= 4;
-		v += translateChar(s.charAt((s.length() > 1) ? 1 : 0));
-		return v;
-	}
-	
-	private static final int translateChar(char c) {
-		if (('0' <= c) && (c <= '9')) return (((int) c) - '0');
-		else if (('a' <= c) && (c <= 'f')) return (((int) c) - 'a' + 10);
-		else if (('A' <= c) && (c <= 'F')) return (((int) c) - 'A' + 10);
-		else return 0;
+	public static synchronized GoldenGateImagine openGoldenGATE(File path, GoldenGATE goldenGate) throws IOException {
+		return new GoldenGateImagine(goldenGate.getConfiguration(), goldenGate, path);
 	}
 }

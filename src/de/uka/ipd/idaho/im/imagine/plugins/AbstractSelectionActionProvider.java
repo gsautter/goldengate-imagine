@@ -29,6 +29,7 @@ package de.uka.ipd.idaho.im.imagine.plugins;
 
 import java.awt.Point;
 
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay;
 import de.uka.ipd.idaho.im.ImPage;
 import de.uka.ipd.idaho.im.ImWord;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
@@ -36,7 +37,7 @@ import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.SelectionAction;
 
 /**
  * Convenience abstract super class for providers of selection actions,
- * inheriting the life cycle methods from abstract GoldenGATE plugin. This
+ * inheriting the life cycle methods from abstract GoldenGATE plug-in. This
  * class further includes default implementations of the action getter methods,
  * sub classes need to overwrite either one or both to provide any meaningful
  * functionality.
@@ -48,21 +49,37 @@ public abstract class AbstractSelectionActionProvider extends AbstractGoldenGate
 	/** we need a zero-argument constructor for class loading */
 	protected AbstractSelectionActionProvider() {}
 	
+//	/**
+//	 * This default implementation simply returns null; sub classes are welcome
+//	 * to overwrite it as needed.
+//	 * @see de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider#getActions(de.uka.ipd.idaho.im.ImWord, de.uka.ipd.idaho.im.ImWord, de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel)
+//	 */
+//	public SelectionAction[] getActions(ImWord start, ImWord end, ImDocumentMarkupPanel idmp) {
+//		return null;
+//	}
 	/**
 	 * This default implementation simply returns null; sub classes are welcome
 	 * to overwrite it as needed.
-	 * @see de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider#getActions(de.uka.ipd.idaho.im.ImWord, de.uka.ipd.idaho.im.ImWord, de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel)
+	 * @see de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider#getActions(de.uka.ipd.idaho.im.ImWord, de.uka.ipd.idaho.im.ImWord, de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel, de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay)
 	 */
-	public SelectionAction[] getActions(ImWord start, ImWord end, ImDocumentMarkupPanel idmp) {
+	public SelectionAction[] getActions(ImWord start, ImWord end, ImDocumentMarkupPanel idmp, DocumentDisplay display) {
 		return null;
 	}
 	
+//	/**
+//	 * This default implementation simply returns null; sub classes are welcome
+//	 * to overwrite it as needed.
+//	 * @see de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider#getActions(java.awt.Point, java.awt.Point, de.uka.ipd.idaho.im.ImPage, de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel)
+//	 */
+//	public SelectionAction[] getActions(Point start, Point end, ImPage page, ImDocumentMarkupPanel idmp) {
+//		return null;
+//	}
 	/**
 	 * This default implementation simply returns null; sub classes are welcome
 	 * to overwrite it as needed.
-	 * @see de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider#getActions(java.awt.Point, java.awt.Point, de.uka.ipd.idaho.im.ImPage, de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel)
+	 * @see de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider#getActions(java.awt.Point, java.awt.Point, de.uka.ipd.idaho.im.ImPage, de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel, de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay)
 	 */
-	public SelectionAction[] getActions(Point start, Point end, ImPage page, ImDocumentMarkupPanel idmp) {
+	public SelectionAction[] getActions(Point start, Point end, ImPage page, ImDocumentMarkupPanel idmp, DocumentDisplay display) {
 		return null;
 	}
 }

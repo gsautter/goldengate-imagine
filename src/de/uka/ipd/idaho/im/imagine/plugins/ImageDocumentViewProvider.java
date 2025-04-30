@@ -27,26 +27,14 @@
  */
 package de.uka.ipd.idaho.im.imagine.plugins;
 
+import de.uka.ipd.idaho.goldenGate.plugins.DocumentViewProvider;
 
 /**
+ * Marker interface for document view providers that work with XML markup
+ * documents.
+ * 
  * @author sautter
  */
-public abstract class AbstractImageMarkupToolProvider extends AbstractGoldenGateImaginePlugin implements ImageMarkupToolProvider {
-	
-	/** zero-argument constructor for class loading */
-	protected AbstractImageMarkupToolProvider() {}
-//	
-//	/* (non-Javadoc)
-//	 * @see de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider#getEditMenuItemNames()
-//	 */
-//	public String[] getEditMenuItemNames() {
-//		return null;
-//	}
-//	
-//	/* (non-Javadoc)
-//	 * @see de.uka.ipd.idaho.im.imagine.plugins.ImageMarkupToolProvider#getToolsMenuItemNames()
-//	 */
-//	public String[] getToolsMenuItemNames() {
-//		return null;
-//	}
+public interface ImageDocumentViewProvider extends DocumentViewProvider {
+	//	somehow need to tell UI main panels which displays we belong in the menu for
 }

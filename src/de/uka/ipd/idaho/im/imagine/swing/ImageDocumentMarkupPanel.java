@@ -54,15 +54,19 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.font.TextLayout;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.TreeMap;
+import java.util.Map;
+import java.util.Properties;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
@@ -70,12 +74,30 @@ import javax.swing.JScrollPane;
 import javax.swing.JViewport;
 import javax.swing.WindowConstants;
 
-import de.uka.ipd.idaho.easyIO.settings.Settings;
+import de.uka.ipd.idaho.gamta.Annotation;
+import de.uka.ipd.idaho.gamta.Attributed;
+import de.uka.ipd.idaho.gamta.EditableAnnotation;
+import de.uka.ipd.idaho.gamta.MutableAnnotation;
+import de.uka.ipd.idaho.gamta.QueriableAnnotation;
 import de.uka.ipd.idaho.gamta.util.ProgressMonitor;
 import de.uka.ipd.idaho.gamta.util.imaging.BoundingBox;
 import de.uka.ipd.idaho.gamta.util.imaging.ImagingConstants;
 import de.uka.ipd.idaho.gamta.util.swing.DialogFactory;
+import de.uka.ipd.idaho.gamta.util.swing.ProgressMonitorWindow;
+import de.uka.ipd.idaho.goldenGate.GoldenGATE;
+import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSource;
+import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSourceManager;
+import de.uka.ipd.idaho.goldenGate.plugins.AnnotationSourceManager.AnnotationSourceResult;
+import de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessor;
+import de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessorManager;
 import de.uka.ipd.idaho.goldenGate.plugins.ResourceSplashScreen;
+import de.uka.ipd.idaho.goldenGate.ui.DynamicWindowMenu;
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI;
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay;
+import de.uka.ipd.idaho.goldenGate.ui.NamedElementUsageStatistics;
+import de.uka.ipd.idaho.goldenGate.ui.UserInterfaceUtils;
+import de.uka.ipd.idaho.goldenGate.ui.WindowMenuOwner;
+import de.uka.ipd.idaho.goldenGate.util.AnnotationSourceResultDialog;
 import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
 import de.uka.ipd.idaho.im.ImAnnotation;
 import de.uka.ipd.idaho.im.ImDocument;
@@ -86,6 +108,10 @@ import de.uka.ipd.idaho.im.ImPage;
 import de.uka.ipd.idaho.im.ImRegion;
 import de.uka.ipd.idaho.im.ImSupplement;
 import de.uka.ipd.idaho.im.ImWord;
+import de.uka.ipd.idaho.im.gamta.ImDocumentRoot;
+import de.uka.ipd.idaho.im.gamta.LazyAnnotation;
+import de.uka.ipd.idaho.im.gamta.LazyMutableAnnotation;
+import de.uka.ipd.idaho.im.gamta.LazyQueriableAnnotation;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
 import de.uka.ipd.idaho.im.imagine.plugins.ClickActionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.DisplayExtensionListener;
@@ -94,8 +120,11 @@ import de.uka.ipd.idaho.im.imagine.plugins.ImageDocumentDropHandler;
 import de.uka.ipd.idaho.im.imagine.plugins.ImageEditToolProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.ReactionProvider;
 import de.uka.ipd.idaho.im.imagine.plugins.SelectionActionProvider;
+import de.uka.ipd.idaho.im.imagine.ui.ImageDocumentDisplay;
+import de.uka.ipd.idaho.im.imagine.ui.ImageUserInterfaceUtils;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.AtomicActionListener;
+import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.PagePoint;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.PageThumbnail;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.SelectionAction;
@@ -120,12 +149,13 @@ import de.uka.ipd.idaho.im.util.ImImageEditorPanel.ImImageEditTool;
  * 
  * @author sautter
  */
-public abstract class ImageDocumentMarkupPanel extends JPanel implements ImagingConstants, DisplayExtensionListener {
+public abstract class ImageDocumentMarkupPanel extends JPanel implements ImagingConstants, DisplayExtensionListener, ImageDocumentDisplay {
+	final GoldenGATE goldenGate;
 	final GoldenGateImagine ggImagine;
-	final Settings ggiConfig;
+	final Map createdColors = Collections.synchronizedMap(new HashMap());
 	ImageDocumentMarkupUI parent;
 	
-	final SelectionActionUsageStats saUsageStats;
+//	final SelectionActionUsageStats saUsageStats;
 	
 	final ImDocumentMarkupPanel idmp;
 	final JScrollPane idmpBox;
@@ -136,9 +166,11 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 	boolean idmpBoxInFastScroll = false;
 	
 	private ImDocumentListener undoRecorder;
-	final LinkedList undoActions = new LinkedList();
+//	final LinkedList undoActions = new LinkedList();
+	final ArrayList undoActions = new ArrayList();
 	private MultipartUndoAction multipartUndoAction = null;
 	boolean inUndoAction = false;
+	private int undoMenuMaxSize = 10;
 	
 	private ImDocumentListener reactionTrigger = null;
 	boolean imToolActive = false;
@@ -146,59 +178,112 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 	int modCount = 0;
 	private int savedModCount = 0;
 	
+	private static class XmlWrapperCache {
+		private HashMap wrappers = new HashMap();
+		LazyMutableAnnotation getXmlWrapper(int flags) {
+			Integer flagObj = Integer.valueOf(flags);
+			WeakReference wrapperRef = ((WeakReference) this.wrappers.get(flagObj));
+			if (wrapperRef == null)
+				return null;
+			LazyMutableAnnotation wrapper = ((LazyMutableAnnotation) wrapperRef.get());
+			if (wrapper == null) // reclaimed by GC
+				this.wrappers.remove(flagObj);
+			return wrapper;
+		}
+		void addXmlWrapper(LazyMutableAnnotation wrapper) {
+			this.wrappers.put(Integer.valueOf(wrapper.getFlags()), new WeakReference(wrapper));
+		}
+		void invalidateWrappers() {
+			ArrayList flagObjs = new ArrayList(this.wrappers.keySet());
+			for (int f = 0; f < flagObjs.size(); f++) {
+				Integer flagObj = ((Integer) flagObjs.get(f));
+				WeakReference wrapperRef = ((WeakReference) this.wrappers.get(flagObj));
+				if (wrapperRef == null) {
+					this.wrappers.remove(flagObj);
+					continue;
+				}
+				LazyMutableAnnotation wrapper = ((LazyMutableAnnotation) wrapperRef.get());
+				if (wrapper == null) // reclaimed by GC
+					this.wrappers.remove(flagObj);
+				else wrapper.invalidateData();
+			}
+		}
+	}
+	
+	private int xmlWrapperFlags = (ImDocumentRoot.NORMALIZE_CHARACTERS | ImDocumentRoot.NORMALIZATION_LEVEL_PARAGRAPHS); // TODO load that from display property ... at some point
+	private XmlWrapperCache docCache = new XmlWrapperCache();
+	private LazyQueriableAnnotation docReadOnly;
+	private LazyMutableAnnotation docMutable;
+	
 	/**
 	 * Constructor
 	 * @param doc the document to display
 	 * @param ggImagine the GoldenGATE Imagine core providing editing functionality
 	 * @param ggiConfig the GoldenGATE Imagine configuration
 	 */
-	protected ImageDocumentMarkupPanel(ImDocument doc, GoldenGateImagine ggImagine, Settings ggiConfig) {
+	protected ImageDocumentMarkupPanel(ImDocument doc, GoldenGateImagine ggImagine) {
 		super(new BorderLayout(), true);
+		this.goldenGate = ggImagine.getGoldenGATE();
 		this.ggImagine = ggImagine;
-		this.ggiConfig = ggiConfig;
 		
 		this.idmp = new ImageDocumentEditorPanel(doc);
 		
-		//	inject highlight colors for annotations, regions, and text streams
-		Settings annotationColors = this.ggiConfig.getSubset("annotation.color");
-		String[] annotationTypes = annotationColors.getKeys();
-		for (int t = 0; t < annotationTypes.length; t++) {
-			Color ac = GoldenGateImagine.getColor(annotationColors.getSetting(annotationTypes[t]));
-			if (ac != null)
-				this.idmp.setAnnotationColor(annotationTypes[t], ac);
-		}
-		Settings layoutObjectColors = this.ggiConfig.getSubset("layoutObject.color");
-		String[] layoutObjectTypes = layoutObjectColors.getKeys();
-		for (int t = 0; t < layoutObjectTypes.length; t++) {
-			Color loc = GoldenGateImagine.getColor(layoutObjectColors.getSetting(layoutObjectTypes[t]));
-			if (loc != null)
-				this.idmp.setLayoutObjectColor(layoutObjectTypes[t], loc);
-		}
-		Settings textStreamColors = this.ggiConfig.getSubset("textStream.color");
-		String[] textStreamTypes = textStreamColors.getKeys();
-		for (int t = 0; t < textStreamTypes.length; t++) {
-			Color tsc = GoldenGateImagine.getColor(textStreamColors.getSetting(textStreamTypes[t]));
-			if (tsc != null)
-				this.idmp.setTextStreamTypeColor(textStreamTypes[t], tsc);
-		}
-		
-		//	also get legacy highlight colors from XML document editor panel
-		Settings legacyAnnotationColors = this.ggImagine.getConfiguration().getSettings().getSubset("AEP.ACS");
-		String[] legacyAnnotationTypes = legacyAnnotationColors.getKeys();
-		for (int t = 0; t < legacyAnnotationTypes.length; t++) {
-			if (this.idmp.getAnnotationColor(legacyAnnotationTypes[t]) != null)
+		//	configure document display panel from central defaults (if any)
+		for (int p = 0; p < ImDocumentMarkupPanel.displayPropertyNames.length; p++) {
+			Object value = UserInterfaceUtils.getDisplayProperty(ImDocumentMarkupPanel.displayPropertyNames[p]);
+			if (value == null)
 				continue;
-			Color ac = GoldenGateImagine.getColor(legacyAnnotationColors.getSetting(legacyAnnotationTypes[t]));
-			if (ac != null)
-				this.idmp.setAnnotationColor(legacyAnnotationTypes[t], ac);
+			Object defValue = ImDocumentMarkupPanel.getDisplayPropertyDefault(ImDocumentMarkupPanel.displayPropertyNames[p]);
+			if (UserInterfaceUtils.equals(value, defValue))
+				continue; // no use setting value to default
+			try {
+				this.idmp.setDisplayProperty(ImDocumentMarkupPanel.displayPropertyNames[p], value);
+			}
+			catch (RuntimeException re) {
+				System.out.println("Failed to initialize property '" + ImDocumentMarkupPanel.displayPropertyNames[p] + "' from central configuration: " + re.getMessage());
+			}
 		}
 		
-		//	get singleton selection action usage stats
-		this.saUsageStats = getSelectionActionUsageStats(this.ggiConfig);
+		//	make sure to push changes to colors we created to central settings (random color might well be off, or to close to something else)
+		this.idmp.addDisplayPropertyChangeListener(new PropertyChangeListener() {
+			public void propertyChange(PropertyChangeEvent pce) {
+				String propName = pce.getPropertyName();
+				Object newValue = pce.getNewValue();
+				if (createdColors.containsKey(propName) && (newValue instanceof Color)) {
+					Color newColor = ((Color) newValue);
+					createdColors.put(propName, newColor);
+					String objectType = propName;
+					if (objectType.startsWith("annot."))
+						objectType = objectType.substring("annot.".length());
+					else if (objectType.startsWith("region."))
+						objectType = objectType.substring("region.".length());
+					else if (objectType.startsWith("textStream."))
+						objectType = objectType.substring("textStream.".length());
+					else return;
+					if (objectType.endsWith(".color"))
+						objectType = objectType.substring(0, (objectType.length() - ".color".length()));
+					else return;
+					if (propName.startsWith("annot."))
+						UserInterfaceUtils.setAnnotationColor(objectType, newColor);
+					else UserInterfaceUtils.setDisplayProperty(propName, newColor);
+				}
+				else {
+					//	TODO_not store font and background settings automatically ???
+					//	==> no, got dedicated menu item for that purpose
+				}
+			}
+		});
+//		
+//		//	get singleton selection action usage stats
+//		this.saUsageStats = getSelectionActionUsageStats(this.ggiConfig);
 		
 		//	prepare recording UNDO actions
 		this.undoRecorder = new UndoRecorder();
 		this.idmp.document.addDocumentListener(this.undoRecorder);
+		Object undoMenuMaxSizeObj = UserInterfaceUtils.getDisplayProperty("ggImagine.undoMenuMaxSize");
+		if (undoMenuMaxSizeObj instanceof Number)
+			this.undoMenuMaxSize = ((Number) undoMenuMaxSizeObj).intValue();
+		else UserInterfaceUtils.setDisplayProperty("ggImagine.undoMenuMaxSize", new Integer(this.undoMenuMaxSize));
 		
 		//	get reaction providers
 		ReactionProvider[] reactionProviders = this.ggImagine.getReactionProviders();
@@ -210,6 +295,9 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		
 		//	distribute display extension changes to individual editor tabs
 		this.ggImagine.addDisplayExtensionListener(this);
+		
+		//	inform any listeners about atomic actions
+		this.idmp.addAtomicActionListener(new AtomicActionNotifier(this.ggImagine, this.idmp));
 		
 		//	get drop handlers
 		final ImageDocumentDropHandler[] dropHandlers = this.ggImagine.getDropHandlers();
@@ -407,10 +495,448 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 			this.idmp.setDisplayExtensionsModified();
 	}
 	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getUserInterface()
+	 */
+	public GoldenGateUI getUserInterface() {
+		return this.parent;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#isRootDisplay()
+	 */
+	public boolean isRootDisplay() {
+		return true; // TODO any cases this might not hold true ???
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getParentDisplay()
+	 */
+	public DocumentDisplay getParentDisplay() {
+		return null;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.im.imagine.ui.ImageDocumentDisplay#getXmlWrapperFlags()
+	 */
+	public int getXmlWrapperFlags() {
+		return this.xmlWrapperFlags;
+	}
+	void setXmlWrapperFlags(int flags) {
+		this.xmlWrapperFlags = flags;
+	}
+	
+	private boolean ensureXmlWrappers() /* true indicates wrappers already existed */ {
+		if (this.docReadOnly != null)
+			return true;
+		this.docReadOnly = new LazyQueriableAnnotation(this.idmp.document, this.xmlWrapperFlags);
+		this.docMutable = new LazyMutableAnnotation(this.docReadOnly);
+		return false;
+	}
+	void invalidateXmlWrappers() {
+		if (this.docReadOnly != null)
+			this.docReadOnly.invalidateData();
+		else if (this.docMutable != null)
+			this.docMutable.invalidateData();
+		this.docCache.invalidateWrappers();
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.im.imagine.ui.ImageDocumentDisplay#getXmlWrapper(int)
+	 */
+	public LazyMutableAnnotation getXmlWrapper(int flags) {
+//		if (this.ensureXmlWrappers())
+//			this.docMutable.setFlags(this.xmlWrapperFlags);
+//		if (flags != -1)
+//			this.docMutable.setFlags(flags);
+//		return this.docMutable;
+		if ((flags == -1) || (flags == this.xmlWrapperFlags)) {
+			if (this.ensureXmlWrappers())
+				this.docMutable.setFlags(this.xmlWrapperFlags);
+			return this.docMutable;
+		}
+		else {
+//			return new LazyMutableAnnotation(this.xdmp.document, flags); // TODOne use weak cache for this
+			LazyMutableAnnotation wrapper = this.docCache.getXmlWrapper(flags);
+			if (wrapper == null) {
+				wrapper = new LazyMutableAnnotation(this.idmp.document, flags);
+				this.docCache.addXmlWrapper(wrapper);
+			}
+			else wrapper.setFlags(flags);
+			return wrapper;
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#applyAnnotationSource(de.uka.ipd.idaho.goldenGate.plugins.AnnotationSourceManager, de.uka.ipd.idaho.goldenGate.plugins.AnnotationSource, de.uka.ipd.idaho.gamta.Annotation)
+	 */
+	public void applyAnnotationSource(final AnnotationSourceManager sourceManager, final AnnotationSource annotationSource, final Annotation data) {
+		
+		//	check if we got anything to work with
+		if ((sourceManager == null) && (annotationSource == null))
+			return;
+		
+		//	prepare applying annotation source
+//		final QueriableAnnotation qData = ((data == null) ? this.xdmp.document : this.xdmp.document.getAnnotation(data.getAnnotationID()));
+//		if (qData == null)
+//			return;
+		ImObject imObj = ((data == null) ? null : this.idmp.document.getObjectByUUID(data.getAnnotationID()));
+		final ImAnnotation imData = ((imObj instanceof ImAnnotation) ? ((ImAnnotation) imObj) : null);
+		String pmTitle;
+		String pmText;
+		if (sourceManager == null) {
+			pmTitle = ("Apply " + annotationSource.getTypeLabel() + " '" + annotationSource.getName() + "'");
+			pmText = ("Please wait while applying " + annotationSource.getTypeLabel() + " '" + annotationSource.getName() + "' ...");
+		}
+		else {
+			pmTitle = ("Apply " + sourceManager.getResourceTypeLabel() + " ...");
+			pmText = ("Please select the " + sourceManager.getResourceTypeLabel() + " to apply");
+		}
+		final ProgressMonitor pm = this.idmp.getProgressMonitor(pmTitle, pmText, false, false);
+		final ProgressMonitorWindow pmw = ((pm instanceof ProgressMonitorWindow) ? ((ProgressMonitorWindow) pm) : null);
+		
+		//	apply annotation source in dedicated thread
+		Thread asThread = new Thread("AnnotationSourceApplicator") {
+			public void run() {
+				try {
+					
+					//	wait for splash screen progress monitor to come up (we must not reach the dispose() line before the splash screen even comes up)
+					while ((pmw != null) && !pmw.getWindow().isVisible()) try {
+						Thread.sleep(10);
+					} catch (InterruptedException ie) {}
+					
+					//	prepare document
+					EditableAnnotation eData = ((imData == null) ? ImageDocumentMarkupPanel.this.getDocumentMutable() : new ImDocumentRoot(imData, ImageDocumentMarkupPanel.this.getXmlWrapperFlags()));
+					AnnotationSourceResult asr;
+					
+					//	mark as interactive
+					Properties params = new Properties();
+					params.setProperty(AnnotationSource.INTERACTIVE_PARAMETER, AnnotationSource.INTERACTIVE_PARAMETER);
+					
+					//	no source manager given, apply annotation source directly
+					if (sourceManager == null) {
+//						Annotation[] annots = annotationSource.createAnnotations(qData, params, pm);
+						Annotation[] annots = annotationSource.createAnnotations(eData, params, pm);
+						if (annots == null)
+							return;
+						AnnotationSourceResultDialog asrd = new AnnotationSourceResultDialog(("Result of " + annotationSource.getTypeLabel() + " '" + annotationSource.getName() + "'"), annots, null, idmp.document.getAnnotationTypes(), null, null);
+						annots = asrd.getSelectedAnnotations();
+						if (annots == null)
+							return;
+						String annotType = asrd.getSelectedAnnotationType();
+						if (annotType == null)
+							return;
+						for (int a = 0; a < annots.length; a++)
+							annots[a].changeTypeTo(annotType);
+						asr = new AnnotationSourceResult(annots, annotationSource);
+					}
+					
+					//	have manager apply annotation source
+					else asr = sourceManager.applyAnnotationSource(((annotationSource == null) ? null : annotationSource.getName()), params, eData, ImageDocumentMarkupPanel.this, pm);
+					
+					//	anything to work with?
+					if (asr == null)
+						return;
+					
+					//	add annotations under atomic action
+					idmp.startAtomicAction(("Apply " + asr.annotationSource.getTypeLabel() + " '" + asr.annotationSource.getName() + "'"), null, imData, pm);
+					HashSet annotTypes = new HashSet();
+					for (int a = 0; a < asr.annotations.length; a++) {
+						Annotation annot = eData.addAnnotation(asr.annotations[a].getStartIndex(), asr.annotations[a].getEndIndex(), asr.annotations[a].getType());
+						if (annot == null)
+							continue;
+						annot.copyAttributes(asr.annotations[a]);
+						if (annotTypes.add(annot.getType()))
+							idmp.setAnnotationsPainted(annot.getType(), true);
+					}
+					idmp.finishAtomicAction(pm);
+				}
+				finally {
+					if (pmw != null)
+						pmw.close();
+				}
+			}
+		};
+		asThread.start();
+		
+		//	open splash screen progress monitor (this waits)
+		if (pmw != null)
+			pmw.popUp(true);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#applyDocumentProcessor(de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessorManager, de.uka.ipd.idaho.goldenGate.plugins.DocumentProcessor, de.uka.ipd.idaho.gamta.Annotation)
+	 */
+	public void applyDocumentProcessor(DocumentProcessorManager processorManager, DocumentProcessor documentProcessor, Annotation data) {
+		if ((processorManager == null) && (documentProcessor == null))
+			return;
+		ImObject imObj = ((data == null) ? null : this.idmp.document.getObjectByUUID(data.getAnnotationID()));
+		ImAnnotation imAnnot = ((imObj instanceof ImAnnotation) ? ((ImAnnotation) imObj) : null);
+		this.applyGenericXmlMarkupTool(new DocumentProcessorMarkupTool(processorManager, documentProcessor), imAnnot);
+	}
+	private class DocumentProcessorMarkupTool implements ImageMarkupTool {
+		private DocumentProcessorManager processorManager;
+		private DocumentProcessor documentProcessor;
+		private String label;
+		DocumentProcessorMarkupTool(DocumentProcessorManager processorManager, DocumentProcessor documentProcessor) {
+			this.processorManager = processorManager;
+			this.documentProcessor = documentProcessor;
+			if (this.documentProcessor == null)
+				this.label = (this.processorManager.getResourceTypeLabel() + " ...");
+			else this.label = (this.documentProcessor.getTypeLabel() + " '" + this.documentProcessor.getName() + "'");
+		}
+		public String getLabel() {
+			return this.label;
+		}
+		public String getTooltip() {
+			return null; // this is an ad-hoc wrapper, no tooltip needed
+		}
+		public String getHelpText() {
+			return null; // this is an ad-hoc wrapper, no help needed
+		}
+		public void process(ImDocument doc, ImAnnotation annot, ImDocumentMarkupPanel idmp, ProgressMonitor pm) {
+			
+			//	get target annotation
+//			MutableAnnotation data = ((annot == null) ? doc : doc.getMutableAnnotation(annot.getAnnotationID()));
+//			if (data == null)
+//				return;
+//			XmDocumentRoot data = ((annot == null) ? new XmDocumentRoot(xdmp.document, XmlDocumentEditorTab.this.getXmlWrapperFlags()) : new XmDocumentRoot(annot, XmlDocumentEditorTab.this.getXmlWrapperFlags()));
+			MutableAnnotation data = ((annot == null) ? ImageDocumentMarkupPanel.this.getDocumentMutable() : new ImDocumentRoot(annot, ImageDocumentMarkupPanel.this.getXmlWrapperFlags()));
+			
+			//	apply document processor, directly or in manager
+			Properties params = new Properties();
+			params.setProperty(AnnotationSource.INTERACTIVE_PARAMETER, AnnotationSource.INTERACTIVE_PARAMETER);
+			if (this.processorManager == null)
+				this.documentProcessor.process(data, params, pm);
+			else this.processorManager.applyDocumentProcessor(this.documentProcessor, params, data, ImageDocumentMarkupPanel.this, pm);
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.im.imagine.ui.ImageDocumentDisplay#applyGenericXmlMarkupTool(de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel.ImageMarkupTool, de.uka.ipd.idaho.im.ImAnnotation)
+	 */
+	public void applyGenericXmlMarkupTool(ImageMarkupTool imt, ImAnnotation annot) {
+		((ImageDocumentEditorPanel) this.idmp).applyMarkupTool(imt, annot, false);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getDocumentReadOnly()
+	 */
+	public QueriableAnnotation getDocumentReadOnly() {
+		if (this.ensureXmlWrappers())
+			this.docReadOnly.setFlags(this.xmlWrapperFlags);
+		return this.docReadOnly;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getDocumentMutable()
+	 */
+	public MutableAnnotation getDocumentMutable() {
+		if (this.ensureXmlWrappers())
+			this.docMutable.setFlags(this.xmlWrapperFlags);
+		return this.docMutable;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getDocumentId()
+	 */
+	public String getDocumentId() {
+		return this.idmp.document.docId;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getSourceDocumentClass()
+	 */
+	public Class getSourceDocumentClass() {
+		return ImDocument.class;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getSourceDocument()
+	 */
+	public Attributed getSourceDocument() {
+		return this.idmp.document;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#areAnnotationsEditable()
+	 */
+	public boolean areAnnotationsEditable() {
+		return true; // annotations are editable in IMF
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#areTokensEditable()
+	 */
+	public boolean areTokensEditable() {
+		return false; // tokens are _not_ editable in via generic XML wrapper in IMF
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#areAnnotationsVisible(java.lang.String)
+	 */
+	public boolean areAnnotationsVisible(String type) {
+		return this.idmp.areAnnotationsPainted(type);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#setAnnotationsVisible(java.lang.String, boolean)
+	 */
+	public void setAnnotationsVisible(String type, boolean visible) {
+		if (this.idmp.document.getAnnotationCount(type) == 0)
+			this.idmp.setRegionsPainted(type, visible);
+		else this.idmp.setAnnotationsPainted(type, visible);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getAnnotationColor(java.lang.String)
+	 */
+	public Color getAnnotationColor(String type) {
+		return this.idmp.getAnnotationColor(type);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#setAnnotationColor(java.lang.String, java.awt.Color)
+	 */
+	public void setAnnotationColor(String type, Color color) {
+		this.idmp.setAnnotationColor(type, color);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#createAnnotationColor(java.lang.String)
+	 */
+	protected Color createAnnotationColor(String type) {
+		Color annotColor = UserInterfaceUtils.getAnnotationColor(type);
+		if (annotColor == null) {
+			annotColor = UserInterfaceUtils.createAnnotationColor(type);
+			this.createdColors.put(("annot." + type + ".color"), annotColor);
+		}
+		return annotColor;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#createLayoutObjectColor(java.lang.String)
+	 */
+	protected Color createLayoutObjectColor(String type) {
+		String colorPropName = ("region." + type + ".color");
+		Object layoutObjectColorObj = UserInterfaceUtils.getDisplayProperty(colorPropName);
+		Color layoutObjectColor = ((layoutObjectColorObj instanceof Color) ? ((Color) layoutObjectColorObj) : null);
+		if (layoutObjectColor == null) {
+			layoutObjectColor = UserInterfaceUtils.createColor();
+			this.createdColors.put(colorPropName, layoutObjectColor);
+			UserInterfaceUtils.setDisplayProperty(colorPropName, layoutObjectColor);
+		}
+		return layoutObjectColor;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel#createTextStreamTypeColor(java.lang.String)
+	 */
+	protected Color createTextStreamTypeColor(String type) {
+		String colorPropName = ("textStream." + type + ".color");
+		Object textStreamTypeColorObj = UserInterfaceUtils.getDisplayProperty(colorPropName);
+		Color textStreamTypeColor = ((textStreamTypeColorObj instanceof Color) ? ((Color) textStreamTypeColorObj) : null);
+		if (textStreamTypeColor == null) {
+			textStreamTypeColor = UserInterfaceUtils.createColor();
+			this.createdColors.put(colorPropName, textStreamTypeColor);
+			UserInterfaceUtils.setDisplayProperty(colorPropName, textStreamTypeColor);
+		}
+		return textStreamTypeColor;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getDisplayProperty(java.lang.String)
+	 */
+	public Object getDisplayProperty(String name) {
+		/* TODO add support for:
+		 * - word selection color and opacity
+		 * - box selection color and thickness
+		 * - ALSO add display config dialog in IM UI utils
+		 */
+		return null;//this.idmp.getDisplayProperty(name);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#setDisplayProperty(java.lang.String, java.lang.Object)
+	 */
+	public void setDisplayProperty(String name, Object value) {
+		/* TODO add support for:
+		 * - word selection color and opacity
+		 * - box selection color and thickness
+		 * - ALSO add display config dialog in IM UI utils
+		 */
+//		this.idmp.setDisplayProperty(name, value);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getAnnotationTypes()
+	 */
+	public String[] getAnnotationTypes() {
+		return this.idmp.document.getAnnotationTypes();
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#highlightAnnotation(de.uka.ipd.idaho.gamta.Annotation)
+	 */
+	public void highlightAnnotation(Annotation annotation) {
+		ImObject imObj = this.idmp.document.getObjectByUUID(annotation.getAnnotationID());
+		if (imObj instanceof ImWord)
+			this.idmp.setWordSelection((ImWord) imObj);
+		else if (imObj instanceof ImAnnotation) {
+			this.idmp.setAnnotationsPainted(((ImAnnotation) imObj).getType(), true);
+			this.idmp.setWordSelection(((ImAnnotation) imObj).getFirstWord(), ((ImAnnotation) imObj).getLastWord());
+		}
+		else if (imObj instanceof ImRegion) {
+			this.idmp.setRegionsPainted(((ImRegion) imObj).getType(), true);
+			this.idmp.setBoxSelection(((ImRegion) imObj).pageId, ((ImRegion) imObj).bounds);
+		}
+		else if (MutableAnnotation.PARAGRAPH_TYPE.equals(annotation.getType())) /* need to catch paragraphs separately, as those are emulated by GAMTA wrapper */ {
+			Object fwObj = annotation.getAttribute(ImAnnotation.FIRST_WORD_ATTRIBUTE);
+			Object lwObj = annotation.getAttribute(ImAnnotation.LAST_WORD_ATTRIBUTE);
+			if ((fwObj instanceof ImWord) && (lwObj instanceof ImWord)) {
+				ImWord firstWord = ((ImWord) fwObj);
+				ImWord lastWord = ((ImWord) lwObj);
+				if (firstWord.getTextStreamId().equals(lastWord.getTextStreamId()))
+					this.idmp.setWordSelection(firstWord, lastWord);
+				else this.idmp.setWordSelection(firstWord);
+			}
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay#getProgressMonitor(java.lang.String, java.lang.String, boolean, boolean)
+	 */
+	public ProgressMonitor getProgressMonitor(String title, String text, boolean supportPauseResume, boolean supportAbort) {
+		return new ResourceSplashScreen(getMainWindow(), title, text, supportPauseResume, supportAbort);
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.im.imagine.ui.ImageDocumentDisplay#getImDocument()
+	 */
+	public ImDocument getImDocument() {
+		return this.idmp.document;
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.im.imagine.ui.ImageDocumentDisplay#getImDocumentPanel()
+	 */
+	public ImDocumentMarkupPanel getImDocumentPanel() {
+		return this.idmp;
+	}
+	
 	private class ImageDocumentEditorPanel extends ImDocumentMarkupPanel implements AtomicActionListener {
 		ImageDocumentEditorPanel(ImDocument document) {
 			super(document);
 			this.addAtomicActionListener(this);
+		}
+		protected Color createAnnotationColor(String type) {
+			return ImageDocumentMarkupPanel.this.createAnnotationColor(type);
+		}
+		protected Color createLayoutObjectColor(String type) {
+			return ImageDocumentMarkupPanel.this.createLayoutObjectColor(type);
+		}
+		protected Color createTextStreamTypeColor(String type) {
+			return ImageDocumentMarkupPanel.this.createTextStreamTypeColor(type);
 		}
 		public void atomicActionStarted(long id, String label, ImageMarkupTool imt, ImAnnotation annot, ProgressMonitor pm) {
 			if (inUndoAction)
@@ -424,77 +950,118 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 			finishMultipartUndoAction();
 		}
 		protected SelectionAction[] getActions(ImWord start, ImWord end) {
-			LinkedList actions = new LinkedList(Arrays.asList(super.getActions(start, end)));
+			ArrayList actions = new ArrayList(Arrays.asList(super.getActions(start, end)));
 			SelectionActionProvider[] saps = ImageDocumentMarkupPanel.this.ggImagine.getSelectionActionProviders();
-			for (int p = 0; p < saps.length; p++) {
-				SelectionAction[] sas = saps[p].getActions(start, end, this);
+			for (int p = 0; p < saps.length; p++) try {
+				SelectionAction[] sas = saps[p].getActions(start, end, this, ImageDocumentMarkupPanel.this);
 				if ((sas != null) && (sas.length != 0)) {
 					if (actions.size() != 0)
 						actions.add(SelectionAction.SEPARATOR);
 					actions.addAll(Arrays.asList(sas));
 				}
 			}
+			catch (Exception e) {
+				System.out.println("Error getting actions for word selection: " + e.getMessage());
+				e.printStackTrace(System.out);
+			}
+			ImAnnotation spanningAnnot = null; // TODO find single visible spanning annotation
+			if (spanningAnnot != null)
+				this.addAdvancedAction(actions, spanningAnnot);
 			return ((SelectionAction[]) actions.toArray(new SelectionAction[actions.size()]));
 		}
 		protected ClickSelectionAction[] getClickActions(ImWord word, int clickCount) {
-			LinkedList actions = new LinkedList(Arrays.asList(super.getClickActions(word, clickCount)));
+			ArrayList actions = new ArrayList(Arrays.asList(super.getClickActions(word, clickCount)));
 			ClickActionProvider[] caps = ImageDocumentMarkupPanel.this.ggImagine.getClickActionProviders();
-			for (int p = 0; p < caps.length; p++) {
-				ClickSelectionAction[] csas = caps[p].getActions(word, clickCount, this);
+			for (int p = 0; p < caps.length; p++) try {
+				ClickSelectionAction[] csas = caps[p].getActions(word, clickCount, this, ImageDocumentMarkupPanel.this);
 				if ((csas != null) && (csas.length != 0)) {
 					if (actions.size() != 0)
 						actions.add(SelectionAction.SEPARATOR);
 					actions.addAll(Arrays.asList(csas));
 				}
+			}
+			catch (Exception e) {
+				System.out.println("Error getting actions for word click: " + e.getMessage());
+				e.printStackTrace(System.out);
 			}
 			return ((ClickSelectionAction[]) actions.toArray(new ClickSelectionAction[actions.size()]));
 		}
 		protected SelectionAction[] getActions(ImPage page, Point start, Point end) {
-			LinkedList actions = new LinkedList(Arrays.asList(super.getActions(page, start, end)));
+			ArrayList actions = new ArrayList(Arrays.asList(super.getActions(page, start, end)));
 			SelectionActionProvider[] saps = ImageDocumentMarkupPanel.this.ggImagine.getSelectionActionProviders();
-			for (int p = 0; p < saps.length; p++) {
-				SelectionAction[] sas = saps[p].getActions(start, end, page, this);
+			for (int p = 0; p < saps.length; p++) try {
+				SelectionAction[] sas = saps[p].getActions(start, end, page, this, ImageDocumentMarkupPanel.this);
 				if ((sas != null) && (sas.length != 0)) {
 					if (actions.size() != 0)
 						actions.add(SelectionAction.SEPARATOR);
 					actions.addAll(Arrays.asList(sas));
 				}
 			}
+			catch (Exception e) {
+				System.out.println("Error getting actions for box selection: " + e.getMessage());
+				e.printStackTrace(System.out);
+			}
 			return ((SelectionAction[]) actions.toArray(new SelectionAction[actions.size()]));
 		}
+		private void addAdvancedAction(ArrayList actions, ImAnnotation imSelection) {
+			if (imSelection == null)
+				return;
+			Annotation selection = new LazyAnnotation(imSelection, ImageDocumentMarkupPanel.this.getXmlWrapperFlags());
+			SelectionAction asa = ImageUserInterfaceUtils.createAdvancedSelectionAction(ImageDocumentMarkupPanel.this.goldenGate, "ggImagine", ImageDocumentMarkupPanel.this, selection);
+			if (asa != null)
+				actions.add(asa);
+		}
 		protected ClickSelectionAction[] getClickActions(ImPage page, Point point, int clickCount) {
-			LinkedList actions = new LinkedList(Arrays.asList(super.getClickActions(page, point, clickCount)));
+			ArrayList actions = new ArrayList(Arrays.asList(super.getClickActions(page, point, clickCount)));
 			ClickActionProvider[] caps = ImageDocumentMarkupPanel.this.ggImagine.getClickActionProviders();
-			for (int p = 0; p < caps.length; p++) {
-				ClickSelectionAction[] csas = caps[p].getActions(page, point, clickCount, this);
+			for (int p = 0; p < caps.length; p++) try {
+				ClickSelectionAction[] csas = caps[p].getActions(page, point, clickCount, this, ImageDocumentMarkupPanel.this);
 				if ((csas != null) && (csas.length != 0)) {
 					if (actions.size() != 0)
 						actions.add(SelectionAction.SEPARATOR);
 					actions.addAll(Arrays.asList(csas));
 				}
 			}
+			catch (Exception e) {
+				System.out.println("Error getting actions for point click: " + e.getMessage());
+				e.printStackTrace(System.out);
+			}
 			return ((ClickSelectionAction[]) actions.toArray(new ClickSelectionAction[actions.size()]));
 		}
+		protected JMenuItem getContextMenuItemFor(SelectionAction action) {
+			return ImageUserInterfaceUtils.styleContextMenuItem(super.getContextMenuItemFor(action), action);
+		}
 		protected boolean[] markAdvancedSelectionActions(SelectionAction[] sas) {
-			return ImageDocumentMarkupPanel.this.saUsageStats.markAdvancedSelectionActions(sas);
+//			return ImageDocumentMarkupPanel.this.saUsageStats.markAdvancedSelectionActions(sas);
+			return getSelectionActionUsageStats().markAdvancedSelectionActions(sas);
 		}
 		protected void selectionActionPerformed(SelectionAction sa) {
-			ImageDocumentMarkupPanel.this.saUsageStats.selectionActionUsed(sa);
+//			ImageDocumentMarkupPanel.this.saUsageStats.selectionActionUsed(sa);
+			getSelectionActionUsageStats().selectionActionUsed(sa);
+		}
+		protected String getAttributeEditorAnnotationValue(ImAnnotation annotation) {
+			return ImageUserInterfaceUtils.getAnnotationLabelValue(annotation);
 		}
 		protected DisplayExtensionGraphics[] getDisplayExtensionGraphics(ImPage page) {
-			LinkedList degs = new LinkedList();
+			ArrayList degs = new ArrayList();
 			DisplayExtensionProvider[] deps = ImageDocumentMarkupPanel.this.ggImagine.getDisplayExtensionProviders();
-			for (int p = 0; p < deps.length; p++) {
+			for (int p = 0; p < deps.length; p++) try {
 				DisplayExtension[] des = deps[p].getDisplayExtensions();
+				if (des == null)
+					continue;
 				for (int e = 0; e < des.length; e++) {
 					if (des[e].isActive())
 						degs.addAll(Arrays.asList(des[e].getExtensionGraphics(page, this)));
 				}
 			}
+			catch (Exception e) {
+				System.out.println("Error getting display extension graphics: " + e.getMessage());
+				e.printStackTrace(System.out);
+			}
 			return ((DisplayExtensionGraphics[]) degs.toArray(new DisplayExtensionGraphics[degs.size()]));
 		}
 		protected ImImageEditTool[] getImageEditTools() {
-			LinkedList tools = new LinkedList(Arrays.asList(super.getImageEditTools()));
+			ArrayList tools = new ArrayList(Arrays.asList(super.getImageEditTools()));
 			ImageEditToolProvider[] ietps = ImageDocumentMarkupPanel.this.ggImagine.getImageEditToolProviders();
 			for (int p = 0; p < ietps.length; p++) {
 				ImImageEditTool[] iets = ietps[p].getImageEditTools();
@@ -504,7 +1071,7 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 			return ((ImImageEditTool[]) tools.toArray(new ImImageEditTool[tools.size()]));
 		}
 		public ProgressMonitor getProgressMonitor(String title, String text, boolean supportPauseResume, boolean supportAbort) {
-			return new ResourceSplashScreen(getMainWindow(), title, text, supportPauseResume, supportAbort);
+			return ImageDocumentMarkupPanel.this.getProgressMonitor(title, text, supportPauseResume, supportAbort);
 		}
 		public boolean setDisplayOverlay(DisplayOverlay overlay, int pageId) {
 			if (!super.setDisplayOverlay(overlay, pageId))
@@ -574,39 +1141,73 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 			}
 			
 			//	scroll selection to view if required (moving near center)
-			if (!vpPos.contains(wsPos)) {
-//				idmpBox.getViewport().scrollRectToVisible(wsPos); // DOESN'T SEEM TO WORK AS SUPPOSED TO, FOR WHATEVER REASON
-				int vx;
-				if ((vpPos.x <= wsPos.x) && ((vpPos.x + vpPos.width) >= (wsPos.x + wsPos.width))) // selection in bounds horizontally, no need for scrolling
-					vx = vpPos.x;
-				else /* center selection in viewport */ {
-					int wscx = (wsPos.x + (wsPos.width / 2));
-					vx = (wscx - (vpPos.width / 2));
-					if (vpPos.x < vx) // scrolling right, don't go all that far
-						vx -= (vpPos.width / 4);
-					else if (vpPos.x > vx) // scrolling left, don't go all that far
-						vx += (vpPos.width / 4);
-					if (vx < 0)
-						vx = 0;
-				}
-				int vy;
-				if ((vpPos.y <= wsPos.y) && ((vpPos.y + vpPos.height) >= (wsPos.y + wsPos.height))) // selection in bounds vertically, no need for scrolling
-					vy = vpPos.y;
-				else /* center selection in viewport */ {
-					int wscy = (wsPos.y + (wsPos.height / 2));
-					vy = (wscy - (vpPos.height / 2));
-					if (vpPos.y < vy) // scrolling down, don't go all that far
-						vy -= (vpPos.height / 4);
-					else if (vpPos.y > vy) // scrolling up, don't go all that far
-						vy += (vpPos.height / 4);
-					if (vy < 0)
-						vy = 0;
-				}
-				idmpBox.getViewport().setViewPosition(new Point(vx, vy));
-			}
+			this.ensurePositionVisible(vpPos, wsPos);
 			
 			//	pass on super class success
 			return true;
+		}
+		public boolean setBoxSelection(int pageId, BoundingBox box) {
+			if (!super.setBoxSelection(pageId, box))
+				return false;
+			
+			//	get position of word selection, and compare to current view
+			Rectangle vpPos = idmpBox.getViewport().getViewRect();
+			Rectangle boxPos = this.getPosition(box, pageId);
+			if (boxPos == null)
+				return true;
+			Rectangle bsPos = new Rectangle(boxPos);
+			
+			//	box selection doesn't fit view vertically, reduce height
+			if (vpPos.height < bsPos.height)
+				bsPos.height = vpPos.height;
+			
+			//	box selection doesn't fit view horizontally, reduce width
+			if (vpPos.width < bsPos.width)
+				bsPos.width = vpPos.width;
+			
+			//	scroll selection to view if required (moving near center)
+			this.ensurePositionVisible(vpPos, bsPos);
+			
+			//	pass on super class success
+			return true;
+		}
+		private void ensurePositionVisible(Rectangle vpPos, Rectangle visPos) {
+			if (vpPos.contains(visPos))
+				return;
+//			idmpBox.getViewport().scrollRectToVisible(wsPos); // DOESN'T SEEM TO WORK AS SUPPOSED TO, FOR WHATEVER REASON
+			
+			//	compute target X coordinate
+			int vx;
+			if ((vpPos.x <= visPos.x) && ((vpPos.x + vpPos.width) >= (visPos.x + visPos.width))) // selection in bounds horizontally, no need for scrolling
+				vx = vpPos.x;
+			else /* center selection in viewport */ {
+				int wscx = (visPos.x + (visPos.width / 2));
+				vx = (wscx - (vpPos.width / 2));
+				if (vpPos.x < vx) // scrolling right, don't go all that far
+					vx -= (vpPos.width / 4);
+				else if (vpPos.x > vx) // scrolling left, don't go all that far
+					vx += (vpPos.width / 4);
+				if (vx < 0)
+					vx = 0;
+			}
+			
+			//	compute target Y coordinate
+			int vy;
+			if ((vpPos.y <= visPos.y) && ((vpPos.y + vpPos.height) >= (visPos.y + visPos.height))) // selection in bounds vertically, no need for scrolling
+				vy = vpPos.y;
+			else /* center selection in viewport */ {
+				int wscy = (visPos.y + (visPos.height / 2));
+				vy = (wscy - (vpPos.height / 2));
+				if (vpPos.y < vy) // scrolling down, don't go all that far
+					vy -= (vpPos.height / 4);
+				else if (vpPos.y > vy) // scrolling up, don't go all that far
+					vy += (vpPos.height / 4);
+				if (vy < 0)
+					vy = 0;
+			}
+			
+			//	perform scroll
+			idmpBox.getViewport().setViewPosition(new Point(vx, vy));
 		}
 		public void setPageVisible(int pageId, boolean pv) {
 			if (pv == this.isPageVisible(pageId))
@@ -644,6 +1245,19 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 			ImageDocumentMarkupPanel.this.validate();
 			ImageDocumentMarkupPanel.this.repaint();
 		}
+		public ImPage[] getVisiblePages() {
+			ImPage[] sPages = super.getVisiblePages();
+			Rectangle vpPos = idmpBox.getViewport().getViewRect();
+			ArrayList vPages = new ArrayList();
+			for (int p = 0; p < sPages.length; p++) {
+				Rectangle pPos = this.getPosition(sPages[p]);
+				if (pPos == null)
+					continue;
+				if (vpPos.intersects(pPos))
+					vPages.add(sPages[p]);
+			}
+			return ((ImPage[]) vPages.toArray(new ImPage[vPages.size()]));
+		}
 		public void setSideBySidePages(int sbsp) {
 			if (sbsp == this.getSideBySidePages())
 				return;
@@ -651,10 +1265,24 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 			ImageDocumentMarkupPanel.this.validate();
 			ImageDocumentMarkupPanel.this.repaint();
 		}
+//		public void applyMarkupTool(ImageMarkupTool imt, ImAnnotation annot) {
+//			try {
+//				imToolActive = true;
+//				super.applyMarkupTool(imt, annot);
+//			}
+//			finally {
+//				imToolActive = false;
+//			}
+//		}
 		public void applyMarkupTool(ImageMarkupTool imt, ImAnnotation annot) {
+			this.applyMarkupTool(imt, annot, true);
+		}
+		void applyMarkupTool(ImageMarkupTool xmt, ImAnnotation annot, boolean isNativeImMarkupTool) {
+			if (isNativeImMarkupTool)
+				invalidateXmlWrappers(); // no use tagging along any wrappers, good chance they break at some point anyway
 			try {
 				imToolActive = true;
-				super.applyMarkupTool(imt, annot);
+				super.applyMarkupTool(xmt, annot);
 			}
 			finally {
 				imToolActive = false;
@@ -992,6 +1620,24 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		}
 	}
 	
+	private class AtomicActionNotifier implements AtomicActionListener {
+		GoldenGateImagine ggImagine;
+		ImDocumentMarkupPanel idmp;
+		AtomicActionNotifier(GoldenGateImagine ggImagine, ImDocumentMarkupPanel idmp) {
+			this.ggImagine = ggImagine;
+			this.idmp = idmp;
+		}
+		public void atomicActionStarted(long id, String label, ImageMarkupTool imt, ImAnnotation annot, ProgressMonitor pm) {
+			this.ggImagine.notifyAtomicActionStarted(id, label, imt, annot, this.idmp, pm);
+		}
+		public void atomicActionFinishing(long id, ProgressMonitor pm) {
+			this.ggImagine.notifyAtomicActionFinishing(id, this.idmp, pm);
+		}
+		public void atomicActionFinished(long id, ProgressMonitor pm) {
+			this.ggImagine.notifyAtomicActionFinished(id, this.idmp, pm);
+		}
+	}
+	
 	/**
 	 * Scroll up (or left) by one page, e.g. in reaction to a press of the
 	 * 'Page Up' button.
@@ -1123,6 +1769,32 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		this.repaint();
 		if (viewCenterPage != null)
 			this.idmpBox.getViewport().setViewPosition(viewCenterPage.getLocation());
+	}
+	
+	/**
+	 * Show all pages containing main text words, and hide all others.
+	 */
+	public void showMainTextPages() {
+		ImPage[] pages = this.idmp.document.getPages();
+		int[] visiblePageIDs = new int[pages.length];
+		for (int p = 0; p < pages.length; p++) {
+			visiblePageIDs[p] = -1;
+			ImWord[] ptshs = pages[p].getTextStreamHeads();
+			for (int h = 0; h < ptshs.length; h++)
+				if (ImWord.TEXT_STREAM_TYPE_MAIN_TEXT.equals(ptshs[h].getTextStreamType())) {
+					visiblePageIDs[p] = pages[p].pageId;
+					break;
+				}
+		}
+		this.idmp.setVisiblePages(visiblePageIDs);
+	}
+	
+	/**
+	 * Show all pages, including ones that are currently hidden.
+	 */
+	public void showAllPages() {
+		ImPage[] pages = this.idmp.document.getPages();
+		this.idmp.setPagesVisible(pages[0].pageId, pages[pages.length - 1].pageId, true);
 	}
 	
 	/**
@@ -1268,7 +1940,8 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 			return;
 		if (this.multipartUndoAction == null) {
 			this.modCount++;
-			this.undoActions.addFirst(ua);
+//			this.undoActions.addFirst(ua);
+			this.undoActions.add(ua);
 			System.err.println("NO GOOD: Got UNDO outside atomic action, last one finished from");
 			this.printStackTrace(this.lastAtomicActionFinisher);
 			this.updateUndoMenu();
@@ -1296,7 +1969,8 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		}
 		if ((this.multipartUndoAction != null) && (this.multipartUndoAction.parts.size() != 0)) {
 			this.modCount++;
-			this.undoActions.addFirst(this.multipartUndoAction);
+//			this.undoActions.addFirst(this.multipartUndoAction);
+			this.undoActions.add(this.multipartUndoAction);
 			this.updateUndoMenu();
 		}
 		this.multipartUndoAction = null;
@@ -1318,21 +1992,78 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 	 * Update the 'Undo' menu of the surrounding UI, e.g. when a markup panel
 	 * is newly opened, or when it is selected in a multi-document UI.
 	 */
+//	public void updateUndoMenu() {
+//		JMenu undoMenu = this.getUndoMenu();
+//		if (undoMenu == null)
+//			return;
+//		undoMenu.removeAll();
+//		for (Iterator uait = this.undoActions.iterator(); uait.hasNext();) {
+//			final UndoAction ua = ((UndoAction) uait.next());
+//			JMenuItem mi = new JMenuItem(ua.label);
+//			mi.addActionListener(new ActionListener() {
+//				public void actionPerformed(ActionEvent ae) {
+//					try {
+//						ua.target.inUndoAction = true;
+//						long us = System.currentTimeMillis();
+//						while (undoActions.size() != 0) {
+//							UndoAction eua = ((UndoAction) undoActions.removeFirst());
+//							try {
+//								if (ua instanceof MultipartUndoAction)
+//									ua.target.idmp.startAtomicAction(((MultipartUndoAction) ua).actionId, "UNDO", null, null, null);
+//								else ua.target.idmp.startAtomicAction(-1, "UNDO", null, null, null);
+//								eua.execute();
+//							}
+//							finally {
+//								ua.target.idmp.endAtomicAction();
+//							}
+//							if (eua == ua)
+//								break;
+//						}
+//						
+//						updateUndoMenu();
+//						System.out.println("Executed undo actions in " + (System.currentTimeMillis() - us) + "ms");
+//					}
+//					finally {
+//						ua.target.inUndoAction = false;
+//						
+//						/* we are on the EDT, so we can repaint right here
+//						 * without any risk of incurring a deadlock between
+//						 * on synchronized parts of UI or data structures */
+//						ua.target.idmp.validate();
+//						ua.target.idmp.repaint();
+//						ua.target.idmp.validateControlPanel();
+//					}
+//				}
+//			});
+//			undoMenu.add(mi);
+//			if (undoMenu.getMenuComponentCount() >= 10)
+//				break;
+//		}
+//		undoMenu.setEnabled(this.undoActions.size() != 0);
+//	}
 	public void updateUndoMenu() {
-		JMenu undoMenu = this.getUndoMenu();
-		if (undoMenu == null)
+		System.out.println("ImageDocumentMarkupPanel: updating UNDO menu");
+		WindowMenuOwner undoMenuOwner = this.getUndoMenuOwner();
+		DynamicWindowMenu undoMenu = this.getUndoMenu();
+		if ((undoMenuOwner == null) || (undoMenu == null)) {
+			System.out.println(" ==> menu or menu owner is null");
 			return;
-		undoMenu.removeAll();
-		for (Iterator uait = this.undoActions.iterator(); uait.hasNext();) {
-			final UndoAction ua = ((UndoAction) uait.next());
-			JMenuItem mi = new JMenuItem(ua.label);
+		}
+		undoMenu.clearElements(undoMenuOwner);
+//		for (Iterator uait = this.undoActions.iterator(); uait.hasNext();) {
+		for (int a = (this.undoActions.size() - 1); a >= 0; a--) {
+//			final UndoAction ua = ((UndoAction) uait.next());
+			final UndoAction ua = ((UndoAction) this.undoActions.get(a));
+			JMenuItem mi = new JMenuItem();
+			UserInterfaceUtils.styleDesktopMenuItem(mi, "ggImagine", "undo.option", ua.label, ("Revert all modifications back to '" + ua.label + "'"), null, null);
 			mi.addActionListener(new ActionListener() {
 				public void actionPerformed(ActionEvent ae) {
 					try {
 						ua.target.inUndoAction = true;
 						long us = System.currentTimeMillis();
 						while (undoActions.size() != 0) {
-							UndoAction eua = ((UndoAction) undoActions.removeFirst());
+//							UndoAction eua = ((UndoAction) undoActions.removeFirst());
+							UndoAction eua = ((UndoAction) undoActions.remove(undoActions.size() - 1));
 							try {
 								if (ua instanceof MultipartUndoAction)
 									ua.target.idmp.startAtomicAction(((MultipartUndoAction) ua).actionId, "UNDO", null, null, null);
@@ -1361,12 +2092,23 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 					}
 				}
 			});
-			undoMenu.add(mi);
-			if (undoMenu.getMenuComponentCount() >= 10)
+			undoMenu.addDesktopElement(mi, undoMenuOwner);
+			if (undoMenuMaxSize <= undoMenu.itemCount())
 				break;
 		}
-		undoMenu.setEnabled(this.undoActions.size() != 0);
+		System.out.println(" ==> added " + undoMenu.itemCount() + " items");
+//		undoMenu.updateItems(undoMenuOwner);
+		undoMenuOwner.updateMenu();
+		System.out.println(" ==> menu refresh done");
 	}
+	
+	/**
+	 * Provide the owner of the 'Undo' menu integrated in a UI for the markup
+	 * panel to show its 'Undo' options in. If this method returns null, UI
+	 * based 'Undo' will not be accessible.
+	 * @return the owner of the 'Undo' menu of the surrounding UI
+	 */
+	protected abstract WindowMenuOwner getUndoMenuOwner();
 	
 	/**
 	 * Provide the 'Undo' menu integrated in a UI for the markup panel to show
@@ -1374,7 +2116,8 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 	 * not be accessible.
 	 * @return the 'Undo' menu of the surrounding UI
 	 */
-	protected abstract JMenu getUndoMenu();
+//	protected abstract JMenu getUndoMenu();
+	protected abstract DynamicWindowMenu getUndoMenu();
 	
 	/**
 	 * Check whether or not the Image Markup document displayed in this panel
@@ -1393,14 +2136,6 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 	 */
 	public void markClean() {
 		this.savedModCount = this.modCount;
-	}
-	
-	/**
-	 * Retrieve the wrapped markup panel.
-	 * @return the wrapped markup panel
-	 */
-	public ImDocumentMarkupPanel getMarkupPanel() {
-		return this.idmp;
 	}
 	
 	private static class IdmpViewport extends JViewport implements TwoClickActionMessenger {
@@ -1458,31 +2193,31 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		if (this.reactionTrigger != null)
 			this.idmp.document.removeDocumentListener(this.reactionTrigger);
 		this.ggImagine.notifyDocumentClosed(this.idmp.document.docId);
-		
-		if (storeSettings) {
-			Settings annotationColors = this.ggiConfig.getSubset("annotation.color");
-			String[] annotationTypes = this.idmp.getAnnotationTypes();
-			for (int t = 0; t < annotationTypes.length; t++) {
-				Color ac = this.idmp.getAnnotationColor(annotationTypes[t]);
-				if (ac != null)
-					annotationColors.setSetting(annotationTypes[t], GoldenGateImagine.getHex(ac));
-			}
-			Settings layoutObjectColors = this.ggiConfig.getSubset("layoutObject.color");
-			String[] layoutObjectTypes = this.idmp.getLayoutObjectTypes();
-			for (int t = 0; t < layoutObjectTypes.length; t++) {
-				Color loc = this.idmp.getLayoutObjectColor(layoutObjectTypes[t]);
-				if (loc != null)
-					layoutObjectColors.setSetting(layoutObjectTypes[t], GoldenGateImagine.getHex(loc));
-			}
-			Settings textStreamColors = this.ggiConfig.getSubset("textStream.color");
-			String[] textStreamTypes = this.idmp.getTextStreamTypes();
-			for (int t = 0; t < textStreamTypes.length; t++) {
-				Color tsc = this.idmp.getTextStreamTypeColor(textStreamTypes[t]);
-				if (tsc != null)
-					textStreamColors.setSetting(textStreamTypes[t], GoldenGateImagine.getHex(tsc));
-			}
-			this.saUsageStats.storeTo(this.ggiConfig.getSubset("selectionAction"));
-		}
+//		
+//		if (storeSettings) {
+//			Settings annotationColors = this.ggiConfig.getSubset("annotation.color");
+//			String[] annotationTypes = this.idmp.getAnnotationTypes();
+//			for (int t = 0; t < annotationTypes.length; t++) {
+//				Color ac = this.idmp.getAnnotationColor(annotationTypes[t]);
+//				if (ac != null)
+//					annotationColors.setSetting(annotationTypes[t], GoldenGateImagine.getHex(ac));
+//			}
+//			Settings layoutObjectColors = this.ggiConfig.getSubset("layoutObject.color");
+//			String[] layoutObjectTypes = this.idmp.getLayoutObjectTypes();
+//			for (int t = 0; t < layoutObjectTypes.length; t++) {
+//				Color loc = this.idmp.getLayoutObjectColor(layoutObjectTypes[t]);
+//				if (loc != null)
+//					layoutObjectColors.setSetting(layoutObjectTypes[t], GoldenGateImagine.getHex(loc));
+//			}
+//			Settings textStreamColors = this.ggiConfig.getSubset("textStream.color");
+//			String[] textStreamTypes = this.idmp.getTextStreamTypes();
+//			for (int t = 0; t < textStreamTypes.length; t++) {
+//				Color tsc = this.idmp.getTextStreamTypeColor(textStreamTypes[t]);
+//				if (tsc != null)
+//					textStreamColors.setSetting(textStreamTypes[t], GoldenGateImagine.getHex(tsc));
+//			}
+//			this.saUsageStats.storeTo(this.ggiConfig.getSubset("selectionAction"));
+//		}
 	}
 	
 	private static abstract class UndoAction {
@@ -1501,106 +2236,165 @@ public abstract class ImageDocumentMarkupPanel extends JPanel implements Imaging
 		abstract void doExecute();
 	}
 	
+//	private static class MultipartUndoAction extends UndoAction {
+//		final LinkedList parts = new LinkedList();
+//		final long actionId;
+//		MultipartUndoAction(long id, String label, ImageDocumentMarkupPanel target) {
+//			super(label, target);
+//			this.actionId = -id;
+//		}
+//		synchronized void addUndoAction(UndoAction ua) {
+//			this.parts.addFirst(ua);
+//		}
+//		void doExecute() {
+//			while (this.parts.size() != 0)
+//				((UndoAction) this.parts.removeFirst()).doExecute();
+//		}
+//	}
 	private static class MultipartUndoAction extends UndoAction {
-		final LinkedList parts = new LinkedList();
+//		final LinkedList parts = new LinkedList();
+		final ArrayList parts = new ArrayList();
 		final long actionId;
 		MultipartUndoAction(long id, String label, ImageDocumentMarkupPanel target) {
 			super(label, target);
 			this.actionId = -id;
 		}
 		synchronized void addUndoAction(UndoAction ua) {
-			this.parts.addFirst(ua);
+//			this.parts.addFirst(ua);
+			this.parts.add(ua);
 		}
 		void doExecute() {
-			while (this.parts.size() != 0)
-				((UndoAction) this.parts.removeFirst()).doExecute();
+//			while (this.parts.size() != 0)
+//				((UndoAction) this.parts.removeFirst()).doExecute();
+			for (int p = (this.parts.size() - 1); p >= 0; p--)
+				((UndoAction) this.parts.get(p)).doExecute();
+			this.parts.clear();
 		}
 	}
 	
+//	private static SelectionActionUsageStats selectionActionUsageStats = null;
+//	private static SelectionActionUsageStats getSelectionActionUsageStats(Settings ggiConfig) {
+//		if (selectionActionUsageStats == null) {
+//			selectionActionUsageStats = new SelectionActionUsageStats();
+//			selectionActionUsageStats.fillFrom(ggiConfig.getSubset("selectionAction"));
+//		}
+//		return selectionActionUsageStats;
+//	}
+//	private static class SelectionActionUsageStats extends TreeMap {
+//		private static class SelectionActionUsage {
+//			int shown = 0;
+//			int used = 0;
+//			int usedLast = 0;
+//			SelectionActionUsage() {}
+//		}
+//		
+//		private int isSaAdvancedPivotIndex = 10;
+//		private int saUseCounter = 1;
+//		
+//		private SelectionActionUsage getSelectionActionUsage(String saName) {
+//			SelectionActionUsage saUsage = ((SelectionActionUsage) this.get(saName));
+//			if (saUsage == null) {
+//				saUsage = new SelectionActionUsage();
+//				this.put(saName, saUsage);
+//			}
+//			return saUsage;
+//		}
+//		
+//		boolean[] markAdvancedSelectionActions(SelectionAction[] sas) {
+//			float[] isSaAdvancedScoresBySa = new float[sas.length];
+//			float[] isSaAdvancedScoresByVal = new float[sas.length];
+//			for (int a = 0; a < sas.length; a++) {
+//				float isSaAdvancedScore = 0;
+//				if (sas[a] != SelectionAction.SEPARATOR) {
+//					SelectionActionUsage saUsage = this.getSelectionActionUsage(sas[a].name);
+//					saUsage.shown++;
+//					isSaAdvancedScore += (((float) saUsage.used) / saUsage.shown); // MFU part
+//					isSaAdvancedScore += (((float) saUsage.usedLast) / this.saUseCounter); // MRU part
+//				}
+//				isSaAdvancedScoresBySa[a] = isSaAdvancedScore;
+//				isSaAdvancedScoresByVal[a] = isSaAdvancedScore;
+//			}
+//			
+//			Arrays.sort(isSaAdvancedScoresByVal);
+//			float isSaAdvancedThreshold = ((sas.length < this.isSaAdvancedPivotIndex) ? 0 : isSaAdvancedScoresByVal[sas.length - this.isSaAdvancedPivotIndex]);
+//			
+//			boolean[] isSaAdvanced = new boolean[sas.length];
+//			for (int a = 0; a < sas.length; a++)
+//				isSaAdvanced[a] = (isSaAdvancedScoresBySa[a] < isSaAdvancedThreshold);
+//			
+//			return isSaAdvanced;
+//		}
+//		
+//		void selectionActionUsed(SelectionAction sa) {
+//			SelectionActionUsage saUsage = this.getSelectionActionUsage(sa.name);
+//			saUsage.used++;
+//			saUsage.usedLast = this.saUseCounter++;
+//		}
+//		
+//		void fillFrom(Settings set) {
+//			this.isSaAdvancedPivotIndex = Math.max(1, Integer.parseInt(set.getSetting("isAdvancedPivotIndex", ("" + this.isSaAdvancedPivotIndex))));
+//			this.saUseCounter = Math.max(1, Integer.parseInt(set.getSetting("useCounter", "1")));
+//			
+//			String[] saNames = set.getSubsetPrefixes();
+//			for (int n = 0; n < saNames.length; n++) {
+//				Settings saUsageSet = set.getSubset(saNames[n]);
+//				SelectionActionUsage saUsage = this.getSelectionActionUsage(saNames[n]);
+//				saUsage.shown = Integer.parseInt(saUsageSet.getSetting("shown", "0"));
+//				saUsage.used = Integer.parseInt(saUsageSet.getSetting("used", "0"));
+//				saUsage.usedLast = Integer.parseInt(saUsageSet.getSetting("usedLast", "0"));
+//			}
+//		}
+//		void storeTo(Settings set) {
+//			set.setSetting("isAdvancedPivotIndex", ("" + this.isSaAdvancedPivotIndex));
+//			set.setSetting("useCounter", ("" + this.saUseCounter));
+//			
+//			for (Iterator sanit = this.keySet().iterator(); sanit.hasNext();) {
+//				String saName = ((String) sanit.next());
+//				SelectionActionUsage saUsage = this.getSelectionActionUsage(saName);
+//				Settings saUsageSet = set.getSubset(saName);
+//				saUsageSet.setSetting("shown", ("" + saUsage.shown));
+//				saUsageSet.setSetting("used", ("" + saUsage.used));
+//				saUsageSet.setSetting("usedLast", ("" + saUsage.usedLast));
+//			}
+//		}
+//	}
 	private static SelectionActionUsageStats selectionActionUsageStats = null;
-	private static SelectionActionUsageStats getSelectionActionUsageStats(Settings ggiConfig) {
-		if (selectionActionUsageStats == null) {
+	private static SelectionActionUsageStats getSelectionActionUsageStats() {
+		if (selectionActionUsageStats == null)
 			selectionActionUsageStats = new SelectionActionUsageStats();
-			selectionActionUsageStats.fillFrom(ggiConfig.getSubset("selectionAction"));
-		}
 		return selectionActionUsageStats;
 	}
-	private static class SelectionActionUsageStats extends TreeMap {
-		private static class SelectionActionUsage {
-			int shown = 0;
-			int used = 0;
-			int usedLast = 0;
-			SelectionActionUsage() {}
+	private static class SelectionActionUsageStats {
+		private int advancedActionPivotIndex = 10;
+		private NamedElementUsageStatistics stats;
+		SelectionActionUsageStats() {
+			this.stats = NamedElementUsageStatistics.getElementUsageStatistics("main");
+			Object contextMenuBaseSize = UserInterfaceUtils.getDisplayProperty("main.contextMenuBaseSize");
+			if (contextMenuBaseSize instanceof Number)
+				this.advancedActionPivotIndex = Math.max(((Number) contextMenuBaseSize).intValue(), this.advancedActionPivotIndex);
+			else UserInterfaceUtils.setDisplayProperty("main.contextMenuBaseSize", new Integer(this.advancedActionPivotIndex));
 		}
-		
-		private int isSaAdvancedPivotIndex = 10;
-		private int saUseCounter = 1;
-		
-		private SelectionActionUsage getSelectionActionUsage(String saName) {
-			SelectionActionUsage saUsage = ((SelectionActionUsage) this.get(saName));
-			if (saUsage == null) {
-				saUsage = new SelectionActionUsage();
-				this.put(saName, saUsage);
-			}
-			return saUsage;
-		}
-		
-		boolean[] markAdvancedSelectionActions(SelectionAction[] sas) {
-			float[] isSaAdvancedScoresBySa = new float[sas.length];
-			float[] isSaAdvancedScoresByVal = new float[sas.length];
-			for (int a = 0; a < sas.length; a++) {
-				float isSaAdvancedScore = 0;
-				if (sas[a] != SelectionAction.SEPARATOR) {
-					SelectionActionUsage saUsage = this.getSelectionActionUsage(sas[a].name);
-					saUsage.shown++;
-					isSaAdvancedScore += (((float) saUsage.used) / saUsage.shown); // MFU part
-					isSaAdvancedScore += (((float) saUsage.usedLast) / this.saUseCounter); // MRU part
-				}
-				isSaAdvancedScoresBySa[a] = isSaAdvancedScore;
-				isSaAdvancedScoresByVal[a] = isSaAdvancedScore;
+		boolean[] markAdvancedSelectionActions(SelectionAction[] actions) {
+			String[] actionNames = new String[actions.length];
+			for (int a = 0; a < actions.length; a++) {
+				if (actions[a] != SelectionAction.SEPARATOR)
+					actionNames[a] = actions[a].name;
 			}
 			
-			Arrays.sort(isSaAdvancedScoresByVal);
-			float isSaAdvancedThreshold = ((sas.length < this.isSaAdvancedPivotIndex) ? 0 : isSaAdvancedScoresByVal[sas.length - this.isSaAdvancedPivotIndex]);
+			float[] actionUsageScores = this.stats.getElementUsageScores(actionNames);
+			float[] actionUsageScoresSorted = Arrays.copyOf(actionUsageScores, actionUsageScores.length);
 			
-			boolean[] isSaAdvanced = new boolean[sas.length];
-			for (int a = 0; a < sas.length; a++)
-				isSaAdvanced[a] = (isSaAdvancedScoresBySa[a] < isSaAdvancedThreshold);
+			Arrays.sort(actionUsageScoresSorted);
+			float isSaAdvancedThreshold = ((actions.length < this.advancedActionPivotIndex) ? 0 : actionUsageScoresSorted[actions.length - this.advancedActionPivotIndex]);
 			
-			return isSaAdvanced;
+			boolean[] isAdvancedAction = new boolean[actions.length];
+			for (int a = 0; a < actions.length; a++)
+				isAdvancedAction[a] = (actionUsageScores[a] < isSaAdvancedThreshold);
+			
+			return isAdvancedAction;
 		}
-		
 		void selectionActionUsed(SelectionAction sa) {
-			SelectionActionUsage saUsage = this.getSelectionActionUsage(sa.name);
-			saUsage.used++;
-			saUsage.usedLast = this.saUseCounter++;
-		}
-		
-		void fillFrom(Settings set) {
-			this.isSaAdvancedPivotIndex = Math.max(1, Integer.parseInt(set.getSetting("isAdvancedPivotIndex", ("" + this.isSaAdvancedPivotIndex))));
-			this.saUseCounter = Math.max(1, Integer.parseInt(set.getSetting("useCounter", "1")));
-			
-			String[] saNames = set.getSubsetPrefixes();
-			for (int n = 0; n < saNames.length; n++) {
-				Settings saUsageSet = set.getSubset(saNames[n]);
-				SelectionActionUsage saUsage = this.getSelectionActionUsage(saNames[n]);
-				saUsage.shown = Integer.parseInt(saUsageSet.getSetting("shown", "0"));
-				saUsage.used = Integer.parseInt(saUsageSet.getSetting("used", "0"));
-				saUsage.usedLast = Integer.parseInt(saUsageSet.getSetting("usedLast", "0"));
-			}
-		}
-		void storeTo(Settings set) {
-			set.setSetting("isAdvancedPivotIndex", ("" + this.isSaAdvancedPivotIndex));
-			set.setSetting("useCounter", ("" + this.saUseCounter));
-			
-			for (Iterator sanit = this.keySet().iterator(); sanit.hasNext();) {
-				String saName = ((String) sanit.next());
-				SelectionActionUsage saUsage = this.getSelectionActionUsage(saName);
-				Settings saUsageSet = set.getSubset(saName);
-				saUsageSet.setSetting("shown", ("" + saUsage.shown));
-				saUsageSet.setSetting("used", ("" + saUsage.used));
-				saUsageSet.setSetting("usedLast", ("" + saUsage.usedLast));
-			}
+			this.stats.elementUsed(sa.name);
 		}
 	}
 }

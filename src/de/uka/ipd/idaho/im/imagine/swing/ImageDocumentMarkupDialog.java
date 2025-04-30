@@ -34,13 +34,12 @@ import java.awt.event.WindowEvent;
 
 import javax.swing.JComponent;
 
-import de.uka.ipd.idaho.easyIO.settings.Settings;
 import de.uka.ipd.idaho.gamta.util.imaging.ImagingConstants;
 import de.uka.ipd.idaho.goldenGate.GoldenGateConstants;
+import de.uka.ipd.idaho.goldenGate.ui.WindowMenuElement;
 import de.uka.ipd.idaho.goldenGate.util.DialogPanel;
 import de.uka.ipd.idaho.im.ImDocument;
 import de.uka.ipd.idaho.im.imagine.GoldenGateImagine;
-import de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupUI.FileMenuItem;
 import de.uka.ipd.idaho.im.imagine.swing.ImageDocumentMarkupUI.ImageDocumentEditorTab;
 
 /**
@@ -64,8 +63,10 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	 * @param doc the document to display
 	 * @param docName the name of the document to display
 	 */
-	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName) {
-		this(ggImagine, ggiConfig, doc, docName, false);
+//	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName) {
+	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, ImDocument doc, String docName) {
+//		this(ggImagine, ggiConfig, doc, docName, false);
+		this(ggImagine, doc, docName, false);
 	}
 	
 	/** Constructor
@@ -75,9 +76,11 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	 * @param docName the name of the document to display
 	 * @param isSubDocument is the document a sub document of another one (setting to true hides 'File' and 'Export' menu)
 	 */
-	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName, boolean isSubDocument) {
+//	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName, boolean isSubDocument) {
+	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, ImDocument doc, String docName, boolean isSubDocument) {
 		super("GoldenGATE Imagine - " + docName);
-		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, ggiConfig, doc, docName, isSubDocument));
+//		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, ggiConfig, doc, docName, isSubDocument));
+		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, doc, docName, isSubDocument));
 	}
 	
 	/** Constructor
@@ -85,8 +88,10 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	 * @param ggiConfig the GoldenGATE Imagine configuration
 	 * @param docTag the document tab to display
 	 */
-	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab) {
-		this(ggImagine, ggiConfig, docTab, false);
+//	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab) {
+	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, ImageDocumentEditorTab docTab) {
+//		this(ggImagine, ggiConfig, docTab, false);
+		this(ggImagine, docTab, false);
 	}
 	
 	/** Constructor
@@ -95,9 +100,11 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	 * @param docTag the document tab to display
 	 * @param isSubDocument is the document a sub document of another one (setting to true hides 'File' and 'Export' menu)
 	 */
-	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab, boolean isSubDocument) {
+//	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab, boolean isSubDocument) {
+	protected ImageDocumentMarkupDialog(GoldenGateImagine ggImagine, ImageDocumentEditorTab docTab, boolean isSubDocument) {
 		super("GoldenGATE Imagine - " + docTab.getDocName());
-		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, ggiConfig, docTab, isSubDocument));
+//		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, ggiConfig, docTab, isSubDocument));
+		this.init(ggImagine, new DialogDoumentMarkupUI(ggImagine, docTab, isSubDocument));
 	}
 	
 	private void init(GoldenGateImagine ggImagine, DialogDoumentMarkupUI ui) {
@@ -142,14 +149,21 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	}
 	
 	private class DialogDoumentMarkupUI extends ImageDocumentMarkupUI {
-		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName, boolean isSubDocument) {
-			super(ggImagine, ggiConfig, doc, docName, isSubDocument);
+//		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImDocument doc, String docName, boolean isSubDocument) {
+		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, ImDocument doc, String docName, boolean isSubDocument) {
+//			super(ggImagine, ggiConfig, doc, docName, isSubDocument);
+			super(ggImagine, doc, docName, isSubDocument);
 		}
-		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab, boolean isSubDocument) {
-			super(ggImagine, ggiConfig, docTab, isSubDocument);
+//		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, Settings ggiConfig, ImageDocumentEditorTab docTab, boolean isSubDocument) {
+		DialogDoumentMarkupUI(GoldenGateImagine ggImagine, ImageDocumentEditorTab docTab, boolean isSubDocument) {
+//			super(ggImagine, ggiConfig, docTab, isSubDocument);
+			super(ggImagine, docTab, isSubDocument);
 		}
-		protected FileMenuItem[] getFileMenuItems() {
-			return ImageDocumentMarkupDialog.this.getFileMenuItems();
+//		protected FileMenuItem[] getFileMenuItems() {
+//			return ImageDocumentMarkupDialog.this.getFileMenuItems();
+//		}
+		protected WindowMenuElement[] getFileMenuElements() {
+			return ImageDocumentMarkupDialog.this.getFileMenuElements();
 		}
 		protected void documentNameChanged(ImageDocumentEditorTab idet) {
 			super.documentNameChanged(idet);
@@ -187,8 +201,11 @@ public abstract class ImageDocumentMarkupDialog extends DialogPanel implements I
 	 * to overwrite it as needed.
 	 * @return an array holding the menu items
 	 */
-	protected FileMenuItem[] getFileMenuItems() {
-		return new FileMenuItem[0];
+//	protected FileMenuItem[] getFileMenuItems() {
+//		return new FileMenuItem[0];
+//	}
+	protected WindowMenuElement[] getFileMenuElements() {
+		return new WindowMenuElement[0];
 	}
 	
 	/**

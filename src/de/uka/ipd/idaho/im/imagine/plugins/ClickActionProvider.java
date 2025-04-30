@@ -29,6 +29,7 @@ package de.uka.ipd.idaho.im.imagine.plugins;
 
 import java.awt.Point;
 
+import de.uka.ipd.idaho.goldenGate.ui.GoldenGateUI.DocumentDisplay;
 import de.uka.ipd.idaho.im.ImPage;
 import de.uka.ipd.idaho.im.ImWord;
 import de.uka.ipd.idaho.im.util.ImDocumentMarkupPanel;
@@ -49,9 +50,11 @@ public interface ClickActionProvider extends GoldenGateImaginePlugin {
 	 * @param word the word that was clicked
 	 * @param clickCount the number of clicks
 	 * @param idmp the document editor panel to use the actions in
+	 * @param display the document display the argument editor panel is a part
+	 *            of (for a wider context, may be null)
 	 * @return an array holding the actions
 	 */
-	public abstract ClickSelectionAction[] getActions(ImWord word, int clickCount, ImDocumentMarkupPanel idmp);
+	public abstract ClickSelectionAction[] getActions(ImWord word, int clickCount, ImDocumentMarkupPanel idmp, DocumentDisplay display);
 	
 	/**
 	 * Retrieve the available actions for a given number of clicks on a point
@@ -62,7 +65,9 @@ public interface ClickActionProvider extends GoldenGateImaginePlugin {
 	 * @param point the point that was clicked
 	 * @param clickCount the number of clicks
 	 * @param idmp the document editor panel to use the actions in
+	 * @param display the document display the argument editor panel is a part
+	 *            of (for a wider context, may be null)
 	 * @return an array holding the actions
 	 */
-	public abstract ClickSelectionAction[] getActions(ImPage page, Point point, int clickCount, ImDocumentMarkupPanel idmp);
+	public abstract ClickSelectionAction[] getActions(ImPage page, Point point, int clickCount, ImDocumentMarkupPanel idmp, DocumentDisplay display);
 }
